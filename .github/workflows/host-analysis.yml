@@ -1,0 +1,61 @@
+name: Host APK analysis
+run-name: hostlab-${{ inputs.request_id }}
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        required: true
+        type: string
+      version_code:
+        required: true
+        type: string
+      operation:
+        required: true
+        type: choice
+        options: [info, query, decode, string_refs, decompile, audit]
+      argument:
+        required: false
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: hostlab-${{ inputs.version_code }}
+  cancel-in-progress: false
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install analysis dependencies
+        run: python -m pip install -r tools/hostlab/requirements.txt
+      - name: Download verified JADX
+        if: inputs.operation == 'audit' || inputs.operation == 'decompile'
+        run: python tools/hostlab/install_jadx.py
+      - name: Analyze private sample
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_HUB_DISABLE_PROGRESS_BARS: '1'
+          HOSTLAB_VERSION: ${{ inputs.version_code }}
+          HOSTLAB_OPERATION: ${{ inputs.operation }}
+          HOSTLAB_ARGUMENT: ${{ inputs.argument }}
+        run: python tools/hostlab/remote_job.py
+      - name: Upload bounded analysis results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: host-analysis-${{ github.run_id }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            Temp/hf-hostlab/remote-output/
+            Temp/hf-hostlab/reports/
