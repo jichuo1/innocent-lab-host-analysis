@@ -48,6 +48,7 @@ jobs:
           HOSTLAB_VERSION: ${{ inputs.version_code }}
           HOSTLAB_OPERATION: ${{ inputs.operation }}
           HOSTLAB_ARGUMENT: ${{ inputs.argument }}
+          JAVA_TOOL_OPTIONS: '-Xmx4g'
         run: python tools/hostlab/remote_job.py
       - name: Upload bounded analysis results
         if: always()
