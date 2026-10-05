@@ -36,6 +36,17 @@ def inputs(args):
                                revision=revision, token=True))
     if path.stat().st_size != row["size"] or hostlab.digest(path) != row["sha256"]:
         raise RuntimeError("APK download integrity mismatch")
+    # Hub snapshots on Linux are symlinks to extensionless blobs. dexq resolves
+    # paths before checking extensions, so stage a verified regular .apk file.
+    if path.resolve().suffix.lower() != ".apk":
+        target = hostlab.STATE / "samples" / row["sha256"] / "base.apk"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.exists() or target.stat().st_size != row["size"] or hostlab.digest(target) != row["sha256"]:
+            with tempfile.NamedTemporaryFile(dir=target.parent, suffix=".apk", delete=False) as stream:
+                temp = Path(stream.name)
+            shutil.copyfile(path, temp)
+            os.replace(temp, target)
+        path = target
     return path, {**row, "source": "huggingface", "repo": repo, "revision": revision}
 
 
