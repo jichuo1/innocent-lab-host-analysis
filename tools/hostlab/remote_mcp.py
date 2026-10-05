@@ -29,7 +29,14 @@ def runs():
 def lookup(request_id):
     if not re.fullmatch(r"[0-9a-f]{32}", request_id):
         raise ToolError("Invalid request ID")
-    return next((r for r in runs() if r["display_title"] == "hostlab-" + request_id), None)
+    mapping = hostlab.STATE / "remote-job-map" / (request_id + ".json")
+    if mapping.exists():
+        run_id = int(json.loads(mapping.read_text(encoding="utf-8"))["run_id"])
+        return json.loads(gh(["api", f"repos/{REPO}/actions/runs/{run_id}"]))
+    run = next((r for r in runs() if r["display_title"] == "hostlab-" + request_id), None)
+    if run is not None:
+        hostlab.write_json(mapping, {"run_id": run["id"]})
+    return run
 
 
 @mcp.tool()
