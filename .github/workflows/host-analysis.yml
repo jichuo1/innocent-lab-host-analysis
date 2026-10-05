@@ -60,3 +60,5 @@ jobs:
           path: |
             Temp/hf-hostlab/remote-output/
             Temp/hf-hostlab/reports/
+            !Temp/hf-hostlab/reports/**/classes/**
+            !Temp/hf-hostlab/reports/**/jadx-output/**

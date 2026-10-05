@@ -73,10 +73,10 @@ def job_result(request_id: str) -> str:
             (out / ".downloaded").touch()
         except Exception:
             raise ToolError("Results unavailable; check workflow logs or expired artifact")
-    files = [p for p in out.rglob("*") if p.is_file()]
+    files = [p for p in out.rglob("*") if p.is_file() and p.name != ".downloaded"]
     text = []
     for p in files:
-        if p.name in {"job.json", "result.txt", "summary.json"}:
+        if p.name in {"job.json", "result.txt", "summary.json", "class.java"}:
             text.append(str(p.relative_to(out)) + "\n" + p.read_text(encoding="utf-8", errors="replace")[:8000])
     return json.dumps({"run": run["html_url"], "files": [str(p) for p in files], "text": "\n".join(text)[:24000]}, ensure_ascii=False)
 
