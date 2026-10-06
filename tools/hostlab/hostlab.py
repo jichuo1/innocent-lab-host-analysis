@@ -183,6 +183,15 @@ def main():
         if row not in remote["samples"]:
             raise RuntimeError("Published manifest readback failed")
         print("Published private sample; commit=" + result.oid)
+        bootstrap_path = Path(__file__).with_name("bootstrap-samples.json")
+        bootstrap = json.loads(bootstrap_path.read_text(encoding="utf-8")) if bootstrap_path.exists() else []
+        if bootstrap_path.exists() and row["sha256"] not in bootstrap:
+            import shutil
+            if shutil.which("gh"):
+                trigger = subprocess.run(["gh", "workflow", "run", "auto-intake.yml", "--repo",
+                    "jichuo1/innocent-lab-host-analysis"], capture_output=True, timeout=30)
+                print("Automatic intake requested" if trigger.returncode == 0 else
+                      "Automatic trigger unavailable; cloud poll will retry")
     elif args.command == "fetch":
         from huggingface_hub import hf_hub_download
         row = select(data, args.version_code, args.sha256)

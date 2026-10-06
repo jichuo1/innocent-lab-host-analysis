@@ -12,7 +12,16 @@ on:
       operation:
         required: true
         type: choice
-        options: [info, query, decode, string_refs, decompile, audit]
+        options: [info, query, decode, string_refs, decompile, audit, multipath_audit]
+      source_revision:
+        required: false
+        type: string
+      apk_sha256:
+        required: false
+        type: string
+      baseline_sha256:
+        required: false
+        type: string
       argument:
         required: false
         type: string
@@ -48,6 +57,9 @@ jobs:
           HOSTLAB_VERSION: ${{ inputs.version_code }}
           HOSTLAB_OPERATION: ${{ inputs.operation }}
           HOSTLAB_ARGUMENT: ${{ inputs.argument }}
+          HOSTLAB_REVISION: ${{ inputs.source_revision }}
+          HOSTLAB_SHA: ${{ inputs.apk_sha256 }}
+          HOSTLAB_BASELINE_SHA: ${{ inputs.baseline_sha256 }}
           JAVA_TOOL_OPTIONS: '-Xmx4g'
         run: python tools/hostlab/remote_job.py
       - name: Upload bounded analysis results

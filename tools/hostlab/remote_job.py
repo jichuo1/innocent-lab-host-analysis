@@ -17,12 +17,26 @@ def main():
         raise RuntimeError("Invalid bounded input")
     os.environ["DEXQ_WORKERS"] = "2"
     repo = "innocent-lab-dev/bilibili-host-apks"
-    _, head = hostlab.api_private(repo)
-    row = hostlab.select(hostlab.manifest(repo, head), int(code), None)
+    _, current_head = hostlab.api_private(repo)
+    head = os.environ.get("HOSTLAB_REVISION") or current_head
+    sha = os.environ.get("HOSTLAB_SHA") or None
+    if not re.fullmatch(r"[0-9a-f]{40}", head) or (sha and not re.fullmatch(r"[0-9a-f]{64}", sha)):
+        raise RuntimeError("Invalid immutable sample identity")
+    samples = hostlab.manifest(repo, head)["samples"]
+    row = hostlab.select({"samples": samples}, int(code), sha)
     hostlab.write_json(hostlab.CONFIG, {"repo": repo})
     base = [sys.executable, str(Path(__file__).with_name("hostlab.py"))]
     source = ["--version-code", code, "--sha256", row["sha256"], "--revision", head]
-    if operation == "audit":
+    if operation == "multipath_audit":
+        os.environ["HOSTLAB_REVISION"] = head
+        os.environ["HOSTLAB_SHA"] = row["sha256"]
+        if not os.environ.get("HOSTLAB_BASELINE_SHA"):
+            candidates = [r for r in samples if r["version_code"] < row["version_code"] and
+                          r.get("certificate_sha256") == row.get("certificate_sha256")]
+            if candidates:
+                os.environ["HOSTLAB_BASELINE_SHA"] = max(candidates, key=lambda r:r["version_code"])["sha256"]
+        command = [sys.executable, str(Path(__file__).with_name("priority_analysis.py"))]
+    elif operation == "audit":
         command = base + ["audit"] + source
     elif operation == "decompile":
         command = base + ["decompile"] + source + ["--class", argument]
