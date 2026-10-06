@@ -15,7 +15,7 @@ Windows 双击 setup-remote.cmd；若装有 Codex CLI，会注册 hostlab-remote
 
 operation: info / query / decode / string_refs / decompile / audit / multipath_audit / regenerate_ai。
 新 APK 自动报告与 multipath_audit 包含有界 AI 分析；AI 建议不能替代真机验收。
-reports 分支保存可浏览结论，私有 Release 保存完整证据；MCP 取结果优先访问长期报告。
+reports 分支保存可浏览结论，私有 Release 只保存完整成功分析的证据；失败只保留报告记录。MCP 取结果优先访问长期报告。
 不需要 HF Token、APK、JDK、JADX 或 Android SDK。只会下载报告和有界分析结果。
 计算在 GitHub Actions Runner；分析 job 最多 45 分钟，发布 job 最多 15 分钟。Actions 附件保留 14 天，仓库报告和 Release 不按这个期限清理。
 静态证据不能替代真机验收。Actions 消耗仓库拥有者的分钟及产物额度。

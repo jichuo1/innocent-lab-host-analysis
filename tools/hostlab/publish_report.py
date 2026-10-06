@@ -82,7 +82,7 @@ def prepare(root,run_id,attempt):
     manifest_path.write_text(json.dumps({"schema":1,"files":manifest},indent=2),encoding="utf-8")
     value=compact(data)
     value.update({"report_id":key,"analysis_run_id":int(run_id),"review_commit":os.environ.get("GITHUB_SHA"),
-                  "evidence_release":f"https://github.com/{REPO}/releases/tag/{tag}"})
+                  "evidence_release":f"https://github.com/{REPO}/releases/tag/{tag}" if complete_ai else None})
     entry={"report_id":key,"version_code":code,"version_name":sample["version_name"],"apk_sha256":sha,
            "status":data["analysis_status"] if complete_ai else "AI_ANALYSIS_FAILED","ai_status":data.get("ai_status","failed"),"complete":complete_ai,"path":directory+"/report.md",
            "created_at":datetime.now(timezone.utc).isoformat(),"run_url":f"https://github.com/{REPO}/actions/runs/{run_id}",
@@ -163,6 +163,12 @@ def publish(entry,files):
             time.sleep(2)
 
 
+def publish_result(entry,files,tag,assets):
+    if entry["complete"]:
+        release(tag,assets)
+    publish(entry,files)
+
+
 if __name__=="__main__":
     if not api("")["private"]:
         raise RuntimeError("Report repository must remain private")
@@ -182,5 +188,4 @@ if __name__=="__main__":
         publish(entry,{path:"# 分析未完成\n\n本次未生成完整静态证据或 AI 报告。[查看运行日志]("+entry["run_url"]+")。\n"})
         raise SystemExit(0)
     entry,files,tag,assets=prepare(root,run_id,attempt)
-    release(tag,assets)
-    publish(entry,files)
+    publish_result(entry,files,tag,assets)

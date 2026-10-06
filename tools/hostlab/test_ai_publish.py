@@ -42,7 +42,20 @@ class AiBoundaryTest(unittest.TestCase):
             (out/"priority-report.md").write_text("未完成",encoding="utf-8")
             entry,files,_,_=publish_report.prepare(root,"123","1")
             self.assertFalse(entry["complete"])
+            self.assertIsNone(entry["release_url"])
             self.assertFalse(any(path.endswith("latest.json") for path in files))
+
+    def test_failed_analysis_never_creates_release(self):
+        with patch.object(publish_report,"release") as release, patch.object(publish_report,"publish") as publish:
+            publish_report.publish_result({"complete":False},{},"tag",[])
+            release.assert_not_called()
+            publish.assert_called_once()
+
+    def test_completed_analysis_archives_release(self):
+        with patch.object(publish_report,"release") as release, patch.object(publish_report,"publish") as publish:
+            publish_report.publish_result({"complete":True},{},"tag",[])
+            release.assert_called_once_with("tag",[])
+            publish.assert_called_once()
 
     def test_compact_summary_omits_raw_source(self):
         value={"changes":[],"source_snapshot":{"source_records":[{"path":"a.kt","sha256":"hash","source":"raw private source"}]}}

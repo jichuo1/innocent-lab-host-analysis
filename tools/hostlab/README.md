@@ -161,7 +161,7 @@ job_result 只下载结果附件，不下载 APK/DEX/完整索引；附件保留
 每次最多 6 次 API 请求、8 次只读工具、每次最多 4096 输出 token；这是请求/token 限制，不是美元扣费硬上限。
 模型只读证据、源码片段及受限类反编译；没有 shell、任意路径、密钥读取或仓库写工具。
 报告包含 AI 建议和 E000/E001… 证据引用；引用存在不代表建议已正确或真机已适配。
-AI 失败会保留失败记录，不更新 latest.json，也不会标为完整 AI 分析。
+AI 失败会在 reports 分支保留失败记录，不创建 Release，不更新 latest.json，也不会标为完整 AI 分析。
 MCP 示例：submit_job(9140200, "multipath_audit", "")。
 重生成已有静态结果：submit_job(9140400, "regenerate_ai", "原分析run ID")，无需重新扫描同一份 APK。
 
