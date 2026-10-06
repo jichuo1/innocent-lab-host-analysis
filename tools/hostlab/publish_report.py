@@ -38,6 +38,19 @@ def compact(data):
     return value
 
 
+def evidence_note(data):
+    matrix=data.get("page_path_matrix") or {}
+    paths=[path for page in matrix.values() for path in page.get("paths",{}).values()]
+    observed=sum(path.get("evidence")=="static_invoke_observed" for path in paths)
+    absent=sum(path.get("evidence")=="absent" for path in paths)
+    return ("## 静态事实核对（程序计算）\n\n"
+        f"登记页面 {len(matrix)} 个，登记路径 {len(paths)} 条；其中 {observed} 条有静态调用证据，{absent} 条未检出。"
+        "路径数量与状态以静态矩阵为准，AI 文字可能存在计数或解释错误。\n\n"
+        "方法定义数与调用边数不是同一计量单位，二者相除不能作为覆盖率或故障判据。"
+        "证据 ID 校验只检查引用存在，不代表每项 AI 推论都已验证。"
+        "未提交源码应按文件哈希追溯，不应为采纳 AI 建议而清理或丢弃工作树。\n\n")
+
+
 def prepare(root,run_id,attempt):
     data=json.loads((root/"remote-output/priority-summary.json").read_text(encoding="utf-8"))
     sample=data["sample"]
@@ -75,7 +88,7 @@ def prepare(root,run_id,attempt):
            "created_at":datetime.now(timezone.utc).isoformat(),"run_url":f"https://github.com/{REPO}/actions/runs/{run_id}",
            "release_url":value["evidence_release"]}
     entry["request_id"]=os.environ.get("HOSTLAB_REQUEST_ID")
-    files={directory+"/report.md":(root/"remote-output/priority-report.md").read_text(encoding="utf-8"),
+    files={directory+"/report.md":evidence_note(data)+(root/"remote-output/priority-report.md").read_text(encoding="utf-8"),
            directory+"/summary.json":json.dumps(value,ensure_ascii=False,indent=2),
            directory+"/evidence.json":json.dumps({"release":value["evidence_release"],"files":manifest},indent=2)}
     if complete_ai:

@@ -206,6 +206,7 @@ def run(root):
                  "overview":string,"pages":{"type":"array","items":{"type":"object","properties":{"page":string,"assessment":string,"evidence_ids":{"type":"array","items":string}},"required":["page","assessment","evidence_ids"]}},
                  "findings":{"type":"array","items":{"type":"object","properties":{"title":string,"page":string,"level":{"type":"string","enum":["candidate","static_evidence","needs_runtime"]},"analysis":string,"recommendation":string,"evidence_ids":{"type":"array","items":string}},"required":["title","page","level","analysis","recommendation","evidence_ids"]}},
                  "next_steps":{"type":"array","items":string}},["overview","pages","findings","next_steps"])]
+    messages[0]["content"] += "登记路径须逐项计数，absent不能写成已观测。方法定义数与调用边数不是同一单位，禁止相除推断覆盖率。未提交源码按文件哈希追溯，不建议清理工作树。"
     profile = "backup" if os.environ.get("AI_DEFAULT_PROFILE", "primary").lower() == "backup" else "primary"
     attempts, completed = [], None
     fallback = os.environ.get("AI_ALLOW_FALLBACK", "true").lower() == "true"
