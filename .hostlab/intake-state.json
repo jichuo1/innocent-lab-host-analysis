@@ -36,9 +36,12 @@
     "b9de430ac9861440f094992926e699a0": {
       "sample": "2b45ab0d934cbe000082caedfa360864de60ab46cd4d45488ae31f35693a927e",
       "version_code": 9140400,
-      "status": "submitted"
+      "status": "completed",
+      "run_id": 37449495481,
+      "conclusion": "success",
+      "url": "https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/37449495481"
     }
   },
-  "mode": "static_only_ai_not_configured",
+  "mode": "static_plus_bounded_ai_review",
   "initialized_revision": "e87fda0285f99c8ac568060b878a184a126fb778"
 }
