@@ -1,4 +1,4 @@
-"""Cloud-only poll: new samples trigger pinned multi-path analysis, never AI billing."""
+"""Cloud-only poll: new samples trigger pinned multi-path analysis and bounded AI review."""
 import base64
 from datetime import datetime, timezone
 import hashlib
@@ -52,7 +52,7 @@ def main():
         bootstrap = json.loads(bootstrap_path.read_text(encoding="utf-8")) if bootstrap_path.exists() else []
         state = {"schema": 1, "seen": sorted(set([r["sha256"] for r in rows] + bootstrap)),
                  "watermark": max((r["version_code"] for r in rows), default=0), "jobs": {},
-                 "mode": "static_only_ai_not_configured", "initialized_revision": revision}
+                 "mode": "static_plus_bounded_ai_review", "initialized_revision": revision}
         file = None
     old_state = json.dumps(state, sort_keys=True)
     fresh, eligible = choose_new(state, rows)
