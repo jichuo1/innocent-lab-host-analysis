@@ -5,6 +5,7 @@
     "166870077b7dd0214e11aaee07a651412a03d2133b27898c79f5cae712d81e15",
     "1e80826c8d922657d88915fdf66675798ab6b49362133505c028c979b76c81ab",
     "21b3743d06f24b80d54ef9eaebd15a7cd0aa1ec74f732d75b0647e019cf7ef86",
+    "2b45ab0d934cbe000082caedfa360864de60ab46cd4d45488ae31f35693a927e",
     "2bbe6e9b51bede46fa681e846f80ccb9c9a8cbb462b6965d0155548f411ff66c",
     "2d647f4a5c4a61cc415a833a5c0b5b8a752c9a68fcfa6f1104d0c90bad9c4038",
     "33b029d98c28bd0570ca7f0a65c862b2faa8039552f5ecf7935edcc38dc289c7",
@@ -30,8 +31,14 @@
     "ec9b1ad929f725bdc62344039b50f7a8dfa0a00f6784844e44c347c66a73439c",
     "fc5ff38ff05a8841e89df7aaeeadbf249a4cee8ad1dff5245b6cd05d2a633567"
   ],
-  "watermark": 9140200,
-  "jobs": {},
+  "watermark": 9140400,
+  "jobs": {
+    "b9de430ac9861440f094992926e699a0": {
+      "sample": "2b45ab0d934cbe000082caedfa360864de60ab46cd4d45488ae31f35693a927e",
+      "version_code": 9140400,
+      "status": "submitted"
+    }
+  },
   "mode": "static_only_ai_not_configured",
   "initialized_revision": "e87fda0285f99c8ac568060b878a184a126fb778"
 }
