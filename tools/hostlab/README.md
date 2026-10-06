@@ -21,6 +21,11 @@ SDK 凭据保存在用户级标准 Hugging Face 缓存；项目配置只保存�
 
 ## 使用
 
+本机快捷上传：将一个或多个 APK 拖到 `tools/hostlab/upload-apk.cmd`。
+也可以使用 `artifacts/hostlab/上传新APK.lnk`（本机快捷方式，绝对路径，不用于跨电脑分享）。
+逐个校验并上传，失败最多重试三次；已发布哈希自动跳过，不要求更改 APK 文件名。
+本机配置的代理可用时会使用它，端口关闭则回退默认线路；Xet 高性能模式保持启用。
+
 ```powershell
 tools/hostlab/.venv/Scripts/python.exe tools/hostlab/hostlab.py inventory Bilibili_Innocent_Lab
 tools/hostlab/.venv/Scripts/python.exe tools/hostlab/hostlab.py upload "APK的绝对路径"

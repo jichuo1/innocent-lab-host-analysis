@@ -131,6 +131,23 @@ def main():
     fetch.add_argument("--sha256")
     fetch.add_argument("--revision")
     args = parser.parse_args()
+    if args.command == "upload":
+        os.environ["HF_XET_HIGH_PERFORMANCE"] = "1"
+        transfer_file = STATE / "transfer-settings.json"
+        if transfer_file.exists():
+            import socket
+            from urllib.parse import urlsplit
+            proxy = json.loads(transfer_file.read_text(encoding="utf-8")).get("proxy", "")
+            parsed = urlsplit(proxy)
+            if parsed.hostname in {"127.0.0.1", "localhost", "::1"} and parsed.port:
+                try:
+                    with socket.create_connection((parsed.hostname, parsed.port), timeout=0.5):
+                        pass
+                    os.environ["HTTP_PROXY"] = proxy
+                    os.environ["HTTPS_PROXY"] = proxy
+                    print("Using the configured local upload proxy")
+                except OSError:
+                    print("Local upload proxy unavailable; using the default route")
     if args.command == "login":
         from getpass import getpass
         from huggingface_hub import login
