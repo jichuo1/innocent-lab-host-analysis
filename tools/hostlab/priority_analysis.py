@@ -74,8 +74,11 @@ def main():
                "protocol_twins": target["protocol_twins"], "unregistered_protocols": target["unregistered_protocols"],
                "unclassified_protocol_callers": target["unclassified_protocol_callers"],
                "runtime_verified": False, "limitations": target["limitations"]}
+    summary["analysis_status"] = "REVIEW_REQUIRED" if (changes or target["unknown_families"] or
+        target["unregistered_protocols"] or (source_context or {}).get("unmapped_multi_path_candidates")) else "NO_STATIC_DRIFT_FOUND"
     hostlab.write_json(out / "priority-summary.json", summary)
-    lines = ["# 页面多路径覆盖与样式变化审计", "", "评论区、动态页最高优先级；所有登记路径分别核对。静态证据；AI 未接入，运行期样式启用未知。", "",
+    lines = ["# 页面多路径覆盖与样式变化审计", "", "分析结果：" + summary["analysis_status"], "",
+             "任务执行成功不等于模块适配通过。评论区、动态页最高优先级；所有登记路径分别核对。静态证据；AI 未接入，运行期样式启用未知。", "",
              "| 家族 | 类数 | Compose 方法 | 外部 invoke 边 | 证据 |", "|---|---:|---:|---:|---|"]
     for family, r in target["families"].items():
         lines.append(f"| {family} | {r['classes']} | {r['compose_methods']} | {r['external_invoke_edges']} | {r['evidence']} |")
