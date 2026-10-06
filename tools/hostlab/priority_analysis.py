@@ -71,6 +71,7 @@ def main():
                "source_snapshot": source_context,
                "page_path_matrix": target["page_path_matrix"],
                "protocol_paths": target["protocol_paths"],
+               "protocol_twins": target["protocol_twins"], "unregistered_protocols": target["unregistered_protocols"],
                "unclassified_protocol_callers": target["unclassified_protocol_callers"],
                "runtime_verified": False, "limitations": target["limitations"]}
     hostlab.write_json(out / "priority-summary.json", summary)

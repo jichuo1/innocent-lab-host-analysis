@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "dexq"))
 import dexq_workers as W
 
-RULE_VERSION = 2
+RULE_VERSION = 3
 RULE_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 FAMILIES = {
     "comment_legacy_v2": ("Lcom/bilibili/app/comm/comment2/",),
@@ -113,6 +113,8 @@ def scan(job):
     protocol_owners = {v: k for k, v in PROTOCOLS.items()}
     for idx, method in enumerate(method_ids):
         owner = method.get_class_name()
+        if owner.startswith("Lcom/bapis/") and owner.endswith("Moss;") and owner not in protocol_owners:
+            protocol_owners[owner] = "unregistered_protocol:" + owner
         target_family = protocol_owners.get(owner) or family(owner)
         if target_family:
             target_indices[idx] = (target_family, owner, method.get_name(), W.norm_proto(method.get_descriptor()))
@@ -172,14 +174,26 @@ def summarize(parts):
                        "runtime_enabled": "unknown", "module_coverage": "requires_installer_review"}
     definitions = [r for p in parts for r in p["protocol_definitions"]]
     protocols = {}
-    for key, descriptor in PROTOCOLS.items():
+    discovered = {r[1]: r[1].split(":", 1)[1] for r in definitions if r[1].startswith("unregistered_protocol:")}
+    discovered.update({e[5]: e[6] for e in edges if e[5].startswith("unregistered_protocol:")})
+    for key, descriptor in {**PROTOCOLS, **discovered}.items():
         signatures = sorted(set((r[2], r[3]) for r in definitions if r[1] == key))
         callers = [e for e in edges if e[5] == key and e[2] != descriptor]
         protocols[key] = {"definitions": len(signatures), "signatures": signatures,
                           "actual_invoke_edges": len(callers), "runtime_enabled": "unknown"}
+    descriptors = {**{value:key for key,value in PROTOCOLS.items()}, **{value:key for key,value in discovered.items()}}
+    twins = []
+    for owner, key in descriptors.items():
+        prefix, name = owner.rsplit("/", 1)
+        if name.startswith("K"):
+            java = prefix + "/" + name[1:]
+            if java in descriptors:
+                twins.append({"java": java, "kotlin": owner, "java_path": protocols[descriptors[java]],
+                              "kotlin_path": protocols[key], "requires_page_mapping": key.startswith("unregistered_protocol:")})
     return {"rule_version": RULE_VERSION, "rule_sha256": RULE_SHA256, "scope": "offline_static_only", "families": result,
+            "protocol_twins": twins, "unregistered_protocols": sorted(discovered),
             "protocol_paths": protocols,
-            "unclassified_protocol_callers": [e for e in edges if e[1] == "external_or_unknown" and e[5] in PROTOCOLS and e[2] != e[6]],
+            "unclassified_protocol_callers": [e for e in edges if e[1] == "external_or_unknown" and e[5] in protocols and e[2] != e[6]],
             "page_path_matrix": {page: {"paths": {k: result[k] for k in keys},
                 "protocols": {k: protocols[k] for k in PAGE_PROTOCOLS.get(page, [])},
                 "complete_coverage": False, "status": "installer_and_runtime_validation_required"}
