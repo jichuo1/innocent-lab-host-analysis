@@ -63,7 +63,7 @@ def main():
             job.update({"run_id": run["id"], "status": run["status"], "conclusion": run["conclusion"], "url": run["html_url"]})
     dispatched = []
     for row in sorted(eligible, key=lambda r:r["version_code"])[:2]:
-        key = hashlib.sha256((row["sha256"] + ":multipath-v3").encode()).hexdigest()[:32]
+        key = hashlib.sha256((row["sha256"] + ":multipath-v4").encode()).hexdigest()[:32]
         # Deterministic title also closes the dispatch-success/state-write-failure window.
         existing = next((r for r in existing_runs if r["display_title"] == "hostlab-" + key), None)
         if key not in state["jobs"] and existing:

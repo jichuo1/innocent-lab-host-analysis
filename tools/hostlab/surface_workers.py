@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "dexq"))
 import dexq_workers as W
 
-RULE_VERSION = 3
+RULE_VERSION = 4
 RULE_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 FAMILIES = {
     "comment_legacy_v2": ("Lcom/bilibili/app/comm/comment2/",),
@@ -104,9 +104,18 @@ def scan(job):
             owners[name] = group
             fields = sorted((f.get_name(), f.get_descriptor()) for f in cls.get_fields())
             methods = sorted((m.get_name(), W.norm_proto(m.get_descriptor())) for m in cls.get_methods())
+            bodies = hashlib.sha256()
+            for method in sorted(cls.get_methods(), key=lambda m:(m.get_name(), m.get_descriptor())):
+                bodies.update((method.get_name() + W.norm_proto(method.get_descriptor())).encode())
+                code = method.get_code()
+                if code is not None:
+                    bytecode = code.get_bc()
+                    raw = getattr(bytecode, "insn", None)
+                    bodies.update(raw if isinstance(raw, (bytes, bytearray)) else bytecode.get_raw())
             composer = [n + p for n, p in methods if "Landroidx/compose/runtime/Composer;" in p]
             classes.append({"file_id": file_id, "family": group, "class": name,
                 "superclass": cls.get_superclassname(), "fields": fields, "methods": methods,
+                "method_bodies_sha256": bodies.hexdigest(),
                 "compose_signatures": composer})
     method_ids = dex.get_methods()
     target_indices = {}

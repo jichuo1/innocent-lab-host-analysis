@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import zipfile
+import hashlib
 import analyze
 import hostlab
 import surface_workers as W
@@ -19,7 +20,25 @@ def scan_apk(apk, sample):
     with ProcessPoolExecutor(max_workers=min(2, os.cpu_count() or 1), initializer=W.W.init_worker) as pool:
         report = W.summarize(list(pool.map(W.scan, jobs)))
     report["sample"] = sample
+    resources = {}
+    with zipfile.ZipFile(apk) as archive:
+        for entry in archive.infolist():
+            if entry.filename != "resources.arsc" and not (entry.filename.startswith("res/") and entry.filename.endswith(".xml")):
+                continue
+            digest = hashlib.sha256()
+            with archive.open(entry) as stream:
+                for chunk in iter(lambda: stream.read(65536), b""):
+                    digest.update(chunk)
+            resources[entry.filename] = digest.hexdigest()
+    report["resource_fingerprints"] = resources
     return report
+
+
+def resource_changes(base, target):
+    before, after = base.get("resource_fingerprints", {}), target.get("resource_fingerprints", {})
+    return {"added": sorted(set(after)-set(before)), "removed": sorted(set(before)-set(after)),
+            "changed": sorted(k for k in set(before)&set(after) if before[k] != after[k]),
+            "scope": "global_resources_not_yet_attributed_to_pages"}
 
 
 def resolve(code, sha, revision):
@@ -62,6 +81,7 @@ def main():
         baseline = scan_apk(apk, sample)
         hostlab.write_json(out / "priority-baseline.json", baseline)
     changes = W.compare(baseline, target) if baseline else []
+    resource_diff = resource_changes(baseline, target) if baseline else None
     context = Path(__file__).with_name("production-context.json")
     source_context = json.loads(context.read_text(encoding="utf-8")) if context.exists() else None
     summary = {"sample": target_sample, "baseline": baseline["sample"] if baseline else None,
@@ -72,6 +92,7 @@ def main():
                "page_path_matrix": target["page_path_matrix"],
                "protocol_paths": target["protocol_paths"],
                "protocol_twins": target["protocol_twins"], "unregistered_protocols": target["unregistered_protocols"],
+               "resource_changes": resource_diff,
                "unclassified_protocol_callers": target["unclassified_protocol_callers"],
                "runtime_verified": False, "limitations": target["limitations"]}
     summary["analysis_status"] = "REVIEW_REQUIRED" if (changes or target["unknown_families"] or
@@ -83,6 +104,7 @@ def main():
     for family, r in target["families"].items():
         lines.append(f"| {family} | {r['classes']} | {r['compose_methods']} | {r['external_invoke_edges']} | {r['evidence']} |")
     lines += ["", "## 需要复核的变化", "", *[f"- {r['family']}: {r['kind']}" for r in changes],
+              "", "## 原生资源变化", "", str({k:len(v) for k,v in (resource_diff or {}).items() if isinstance(v,list)}),
               "", "## 未归类的源码多路径候选", "", *["- " + name for name in (source_context or {}).get("unmapped_multi_path_candidates", [])],
               "", "## 未归类协议调用者", "", "完整列表见 priority-summary.json；这些调用者不会静默排除。",
               "", "## 未覆盖边界", "", *["- " + s for s in target["limitations"]]]
