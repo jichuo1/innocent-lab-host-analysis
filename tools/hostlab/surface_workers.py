@@ -79,11 +79,13 @@ def family(name):
         if name.startswith(prefixes):
             return key
     if name.startswith("Lcom/bilibili/app/comment3/ui/"):
-        return "comment_other_ui:" + name.split("/")[5]
+        parts = name.split("/")
+        return "comment_other_ui:" + (parts[5] if len(parts) > 6 else "(root)")
     if name.startswith("Lkntr/common/comment"):
         return "comment_other_compose"
     if name.startswith("Lkntr/app/following/"):
-        return "dynamic_other:" + name.split("/")[4]
+        parts = name.split("/")
+        return "dynamic_other:" + (parts[3] if len(parts) > 4 else "(root)")
     if name.startswith("Lcom/bilibili/bplus/") and any(s in name.lower() for s in ("dynamic", "following", "feed")):
         return "dynamic_other_legacy"
     return None
