@@ -1,6 +1,7 @@
 # 仅远程分析客户端
 
 解压到项目根，使文件位于 tools/hostlab。需要 Python 3.13 和 GitHub CLI。
+运行环境在 tools/hostlab/.venv-remote，结果与配置在 runtime/hostlab；不使用项目临时目录。
 管理员先把你的 GitHub 账号加入私有分析仓库：jichuo1/innocent-lab-host-analysis。
 触发任务需要 Actions write 权限；使用你自己的 gh auth login，不共享管理员凭据。
 Windows 双击 setup-remote.cmd；若装有 Codex CLI，会注册 hostlab-remote。

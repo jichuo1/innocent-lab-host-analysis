@@ -70,7 +70,7 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
           path: |
-            Temp/hf-hostlab/remote-output/
-            Temp/hf-hostlab/reports/
-            !Temp/hf-hostlab/reports/**/classes/**
-            !Temp/hf-hostlab/reports/**/jadx-output/**
+            runtime/hostlab/remote-output/
+            runtime/hostlab/reports/
+            !runtime/hostlab/reports/**/classes/**
+            !runtime/hostlab/reports/**/jadx-output/**

@@ -7,7 +7,7 @@
 只读 APK 的 DEX，不解压到磁盘、不反编译、不联网。
 
 用法：
-    python Temp/host-compat/obfuscated_owner_drift.py Bilibili_Innocent_Lab/*.apk
+    python tools/hostlab/analysis/obfuscated_owner_drift.py Bilibili_Innocent_Lab/*.apk
 """
 
 import glob

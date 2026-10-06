@@ -1,5 +1,7 @@
 # 私有宿主 APK 共享与离线分析工具
 
+固定目录：源码及环境 `tools/hostlab/`（`.venv` / `.venv-remote`），配置、缓存及报告 `runtime/hostlab/`，分享压缩包 `artifacts/hostlab/`。
+
 工具支持按需取包、混淆漂移检查、27 项 FEATURE 结构审计、新首页框架探针、报告对比及指定类反编译。静态审计通过不能代替设备验收。审计规则复用现有本地脚本，并非全部运行期功能覆盖。
 
 ## 首次配置
@@ -7,10 +9,10 @@
 在仓库根运行：
 
 ```powershell
-python -m venv Temp/hf-hostlab-venv
-Temp/hf-hostlab-venv/Scripts/python.exe -m pip install -r tools/hostlab/requirements.txt
-Temp/hf-hostlab-venv/Scripts/python.exe tools/hostlab/hostlab.py login
-Temp/hf-hostlab-venv/Scripts/python.exe tools/hostlab/hostlab.py configure 组织名/仓库名
+python -m venv tools/hostlab/.venv
+tools/hostlab/.venv/Scripts/python.exe -m pip install -r tools/hostlab/requirements.txt
+tools/hostlab/.venv/Scripts/python.exe tools/hostlab/hostlab.py login
+tools/hostlab/.venv/Scripts/python.exe tools/hostlab/hostlab.py configure 组织名/仓库名
 ```
 
 登录时 Token 在终端隐藏输入，不发到聊天，不放入源码。朋友使用自己的只读 Token。
@@ -20,14 +22,14 @@ SDK 凭据保存在用户级标准 Hugging Face 缓存；项目配置只保存�
 ## 使用
 
 ```powershell
-Temp/hf-hostlab-venv/Scripts/python.exe tools/hostlab/hostlab.py inventory Bilibili_Innocent_Lab
-Temp/hf-hostlab-venv/Scripts/python.exe tools/hostlab/hostlab.py upload "APK的绝对路径"
-Temp/hf-hostlab-venv/Scripts/python.exe tools/hostlab/hostlab.py list
-Temp/hf-hostlab-venv/Scripts/python.exe tools/hostlab/hostlab.py fetch --version-code 9140200
+tools/hostlab/.venv/Scripts/python.exe tools/hostlab/hostlab.py inventory Bilibili_Innocent_Lab
+tools/hostlab/.venv/Scripts/python.exe tools/hostlab/hostlab.py upload "APK的绝对路径"
+tools/hostlab/.venv/Scripts/python.exe tools/hostlab/hostlab.py list
+tools/hostlab/.venv/Scripts/python.exe tools/hostlab/hostlab.py fetch --version-code 9140200
 ```
 
 同 versionCode 多样本时必须加 `--sha256 完整哈希`。复现时加 `--revision 完整仓库提交`。
-清单不含原始本地路径；本机盘点结果存在被忽略的 `Temp/hf-hostlab/`。
+清单不含原始本地路径；本机盘点结果存在被忽略的 `runtime/hostlab/`。
 上传需 Android SDK 的 aapt/apksigner 及 Java，目前收包端面向 Windows；下载端无需 SDK。
 下载得到的 APK 路径可交给原来的 `run_intake.py` / JADX CLI。
 工具没有自动删除缓存、改仓库可见性、添加成员、启动付费 Jobs 的行为。
@@ -48,20 +50,20 @@ Temp/hf-hostlab-venv/Scripts/python.exe tools/hostlab/hostlab.py fetch --version
 
 ```powershell
 # 检查 Java、JADX、SDK；不自动安装系统软件
-Temp/hf-hostlab-venv/Scripts/python.exe tools/hostlab/hostlab.py doctor
+tools/hostlab/.venv/Scripts/python.exe tools/hostlab/hostlab.py doctor
 # 云端指定版本：下载校验后执行完整审计
-Temp/hf-hostlab-venv/Scripts/python.exe tools/hostlab/hostlab.py audit --version-code 9140200
+tools/hostlab/.venv/Scripts/python.exe tools/hostlab/hostlab.py audit --version-code 9140200
 # 轻量检查：漂移和新首页探针，不要求 Java/JADX
-Temp/hf-hostlab-venv/Scripts/python.exe tools/hostlab/hostlab.py audit --version-code 9140200 --mode basic
+tools/hostlab/.venv/Scripts/python.exe tools/hostlab/hostlab.py audit --version-code 9140200 --mode basic
 # 指定类反编译，只接受真实 DEX 类名，不使用 GUI
-Temp/hf-hostlab-venv/Scripts/python.exe tools/hostlab/hostlab.py decompile --version-code 9140200 --class com.bapis.bilibili.main.community.reply.v1.Content
+tools/hostlab/.venv/Scripts/python.exe tools/hostlab/hostlab.py decompile --version-code 9140200 --class com.bapis.bilibili.main.community.reply.v1.Content
 # 对比两份完整报告
-Temp/hf-hostlab-venv/Scripts/python.exe tools/hostlab/hostlab.py compare --base "旧版summary.json路径" --target "新版summary.json路径"
+tools/hostlab/.venv/Scripts/python.exe tools/hostlab/hostlab.py compare --base "旧版summary.json路径" --target "新版summary.json路径"
 # 离线使用本地 APK，无需 Hugging Face 登录
-Temp/hf-hostlab-venv/Scripts/python.exe tools/hostlab/hostlab.py audit --apk "APK绝对路径"
+tools/hostlab/.venv/Scripts/python.exe tools/hostlab/hostlab.py audit --apk "APK绝对路径"
 ```
 
-输出位于 `Temp/hf-hostlab/reports/<versionCode>/<hash>/<时间>/`。
+输出位于 `runtime/hostlab/reports/<versionCode>/<hash>/<时间>/`。
 包括 summary.json、features.tsv、intake.log、home-frame.log；反编译有 class.java 和 decompile.log。
 报告记录样本身份、云端提交（若适用）、工具源码哈希和 JADX JAR 哈希。
 审计源码是现有离线工具的快照，未自动同步生产 VersionAdapter；例如旧候选表 MISSING 不能单独证明当前 DexKit 兜底失效。发现问题后仍需核对生产定位器与实际语义。
@@ -90,7 +92,7 @@ tools\hostlab\hostlab.cmd dexq tables --version-code 9140200
 ```
 
 支持 `--apk` 本地输入或 `--revision` 固定云端提交。CLI 每次打开数据集，但会复用磁盘索引。
-缓存放 `Temp/hf-hostlab/dexq-cache`，不进压缩包；每个大宿主索引可能超过 1 GB。
+缓存放 `runtime/hostlab/dexq-cache`，不进压缩包；每个大宿主索引可能超过 1 GB。
 同一 APK 的首次索引不要并发执行。SQL 只读、单条、60 秒限时，输出最多 1000 行。
 refs 不解析接口分派/子类重写；decode 输出 smali 类文本，不是 Java。
 
@@ -160,9 +162,9 @@ Actions 使用账户分钟和产物额度，超出额度可能收费；每任务
 管理员完成 inventory 后运行：
 
 ```powershell
-Temp/hf-hostlab-venv/Scripts/python.exe tools/hostlab/upload_inventory.py
+tools/hostlab/.venv/Scripts/python.exe tools/hostlab/upload_inventory.py
 ```
 
 每个样本和清单同次提交；中断后重跑跳过已登记哈希。
-三次失败后停止，状态写入 `Temp/hf-hostlab/upload-state.json`。
+三次失败后停止，状态写入 `runtime/hostlab/upload-state.json`。
 状态中的 completed 代表成功发布及清单回读，不代表重新下载全部文件。

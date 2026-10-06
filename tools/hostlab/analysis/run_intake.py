@@ -1,9 +1,9 @@
 """宿主升版接入：身份、字母表漂移、可选 jadx 结构审计、与上一版 FEATURE 对照。
 
 用法（仓库根）：
-    python Temp/host-compat/run_intake.py path/to/bili.apk
-    python Temp/host-compat/run_intake.py path/to/bili.apk --prev Temp/host-compat/fixed-audits/9.10.0.tsv
-    python Temp/host-compat/run_intake.py path/to/bili.apk --audit --prev ...
+    python tools/hostlab/analysis/run_intake.py path/to/bili.apk
+    python tools/hostlab/analysis/run_intake.py path/to/bili.apk --prev tools/hostlab/analysis/fixed-audits/9.10.0.tsv
+    python tools/hostlab/analysis/run_intake.py path/to/bili.apk --audit --prev ...
 
 不联网、不写 APK。--audit 需要本机 jadx-*-all.jar，9.10 量级要数分钟。
 """
@@ -353,7 +353,7 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument(
         "--tsv",
-        help="audit output TSV; default Temp/host-compat/fixed-audits/<versionName>.tsv",
+        help="audit output TSV; default tools/hostlab/analysis/fixed-audits/<versionName>.tsv",
     )
     args = parser.parse_args(argv)
     apk = os.path.abspath(args.apk)

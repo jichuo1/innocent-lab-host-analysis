@@ -13,7 +13,7 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-STATE = ROOT / "Temp" / "hf-hostlab"
+STATE = ROOT / "runtime" / "hostlab"
 CONFIG = STATE / "config.json"
 
 

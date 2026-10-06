@@ -7,7 +7,7 @@
 3. 要不要加 `ADAPTER_RULE_VERSION` 或 `SCHEMA_VERSION`；
 4. 哪些域静态 FOUND 仍必须进真机。
 
-工具与产物都在本目录，已被仓库根 `.gitignore` 的 `Temp/` 排除。可复用结论必须回填 `docs/development_experience.md`，不要把 TSV 或反编译当唯一档案。
+本文件是历史审计清单的工具包副本。工具源码在 `tools/hostlab/analysis/`，当前统一入口为 `tools/hostlab/hostlab.cmd`；配置、缓存与报告保存到 `runtime/hostlab/`，分享包保存到 `artifacts/hostlab/`。下面的旧版接入经验不是当前生产覆盖结论。
 
 当前 Adapter 版本（动手前从源码复核，不要抄旧条目）：
 
@@ -39,9 +39,9 @@
 ## 1. 收样与身份
 
 ```text
-APK 放置：Temp/host-compat/apks/bili-<versionName>.apk
-审计输出：Temp/host-compat/fixed-audits/<versionName>.tsv
-表面探针：Temp/host-compat/surfaces/<versionName>.tsv   （可选）
+APK 放置：tools/hostlab/analysis/apks/bili-<versionName>.apk
+审计输出：tools/hostlab/analysis/fixed-audits/<versionName>.tsv
+表面探针：tools/hostlab/analysis/surfaces/<versionName>.tsv   （可选）
 ```
 
 核对（缺一项就停）：
@@ -55,21 +55,21 @@ APK 放置：Temp/host-compat/apks/bili-<versionName>.apk
 
 ```powershell
 $env:PYTHONIOENCODING = "utf-8"
-python Temp/host-compat/run_intake.py path\to\bili.apk
+python tools/hostlab/analysis/run_intake.py path\to\bili.apk
 ```
 
 `aapt` 默认找 `%LOCALAPPDATA%\Android\Sdk\build-tools\36.0.0\aapt.exe`。没有 aapt 时脚本只打印文件名，身份必须改用 Android SDK 或设备 `dumpsys package tv.danmaku.bili` 补齐。
 
 Windows 的 `aapt`/`ziparchive` **打不开路径里有非 ASCII 的 APK**（工程目录里那份 `哔哩哔哩-9.10.0(9100200).apk` 会直接 `Illegal byte sequence`）。`run_intake.py` 会拷到临时英文名再 dump；手跑 aapt 时自己先拷一份。Git Bash 控制台请设 `PYTHONIOENCODING=utf-8`，否则缺口说明会乱码。
 
-建议把新 APK 放到 `Temp/host-compat/apks/bili-<versionName>.apk`（纯 ASCII），不要长期放在 Gradle 工程目录里用中文文件名。
+建议把新 APK 放到 `tools/hostlab/analysis/apks/bili-<versionName>.apk`（纯 ASCII），不要长期放在 Gradle 工程目录里用中文文件名。
 
 ---
 
 ## 2. 字母表漂移（无 jadx，必跑）
 
 ```powershell
-python Temp/host-compat/obfuscated_owner_drift.py Temp/host-compat/apks/bili-<ver>.apk
+python tools/hostlab/analysis/obfuscated_owner_drift.py tools/hostlab/analysis/apks/bili-<ver>.apk
 ```
 
 一次核对三处「稳定包 + 单字母类名」：
@@ -93,16 +93,16 @@ python Temp/host-compat/obfuscated_owner_drift.py Temp/host-compat/apks/bili-<ve
 本机 jadx：`C:\Users\Administrator\jadx\lib\jadx-1.5.6-all.jar`（1.5.6）。09-03 条目写「本机没有 jadx jar」已经过时。
 
 ```powershell
-python Temp/host-compat/run_intake.py path\to\bili.apk --audit --prev Temp/host-compat/fixed-audits/<上一版>.tsv
+python tools/hostlab/analysis/run_intake.py path\to\bili.apk --audit --prev tools/hostlab/analysis/fixed-audits/<上一版>.tsv
 ```
 
 或手编：
 
 ```powershell
 $jadx = "C:\Users\Administrator\jadx\lib\jadx-1.5.6-all.jar"
-$out  = "Temp\host-compat\audit-classes"
-javac -encoding UTF-8 -cp $jadx -d $out Temp\host-compat\HostCompatibilityAudit.java
-java  -cp "$out;$jadx" HostCompatibilityAudit path\to\bili.apk Temp\host-compat\fixed-audits\<ver>.tsv
+$out  = "tools\hostlab\analysis\audit-classes"
+javac -encoding UTF-8 -cp $jadx -d $out tools\hostlab\analysis\HostCompatibilityAudit.java
+java  -cp "$out;$jadx" HostCompatibilityAudit path\to\bili.apk tools\hostlab\analysis\fixed-audits\<ver>.tsv
 ```
 
 9.10.0 量级约 29 万类，单线程跑完要几分钟。`fixed-audits/9.10.0.tsv` **不含** `comment_topology`（审计器后补的），不能当当前覆盖基线；换版后应重新产出。
@@ -160,7 +160,7 @@ java  -cp "$out;$jadx" HostCompatibilityAudit path\to\bili.apk Temp\host-compat\
 | 话题/GAd 播放器下方卡片 | 同安装器的 `IAdUnderPlayer` 运行时实现 | 离线很难证；真机看诊断 |
 | 播放器互动层 | `locatePlayerInteractiveOverlays` | 两个 Guide 家族、DmResource 第二载体、三个 Moss 边界、DmViewReply.activityMeta；默认实例保护和章节点保留必须完整 |
 | 影视大会员自动半屏 | `PgcAutoActivityPopupLocator` | 不仅要 constructWith 签名，还要安装期校验 play_half_container 的参数顺序、类型和可空性，并验证真实模型过滤 |
-| 新首页框架（平板/宽屏）的底栏与顶栏 Tab | `HomeFrameTabLocator`（`bottom_bar` / `home_tab_filter` 的 `frame` 层） | `python Temp/host-compat/home_frame_audit.py <apk>`：序列化名、元素顺序（按 iput 源寄存器实证）、ViewModel 签名两跳、Companion `serializer()` 都要过；`new_frame_probe.py` 看新旧框架标记。长期文档 2026-09-23（六） |
+| 新首页框架（平板/宽屏）的底栏与顶栏 Tab | `HomeFrameTabLocator`（`bottom_bar` / `home_tab_filter` 的 `frame` 层） | `python tools/hostlab/analysis/home_frame_audit.py <apk>`：序列化名、元素顺序（按 iput 源寄存器实证）、ViewModel 签名两跳、Companion `serializer()` 都要过；`new_frame_probe.py` 看新旧框架标记。长期文档 2026-09-23（六） |
 
 可选：`HostSurfaceProbe.java` 扫模块源码里的类名在 APK 中是否还在。噪音大（android.*、占位符会 MISSING），只在「某个写死全限定名突然 404」时用。
 
@@ -171,7 +171,7 @@ java  -cp "$out;$jadx" HostCompatibilityAudit path\to\bili.apk Temp\host-compat\
 有上一版 `fixed-audits/<prev>.tsv` 时：
 
 ```powershell
-python Temp/host-compat/run_intake.py path\to\new.apk --prev Temp/host-compat/fixed-audits/<prev>.tsv
+python tools/hostlab/analysis/run_intake.py path\to\new.apk --prev tools/hostlab/analysis/fixed-audits/<prev>.tsv
 ```
 
 关注：
@@ -301,7 +301,7 @@ NPatch 路径另走免 Root 契约，不在本清单里用「LSPosed 上 FOUND�
 - 真机做了哪些、明确没做哪些
 - 失败方案（猜短名、扩 DexKit、不 bump 等）
 
-只有会改变多数任务决策的结论才浓缩进 `AGENTS.md`。TSV 留在 `Temp/host-compat/`，不进公开仓库。
+只有会改变多数任务决策的结论才浓缩进 `AGENTS.md`。TSV 留在 `tools/hostlab/analysis/`，不进公开仓库。
 
 ---
 
@@ -309,12 +309,12 @@ NPatch 路径另走免 Root 契约，不在本清单里用「LSPosed 上 FOUND�
 
 ```powershell
 # 身份 + 字母表漂移 + 与上一版 TSV 对照（无 jadx）
-python Temp/host-compat/run_intake.py Temp/host-compat/apks/bili-9.11.0.apk `
-    --prev Temp/host-compat/fixed-audits/9.10.0.tsv
+python tools/hostlab/analysis/run_intake.py tools/hostlab/analysis/apks/bili-9.11.0.apk `
+    --prev tools/hostlab/analysis/fixed-audits/9.10.0.tsv
 
 # 加上 jadx 结构审计（慢）
-python Temp/host-compat/run_intake.py Temp/host-compat/apks/bili-9.11.0.apk `
-    --audit --prev Temp/host-compat/fixed-audits/9.10.0.tsv
+python tools/hostlab/analysis/run_intake.py tools/hostlab/analysis/apks/bili-9.11.0.apk `
+    --audit --prev tools/hostlab/analysis/fixed-audits/9.10.0.tsv
 ```
 
 跑完先看脚本打印的「缺口」和「rule/schema 决策」，再打开 TSV。
