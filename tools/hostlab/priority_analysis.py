@@ -41,6 +41,21 @@ def resource_changes(base, target):
             "scope": "global_resources_not_yet_attributed_to_pages"}
 
 
+def verdict(changes, target, context, resources, has_baseline):
+    reasons = []
+    if changes:
+        reasons.append("structure_or_protocol_drift")
+    if any((resources or {}).get(key) for key in ("added", "removed", "changed")):
+        reasons.append("native_resource_drift")
+    if target["unknown_families"] or target["unregistered_protocols"]:
+        reasons.append("unmapped_paths")
+    if not context or context.get("unmapped_multi_path_candidates") or context.get("working_tree_dirty"):
+        reasons.append("source_contract_review_required")
+    if not has_baseline:
+        reasons.append("no_comparable_baseline")
+    return {"status": "REVIEW_REQUIRED" if reasons else "NO_STATIC_DRIFT_FOUND", "reasons": reasons}
+
+
 def resolve(code, sha, revision):
     return analyze.inputs(SimpleNamespace(apk=None, version_code=code, sha256=sha, revision=revision))
 
@@ -95,8 +110,9 @@ def main():
                "resource_changes": resource_diff,
                "unclassified_protocol_callers": target["unclassified_protocol_callers"],
                "runtime_verified": False, "limitations": target["limitations"]}
-    summary["analysis_status"] = "REVIEW_REQUIRED" if (changes or target["unknown_families"] or
-        target["unregistered_protocols"] or (source_context or {}).get("unmapped_multi_path_candidates")) else "NO_STATIC_DRIFT_FOUND"
+    outcome = verdict(changes, target, source_context, resource_diff, baseline is not None)
+    summary["analysis_status"] = outcome["status"]
+    summary["review_reasons"] = outcome["reasons"]
     hostlab.write_json(out / "priority-summary.json", summary)
     lines = ["# 页面多路径覆盖与样式变化审计", "", "分析结果：" + summary["analysis_status"], "",
              "任务执行成功不等于模块适配通过。评论区、动态页最高优先级；所有登记路径分别核对。静态证据；AI 未接入，运行期样式启用未知。", "",
