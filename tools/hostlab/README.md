@@ -143,6 +143,9 @@ job_result 只下载结果附件，不下载 APK/DEX/完整索引；附件保留
 矩阵登记评论、动态、首页、搜索、详情、影视、播放器、弹幕、Story、我的页。
 各路径独立记录定义、Compose 形状、真实 invoke 边和 Java/Kotlin 协议，不能以一个路径通过覆盖另一个。
 未知子模块、未归类协议调用者及源码中的未映射多路径候选都输出待复核，不静默排除。
+并扫描未登记的 com.bapis *Moss 协议，自动识别 Java/Kotlin 双通道，不仅依赖已知 14 条入口。
+相关家族的方法体指纹与 APK XML/资源表指纹也参与变化发现；DEX 重排和资源 ID 变化可能造成候选差异。
+原生资源差异目前是全局范围，不能自动归因到某个页面，更不能把资源条目数当成新样式数量。
 源码证据来自 production-context.json 的固定文件哈希快照；当前快照含未提交源码，不能当作已发布生产版本。
 输出 priority-report.md / priority-summary.json / priority-target.json / priority-baseline.json 和普通审计报告。
 新家族、消失家族、签名/调用路径变化是调查候选，不自动宣称新视觉样式或 Hook 已覆盖。
