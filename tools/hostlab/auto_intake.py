@@ -63,7 +63,7 @@ def main():
             job.update({"run_id": run["id"], "status": run["status"], "conclusion": run["conclusion"], "url": run["html_url"]})
     dispatched = []
     for row in sorted(eligible, key=lambda r:r["version_code"])[:2]:
-        key = hashlib.sha256((row["sha256"] + ":multipath-v4").encode()).hexdigest()[:32]
+        key = hashlib.sha256((row["sha256"] + ":multipath-ai-v1").encode()).hexdigest()[:32]
         # Deterministic title also closes the dispatch-success/state-write-failure window.
         existing = next((r for r in existing_runs if r["display_title"] == "hostlab-" + key), None)
         if key not in state["jobs"] and existing:
@@ -83,13 +83,14 @@ def main():
     state["seen"] = sorted(set(state["seen"]) | {r["sha256"] for r in fresh if r["sha256"] not in deferred and r not in eligible})
     if eligible:
         state["watermark"] = max(state["watermark"], max(r["version_code"] for r in eligible[:2]))
+    state["mode"] = "static_plus_bounded_ai_review"
     if file is None or json.dumps(state, sort_keys=True) != old_state:
         payload = {"message": "chore(intake): update sample analysis state", "branch": BRANCH,
                    "content": base64.b64encode(json.dumps(state, indent=2).encode()).decode()}
         if file:
             payload["sha"] = file["sha"]
         api("contents/" + STATE_PATH, payload, method="PUT")
-    print(json.dumps({"published": len(rows), "dispatched": dispatched, "ai": "not_configured"}))
+    print(json.dumps({"published": len(rows), "dispatched": dispatched, "ai": "enabled_for_new_reports"}))
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 """Local MCP gateway to private GitHub Actions. No APK download on this computer."""
 import json
+import base64
 import os
 from pathlib import Path
 import re
@@ -26,6 +27,40 @@ def runs():
     return json.loads(gh(["api", f"repos/{REPO}/actions/workflows/{WORKFLOW}/runs?per_page=50"]))["workflow_runs"]
 
 
+def repository_report(request_id):
+    if not re.fullmatch(r"[0-9a-f]{32}",request_id):
+        raise ToolError("Invalid request ID")
+    try:
+        payload=json.loads(gh(["api",f"repos/{REPO}/contents/index.json?ref=reports"]))
+        index=json.loads(base64.b64decode(payload["content"]))
+    except Exception:
+        return None
+    rows=[r for r in index.get("reports",[]) if r.get("request_id")==request_id]
+    if not rows:
+        return None
+    entry=max(rows,key=lambda r:r["created_at"])
+    path=entry["path"]
+    if not re.fullmatch(r"(?:samples/[0-9]+/[0-9a-f]{64}/runs|failures)/[0-9]+-a[0-9]+/report\.md",path):
+        raise ToolError("Unexpected report path")
+    out=hostlab.STATE/"remote-results"/entry["report_id"]/"repository"
+    out.mkdir(parents=True,exist_ok=True)
+    files=[]
+    texts=[]
+    for suffix in ("report.md","summary.json"):
+        file_path=path.rsplit("/",1)[0]+"/"+suffix
+        try:
+            blob=json.loads(gh(["api",f"repos/{REPO}/contents/{file_path}?ref=reports"]))
+            raw=base64.b64decode(blob["content"])
+        except Exception:
+            continue
+        target=out/suffix
+        target.write_bytes(raw)
+        files.append(str(target))
+        texts.append(raw.decode("utf-8",errors="replace")[:16000])
+    return {"report_url":f"https://github.com/{REPO}/blob/reports/{path}","release_url":entry.get("release_url"),
+            "files":files,"text":"\n".join(texts)[:24000],"source":"durable_reports_branch"}
+
+
 def lookup(request_id):
     if not re.fullmatch(r"[0-9a-f]{32}", request_id):
         raise ToolError("Invalid request ID")
@@ -42,7 +77,7 @@ def lookup(request_id):
 @mcp.tool()
 def submit_job(version_code: int, operation: str, argument: str = "") -> str:
     """Submit multipath_audit (all registered pages, pinned prior baseline), audit, decompile (class), query (SELECT SQL), decode (method), string_refs (string), or info. Uses Actions minutes; returns immediately."""
-    if version_code <= 0 or version_code > 9999999999 or operation not in {"audit", "decompile", "query", "decode", "string_refs", "info", "multipath_audit"} or len(argument) > 4096:
+    if version_code <= 0 or version_code > 9999999999 or operation not in {"audit", "decompile", "query", "decode", "string_refs", "info", "multipath_audit", "regenerate_ai"} or len(argument) > 4096:
         raise ToolError("Invalid bounded operation parameters")
     request = uuid.uuid4().hex
     gh(["api", "--method", "POST", f"repos/{REPO}/actions/workflows/{WORKFLOW}/dispatches", "--input", "-"],
@@ -69,6 +104,9 @@ def list_jobs() -> str:
 @mcp.tool()
 def job_result(request_id: str) -> str:
     """Download only result artifacts and return bounded text plus local file paths. No APK or DEX."""
+    durable=repository_report(request_id)
+    if durable:
+        return json.dumps(durable,ensure_ascii=False)
     run = lookup(request_id)
     if run is None or run["status"] != "completed":
         raise ToolError("Job has not completed")

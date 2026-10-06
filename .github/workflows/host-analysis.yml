@@ -12,7 +12,7 @@ on:
       operation:
         required: true
         type: choice
-        options: [info, query, decode, string_refs, decompile, audit, multipath_audit]
+        options: [info, query, decode, string_refs, decompile, audit, multipath_audit, regenerate_ai]
       source_revision:
         required: false
         type: string
@@ -28,12 +28,15 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: hostlab-${{ inputs.version_code }}
+  group: hostlab-${{ inputs.apk_sha256 || inputs.request_id }}
   cancel-in-progress: false
 jobs:
   analyze:
+    permissions:
+      contents: read
+      actions: read
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
         with:
@@ -48,7 +51,7 @@ jobs:
       - name: Install analysis dependencies
         run: python -m pip install -r tools/hostlab/requirements.txt
       - name: Download verified JADX
-        if: inputs.operation == 'audit' || inputs.operation == 'decompile' || inputs.operation == 'multipath_audit'
+        if: inputs.operation == 'audit' || inputs.operation == 'decompile' || inputs.operation == 'multipath_audit' || inputs.operation == 'regenerate_ai'
         run: python tools/hostlab/install_jadx.py
       - name: Analyze private sample
         env:
@@ -61,7 +64,20 @@ jobs:
           HOSTLAB_SHA: ${{ inputs.apk_sha256 }}
           HOSTLAB_BASELINE_SHA: ${{ inputs.baseline_sha256 }}
           JAVA_TOOL_OPTIONS: '-Xmx4g'
+          GH_TOKEN: ${{ github.token }}
         run: python tools/hostlab/remote_job.py
+      - name: AI evidence review
+        if: inputs.operation == 'multipath_audit' || inputs.operation == 'regenerate_ai'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          AI_API_KEY_PRIMARY: ${{ secrets.AI_API_KEY_PRIMARY }}
+          AI_API_KEY_BACKUP: ${{ secrets.AI_API_KEY_BACKUP }}
+          AI_PRIMARY_BASE_URL: ${{ vars.AI_PRIMARY_BASE_URL }}
+          AI_PRIMARY_MODEL: ${{ vars.AI_PRIMARY_MODEL }}
+          AI_BACKUP_BASE_URL: ${{ vars.AI_BACKUP_BASE_URL }}
+          AI_BACKUP_MODEL: ${{ vars.AI_BACKUP_MODEL }}
+          AI_ALLOW_FALLBACK: ${{ vars.AI_ALLOW_FALLBACK }}
+        run: python tools/hostlab/ai_review.py
       - name: Upload bounded analysis results
         if: always()
         uses: actions/upload-artifact@v6
@@ -74,3 +90,29 @@ jobs:
             runtime/hostlab/reports/
             !runtime/hostlab/reports/**/classes/**
             !runtime/hostlab/reports/**/jadx-output/**
+  publish:
+    if: always() && (inputs.operation == 'multipath_audit' || inputs.operation == 'regenerate_ai')
+    needs: analyze
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - uses: actions/download-artifact@v8.0.1
+        continue-on-error: true
+        with:
+          name: host-analysis-${{ github.run_id }}
+          path: runtime/hostlab/publish-input
+      - name: Publish private Release and reports branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HOSTLAB_VERSION: ${{ inputs.version_code }}
+          HOSTLAB_REQUEST_ID: ${{ inputs.request_id }}
+        run: python tools/hostlab/publish_report.py

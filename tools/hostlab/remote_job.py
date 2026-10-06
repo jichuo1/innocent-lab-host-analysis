@@ -15,6 +15,10 @@ def main():
     argument = os.environ.get("HOSTLAB_ARGUMENT", "")
     if not re.fullmatch(r"[1-9][0-9]{0,9}", code) or len(argument) > 4096:
         raise RuntimeError("Invalid bounded input")
+    if operation == "regenerate_ai":
+        import regenerate_report
+        regenerate_report.main()
+        return 0
     os.environ["DEXQ_WORKERS"] = "2"
     repo = "innocent-lab-dev/bilibili-host-apks"
     _, current_head = hostlab.api_private(repo)
