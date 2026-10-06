@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent / "dexq"))
 import dexq_workers as W
 
 RULE_VERSION = 2
+RULE_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 FAMILIES = {
     "comment_legacy_v2": ("Lcom/bilibili/app/comm/comment2/",),
     "comment_native_legacy": ("Lcom/bilibili/app/comment3/ui/holder/",),
@@ -142,12 +143,14 @@ def scan(job):
         if method.get_class_name() in protocol_owners:
             protocol_definitions.append((file_id, protocol_owners[method.get_class_name()],
                                          method.get_name(), W.norm_proto(method.get_descriptor())))
-    return {"classes": classes, "edges": sorted(edges),
+    return {"rule_sha256": RULE_SHA256, "classes": classes, "edges": sorted(edges),
             "edge_counts": [(a, b, count) for (a, b), count in sorted(edge_counts.items())],
             "protocol_definitions": protocol_definitions}
 
 
 def summarize(parts):
+    if any(p.get("rule_sha256", RULE_SHA256) != RULE_SHA256 for p in parts):
+        raise RuntimeError("Rule source changed during worker execution; rerun with immutable source")
     records = [r for part in parts for r in part["classes"]]
     groups = {key: [] for key in FAMILIES}
     for r in records:
@@ -169,7 +172,7 @@ def summarize(parts):
         callers = [e for e in edges if e[5] == key and e[2] != descriptor]
         protocols[key] = {"definitions": len(signatures), "signatures": signatures,
                           "actual_invoke_edges": len(callers), "runtime_enabled": "unknown"}
-    return {"rule_version": RULE_VERSION, "scope": "offline_static_only", "families": result,
+    return {"rule_version": RULE_VERSION, "rule_sha256": RULE_SHA256, "scope": "offline_static_only", "families": result,
             "protocol_paths": protocols,
             "unclassified_protocol_callers": [e for e in edges if e[1] == "external_or_unknown" and e[5] in PROTOCOLS and e[2] != e[6]],
             "page_path_matrix": {page: {"paths": {k: result[k] for k in keys},
@@ -186,6 +189,8 @@ def summarize(parts):
 
 
 def compare(base, target):
+    if base.get("rule_sha256") != target.get("rule_sha256"):
+        raise RuntimeError("Cannot attribute host changes across different analysis rules")
     changes = []
     for key in sorted(set(base["families"]) | set(target["families"])):
         before, after = base["families"].get(key), target["families"].get(key)

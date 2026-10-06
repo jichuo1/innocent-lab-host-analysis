@@ -65,7 +65,11 @@ def main():
     for row in sorted(eligible, key=lambda r:r["version_code"])[:2]:
         key = hashlib.sha256((row["sha256"] + ":multipath-v2").encode()).hexdigest()[:32]
         # Deterministic title also closes the dispatch-success/state-write-failure window.
-        if key not in state["jobs"] and not any(r["display_title"] == "hostlab-" + key for r in existing_runs):
+        existing = next((r for r in existing_runs if r["display_title"] == "hostlab-" + key), None)
+        if key not in state["jobs"] and existing:
+            state["jobs"][key] = {"sample": row["sha256"], "version_code": row["version_code"],
+                                  "run_id": existing["id"], "status": existing["status"], "conclusion": existing["conclusion"]}
+        if key not in state["jobs"] and existing is None:
             bases = [r for r in rows if r["version_code"] < row["version_code"] and
                      r.get("certificate_sha256") == row.get("certificate_sha256")]
             baseline = max(bases, key=lambda r:r["version_code"])["sha256"] if bases else ""

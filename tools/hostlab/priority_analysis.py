@@ -26,6 +26,18 @@ def resolve(code, sha, revision):
     return analyze.inputs(SimpleNamespace(apk=None, version_code=code, sha256=sha, revision=revision))
 
 
+def audit_sample(sample, revision):
+    rc = analyze.main(["audit", "--version-code", str(sample["version_code"]),
+                       "--sha256", sample["sha256"], "--revision", revision])
+    folder = hostlab.STATE / "reports" / str(sample["version_code"]) / sample["sha256"][:16]
+    paths = sorted(folder.glob("*/summary.json"))
+    report = json.loads(paths[-1].read_text(encoding="utf-8")) if paths else {}
+    if rc not in (0, 1) or not report.get("features"):
+        raise RuntimeError("Standard audit did not produce usable FEATURE evidence")
+    return {"exit_code": rc, "features": report["features"], "runtime_verified": False,
+            "scope": "legacy_offline_auditor_snapshot_not_production_coverage"}
+
+
 def main():
     code = int(os.environ["HOSTLAB_VERSION"])
     revision = os.environ["HOSTLAB_REVISION"]
@@ -33,10 +45,12 @@ def main():
     out = hostlab.STATE / "remote-output"
     out.mkdir(parents=True, exist_ok=True)
     target_apk, target_sample = resolve(code, sha, revision)
+    target_audit = audit_sample(target_sample, revision)
     target = scan_apk(target_apk, target_sample)
     hostlab.write_json(out / "priority-target.json", target)
     baseline_sha = os.environ.get("HOSTLAB_BASELINE_SHA", "")
     baseline = None
+    baseline_audit = None
     if baseline_sha:
         repo = hostlab.config()["repo"]
         rows = hostlab.manifest(repo, revision)["samples"]
@@ -44,12 +58,14 @@ def main():
         if row.get("certificate_sha256") != target_sample.get("certificate_sha256"):
             raise RuntimeError("Baseline signing lineage differs")
         apk, sample = resolve(row["version_code"], baseline_sha, revision)
+        baseline_audit = audit_sample(sample, revision)
         baseline = scan_apk(apk, sample)
         hostlab.write_json(out / "priority-baseline.json", baseline)
     changes = W.compare(baseline, target) if baseline else []
     context = Path(__file__).with_name("production-context.json")
     source_context = json.loads(context.read_text(encoding="utf-8")) if context.exists() else None
     summary = {"sample": target_sample, "baseline": baseline["sample"] if baseline else None,
+               "standard_target_audit": target_audit, "standard_baseline_audit": baseline_audit,
                "changes": changes, "families": target["families"], "unknown_families": target["unknown_families"],
                "coverage_claim": "candidate_discovery_only", "ai_status": "not_configured",
                "source_snapshot": source_context,

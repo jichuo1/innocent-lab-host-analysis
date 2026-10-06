@@ -48,7 +48,7 @@ jobs:
       - name: Install analysis dependencies
         run: python -m pip install -r tools/hostlab/requirements.txt
       - name: Download verified JADX
-        if: inputs.operation == 'audit' || inputs.operation == 'decompile'
+        if: inputs.operation == 'audit' || inputs.operation == 'decompile' || inputs.operation == 'multipath_audit'
         run: python tools/hostlab/install_jadx.py
       - name: Analyze private sample
         env:
