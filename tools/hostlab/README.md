@@ -157,8 +157,22 @@ job_result 只下载结果附件，不下载 APK/DEX/完整索引；附件保留
 输出 priority-report.md / priority-summary.json / priority-target.json / priority-baseline.json 和普通审计报告。
 新家族、消失家族、签名/调用路径变化是调查候选，不自动宣称新视觉样式或 Hook 已覆盖。
 服务端灰度、样式数据变化、反射和接口分派仍需运行期证据；complete_coverage 不会因此自动变为 true。
-AI API 按用户选择未启用，报告标记 ai_status=not_configured，无模型调用费用。
+新 APK 自动多路径报告已启用 AI 证据分析。当前默认使用备用 glm-5.3-flash，主 API 曾返回 403，密钥保留但不作为默认路由。
+每次最多 6 次 API 请求、8 次只读工具、每次最多 4096 输出 token；这是请求/token 限制，不是美元扣费硬上限。
+模型只读证据、源码片段及受限类反编译；没有 shell、任意路径、密钥读取或仓库写工具。
+报告包含 AI 建议和 E000/E001… 证据引用；引用存在不代表建议已正确或真机已适配。
+AI 失败会保留失败记录，不更新 latest.json，也不会标为完整 AI 分析。
 MCP 示例：submit_job(9140200, "multipath_audit", "")。
+重生成已有静态结果：submit_job(9140400, "regenerate_ai", "原分析run ID")，无需重新扫描同一份 APK。
+
+## 仓库内长期报告
+
+reports 分支 README.md 是报告首页，index.json 是机器索引；每次结果存 samples/<code>/<完整sha>/runs/<run>-a<attempt>/。
+仅完整 AI 结果更新样本 latest.json，历史报告不覆盖；失败记录保留独立目录。
+中文 report.md 和精简 summary.json 可直接浏览，完整证据在同一私有仓库 Release。
+Release 包含 evidence.zip 和 evidence-manifest.json，记录文件哈希，不包含 APK/DEX/SQLite/凭据。
+AI 和分析 job 无仓库写权限；独立 publish job 才使用 contents:write，并通过非强制 Git 引用更新处理并发。
+MCP job_result 优先读取 reports 分支，Actions 附件过期后仍可取得结论和 Release 入口。
 Actions 使用账户分钟和产物额度，超出额度可能收费；每任务最多 35 分钟，没有启用 HF 付费 Jobs。
 本地 MCP 网关不是公开 HTTP 服务；当前 Codex 注册后通常需要新会话/重新加载才能发现工具。
 
