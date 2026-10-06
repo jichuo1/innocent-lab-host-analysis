@@ -129,6 +129,26 @@ operation 可选 info、query、decode、string_refs、decompile、audit；argum
 提交后返回 request_id，稍后查状态，完成后取结果。AI 不应把 submit 成功当成分析完成。
 job_result 只下载结果附件，不下载 APK/DEX/完整索引；附件保留 14 天，过期需重跑。
 当前没有跨任务索引缓存，每次任务重新取包并按需索引；先保证证据一致，再优化缓存。
+
+## 自动收样与页面多路径机制
+
+已部署 Automatic new APK intake，每半小时补查私有样本清单；GitHub 调度可能延迟，不保证实时。
+上传工具成功发布新哈希后也会请求补查；没有 gh 或触发失败时，由云端补查兜底。
+初始 28 个样本列在 bootstrap-samples.json，仅登记为基线，历史续传不会批量触发分析。
+此后任何新增哈希都会检查，包含旧版本的新发行样本；同 versionCode 多样本由哈希区分。
+任务固定 source_revision、apk_sha256、baseline_sha256，同签名谱系选择相邻低版本基线。
+状态在私有分析仓库 intake-state 分支 .hostlab/intake-state.json；重复事件通过确定性 request_id 去重。
+
+操作 multipath_audit：先跑现有 FEATURE 审计，再对目标和基线分别扫描全部 DEX。
+矩阵登记评论、动态、首页、搜索、详情、影视、播放器、弹幕、Story、我的页。
+各路径独立记录定义、Compose 形状、真实 invoke 边和 Java/Kotlin 协议，不能以一个路径通过覆盖另一个。
+未知子模块、未归类协议调用者及源码中的未映射多路径候选都输出待复核，不静默排除。
+源码证据来自 production-context.json 的固定文件哈希快照；当前快照含未提交源码，不能当作已发布生产版本。
+输出 priority-report.md / priority-summary.json / priority-target.json / priority-baseline.json 和普通审计报告。
+新家族、消失家族、签名/调用路径变化是调查候选，不自动宣称新视觉样式或 Hook 已覆盖。
+服务端灰度、样式数据变化、反射和接口分派仍需运行期证据；complete_coverage 不会因此自动变为 true。
+AI API 按用户选择未启用，报告标记 ai_status=not_configured，无模型调用费用。
+MCP 示例：submit_job(9140200, "multipath_audit", "")。
 Actions 使用账户分钟和产物额度，超出额度可能收费；每任务最多 35 分钟，没有启用 HF 付费 Jobs。
 本地 MCP 网关不是公开 HTTP 服务；当前 Codex 注册后通常需要新会话/重新加载才能发现工具。
 

@@ -126,8 +126,12 @@ def scan(job):
                 continue
             caller_owner = method.get_class_name()
             source_family = owners.get(caller_owner) or "external_or_unknown"
+            caller_signature = None
             for ins in code.get_bc().get_instructions():
-                if not ins.get_name().startswith("invoke"):
+                # invoke-custom indexes call-sites, not method_ids. Never interpret
+                # its numeric index as a method reference.
+                opcode = ins.get_op_value()
+                if opcode not in {0x6e, 0x6f, 0x70, 0x71, 0x72, 0x74, 0x75, 0x76, 0x77, 0x78, 0xfa, 0xfb}:
                     continue
                 target = target_indices.get(ins.get_ref_kind())
                 if target is None:
@@ -136,8 +140,9 @@ def scan(job):
                 key = (source_family, group)
                 edge_counts[key] = edge_counts.get(key, 0) + 1
                 # Keep all unique caller/callee members, not first N invocations.
-                edges.add((file_id, source_family, caller_owner, method.get_name(),
-                           W.norm_proto(method.get_descriptor()), group, owner, name, proto))
+                if caller_signature is None:
+                    caller_signature = (method.get_name(), W.norm_proto(method.get_descriptor()))
+                edges.add((file_id, source_family, caller_owner, *caller_signature, group, owner, name, proto))
     protocol_definitions = []
     for method in dex.get_encoded_methods():
         if method.get_class_name() in protocol_owners:
