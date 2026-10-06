@@ -59,6 +59,8 @@ def prepare(root,run_id,attempt):
     if code<=0 or not re.fullmatch(r"[0-9a-f]{64}",sha):
         raise RuntimeError("Invalid sample identity")
     complete_ai=data.get("ai_status")=="completed" and data.get("ai_review",{}).get("status")=="completed"
+    if data.get("ai_review",{}).get("schema",1)>=2:
+        complete_ai=complete_ai and data["ai_review"].get("review_status")=="completed" and (data["ai_review"].get("review") or {}).get("status")=="completed"
     key=f"{run_id}-a{attempt}"
     directory=f"samples/{code}/{sha}/runs/{key}"
     tag=f"analysis-{code}-{sha[:12]}-{key}"

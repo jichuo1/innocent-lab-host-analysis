@@ -7,12 +7,13 @@ import zipfile
 here = Path(__file__).resolve().parent
 output = here.parents[1] / "artifacts/hostlab/hostlab-client.zip"
 files = [here / name for name in ("hostlab.py", "analyze.py", "dexq_cli.py", "requirements.txt", "README.md",
-                                  "setup-client.cmd", "hostlab.cmd")]
+                                  "setup-client.cmd", "hostlab.cmd", "upload-apk.cmd")]
 files += [here / "test_dexq_mcp.py", here / "bench_dexq.py"]
 files += [here / "remote_mcp.py", here / "remote_job.py", here / "host-analysis.yml", here / "install_jadx.py"]
 files += [here / "requirements-remote.txt", here / "setup-remote.cmd", here / "REMOTE_README.md"]
 files += [here / "surface_workers.py", here / "priority_analysis.py", here / "production-context.json",
           here / "bootstrap-samples.json", here / "auto_intake.py", here / "auto-intake.yml"]
+files += [here / "ai_review.py", here / "ai_prompts.py", here / "publish_report.py", here / "regenerate_report.py"]
 files += sorted(p for p in (here / "analysis").iterdir() if p.suffix in {".py", ".java", ".md"})
 files += [here / "vendor/jadx-1.5.6-all.jar", here / "vendor/JADX-LICENSE"]
 files += [here / "dexq/server.py", here / "dexq/dexq_workers.py"]
