@@ -7,12 +7,13 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 import hostlab
 
-MAX_REQUESTS = 4
+MAX_REQUESTS = 6
 MAX_TOOLS = 8
 MAX_OUTPUT = 4096
 MAX_CONTEXT_CHARS = 90000
@@ -82,9 +83,14 @@ def validate_report(value, ids, pages):
         refs = item.get("evidence_ids", [])
         if not refs or any(ref not in ids for ref in refs):
             raise RuntimeError("Only cite actual E000/E001 evidence IDs")
+    for item in assessments:
+        if not isinstance(item.get("assessment"),str):
+            raise RuntimeError("Page assessment must be text")
     for item in findings:
         if item.get("level") not in {"candidate", "static_evidence", "needs_runtime"}:
             raise RuntimeError("Unsupported claim level")
+        if item.get("page") not in pages or not all(isinstance(item.get(k),str) for k in ("title","analysis","recommendation")):
+            raise RuntimeError("Finding requires a registered page and text fields")
     if len(json.dumps(value, ensure_ascii=False)) > 30000:
         raise RuntimeError("Report exceeds output bound")
     return value
@@ -192,7 +198,8 @@ def run(root):
                  "overview":string,"pages":{"type":"array","items":{"type":"object","properties":{"page":string,"assessment":string,"evidence_ids":{"type":"array","items":string}},"required":["page","assessment","evidence_ids"]}},
                  "findings":{"type":"array","items":{"type":"object","properties":{"title":string,"page":string,"level":{"type":"string","enum":["candidate","static_evidence","needs_runtime"]},"analysis":string,"recommendation":string,"evidence_ids":{"type":"array","items":string}},"required":["title","page","level","analysis","recommendation","evidence_ids"]}},
                  "next_steps":{"type":"array","items":string}},["overview","pages","findings","next_steps"])]
-    profile, attempts, completed = "primary", [], None
+    profile = "backup" if os.environ.get("AI_DEFAULT_PROFILE", "primary").lower() == "backup" else "primary"
+    attempts, completed = [], None
     fallback = os.environ.get("AI_ALLOW_FALLBACK", "true").lower() == "true"
     for number in range(MAX_REQUESTS):
         if len(json.dumps(messages, ensure_ascii=False)) > MAX_CONTEXT_CHARS:
@@ -204,6 +211,9 @@ def run(root):
             attempts.append({"profile":profile,"status":"failed","reason":str(exc),"billing_unknown":True})
             if profile == "primary" and fallback:
                 profile = "backup"
+                continue
+            if any(code in str(exc) for code in ("HTTP 429", "HTTP 500", "HTTP 502", "HTTP 503", "HTTP 504")) and number < MAX_REQUESTS-1:
+                time.sleep(2)
                 continue
             break
         messages.append(message)

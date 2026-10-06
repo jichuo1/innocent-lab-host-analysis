@@ -15,7 +15,7 @@ REPO = "jichuo1/innocent-lab-host-analysis"
 
 
 def api(path, data=None, method=None):
-    req=urllib.request.Request("https://api.github.com/repos/"+REPO+"/"+path,
+    req=urllib.request.Request("https://api.github.com/repos/"+REPO+("/"+path if path else ""),
         data=json.dumps(data).encode() if data is not None else None,
         headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],"Accept":"application/vnd.github+json",
                  "Content-Type":"application/json","X-GitHub-Api-Version":"2022-11-28"},

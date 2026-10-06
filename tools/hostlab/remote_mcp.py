@@ -12,7 +12,7 @@ import hostlab
 
 REPO = "jichuo1/innocent-lab-host-analysis"
 WORKFLOW = "host-analysis.yml"
-mcp = MCPServer(name="hostlab-remote", instructions="Run APK analysis in private GitHub Actions. Submit returns a request ID; check status later, then retrieve results. APKs stay on the runner. Outputs are static evidence only.")
+mcp = MCPServer(name="hostlab-remote", instructions="Run APK analysis in private GitHub Actions. Submit returns a request ID; check status later, then retrieve results. APKs stay on the runner. Full multi-path reports include AI suggestions and durable reports-branch links; none establish runtime acceptance.")
 
 
 def gh(args, payload=None):
