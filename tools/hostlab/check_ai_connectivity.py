@@ -71,7 +71,7 @@ def check(profile):
 if __name__ == "__main__":
     results = [check("PRIMARY"), check("BACKUP")]
     output = Path(__file__).resolve().parents[2] / "runtime/hostlab/connectivity"
-    output.mkdir(exist_ok=True)
+    output.mkdir(parents=True, exist_ok=True)
     report = {"mode": "catalog_only_no_generation_request", "profiles": results}
     (output / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(report, indent=2))
