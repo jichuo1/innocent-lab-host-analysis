@@ -42,6 +42,20 @@
       "run_url": "https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/37578216116",
       "release_url": null,
       "request_id": "5a3c94a00e7f1953bd6df55867475127"
+    },
+    {
+      "report_id": "37578214017-a1",
+      "version_code": 9080300,
+      "version_name": "9.8.0",
+      "apk_sha256": "7218668a0092d2193d9620cbc8bdf81ace98cf047bddbce9371c5f54b4358048",
+      "status": "AI_ANALYSIS_FAILED",
+      "ai_status": "failed",
+      "complete": false,
+      "path": "samples/9080300/7218668a0092d2193d9620cbc8bdf81ace98cf047bddbce9371c5f54b4358048/runs/37578214017-a1/report.md",
+      "created_at": "2026-10-07T06:00:49.597144+00:00",
+      "run_url": "https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/37578214017",
+      "release_url": null,
+      "request_id": "7326c30913cf287bb4b407f0f888df57"
     }
   ]
 }
