@@ -56,6 +56,20 @@
       "run_url": "https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/37578214017",
       "release_url": null,
       "request_id": "7326c30913cf287bb4b407f0f888df57"
+    },
+    {
+      "report_id": "37923964203-a1",
+      "version_code": 8902100,
+      "version_name": "未完成",
+      "apk_sha256": null,
+      "status": "ANALYSIS_FAILED",
+      "ai_status": "not_completed",
+      "complete": false,
+      "path": "failures/37923964203-a1/report.md",
+      "created_at": "2026-10-09T11:32:05.877081+00:00",
+      "run_url": "https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/37923964203",
+      "release_url": null,
+      "request_id": "fe57ad7ee46daee60dbe6f71804a80b0"
     }
   ]
 }
