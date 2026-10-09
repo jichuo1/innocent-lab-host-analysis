@@ -27,6 +27,17 @@ def main():
     if not re.fullmatch(r"[0-9a-f]{40}", head) or (sha and not re.fullmatch(r"[0-9a-f]{64}", sha)):
         raise RuntimeError("Invalid immutable sample identity")
     samples = hostlab.manifest(repo, head)["samples"]
+    if operation == "inventory":
+        output = hostlab.STATE / "remote-output"
+        output.mkdir(parents=True, exist_ok=True)
+        keys = ("version_code", "version_name", "sha256", "size", "certificate_sha256")
+        inventory = {"schema": 1, "sample_revision": head,
+                     "samples": [{k: r[k] for k in keys if k in r}
+                                 for r in sorted(samples, key=lambda r: (r["version_code"], r["sha256"]))]}
+        hostlab.write_json(output / "inventory.json", inventory)
+        hostlab.write_json(output / "job.json", {"operation": operation, "sample_revision": head,
+                           "sample_count": len(samples), "exit_code": 0, "scope": "metadata_only"})
+        return 0
     row = hostlab.select({"samples": samples}, int(code), sha)
     hostlab.write_json(hostlab.CONFIG, {"repo": repo})
     base = [sys.executable, str(Path(__file__).with_name("hostlab.py"))]

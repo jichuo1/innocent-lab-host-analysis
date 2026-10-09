@@ -22,3 +22,6 @@ reports 分支保存可浏览结论，私有 Release 只保存完整成功分析
 计算在 GitHub Actions Runner；分析 job 最多 45 分钟，发布 job 最多 15 分钟。Actions 附件保留 14 天，仓库报告和 Release 不按这个期限清理。
 静态证据不能替代真机验收。Actions 消耗仓库拥有者的分钟及产物额度。
 本地 stdio 网关不是公开 HTTP 服务；ChatGPT 网页的远程 HTTP 接入未配置。
+# Read-only sample inventory
+
+Call `submit_job(version_code=1, operation="inventory")`, then use `job_status` and `job_result` as usual. The version code is a required placeholder and does not select an APK. The `inventory.json` artifact lists every registered sample at one immutable sample revision, exposing only version, SHA-256, size, and certificate metadata. No APK or DEX is downloaded for this operation.

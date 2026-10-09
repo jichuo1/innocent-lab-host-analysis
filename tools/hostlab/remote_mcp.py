@@ -77,7 +77,7 @@ def lookup(request_id):
 @mcp.tool()
 def submit_job(version_code: int, operation: str, argument: str = "") -> str:
     """Submit multipath_audit (all registered pages, pinned prior baseline), audit, decompile (class), query (SELECT SQL), decode (method), string_refs (string), or info. Uses Actions minutes; returns immediately."""
-    if version_code <= 0 or version_code > 9999999999 or operation not in {"audit", "decompile", "query", "decode", "string_refs", "info", "multipath_audit", "regenerate_ai"} or len(argument) > 4096:
+    if version_code <= 0 or version_code > 9999999999 or operation not in {"inventory", "audit", "decompile", "query", "decode", "string_refs", "info", "multipath_audit", "regenerate_ai"} or len(argument) > 4096:
         raise ToolError("Invalid bounded operation parameters")
     request = uuid.uuid4().hex
     gh(["api", "--method", "POST", f"repos/{REPO}/actions/workflows/{WORKFLOW}/dispatches", "--input", "-"],
@@ -121,7 +121,7 @@ def job_result(request_id: str) -> str:
     files = [p for p in out.rglob("*") if p.is_file() and p.name != ".downloaded"]
     text = []
     for p in files:
-        if p.name in {"job.json", "result.txt", "summary.json", "class.java", "priority-report.md"}:
+        if p.name in {"inventory.json", "job.json", "result.txt", "summary.json", "class.java", "priority-report.md"}:
             text.append(str(p.relative_to(out)) + "\n" + p.read_text(encoding="utf-8", errors="replace")[:8000])
     return json.dumps({"run": run["html_url"], "files": [str(p) for p in files], "text": "\n".join(text)[:24000]}, ensure_ascii=False)
 

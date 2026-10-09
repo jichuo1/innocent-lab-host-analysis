@@ -12,7 +12,7 @@ on:
       operation:
         required: true
         type: choice
-        options: [info, query, decode, string_refs, decompile, audit, multipath_audit]
+        options: [inventory, info, query, decode, string_refs, decompile, audit, multipath_audit]
       source_revision:
         required: false
         type: string
