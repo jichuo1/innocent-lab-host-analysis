@@ -38,7 +38,8 @@ async def run(args, apk, sample):
         if args.command == "index":
             output = json.dumps({"sample": sample, "index": opened}, ensure_ascii=False, indent=2)
         elif args.command == "query":
-            output = await call("query", dataset_id=dataset, sql=args.sql, limit=args.limit)
+            output = await call("query", dataset_id=dataset, sql=args.sql, limit=args.limit,
+                                max_cell_chars=args.max_cell_chars)
         elif args.command == "decode":
             output = await call("decode", dataset_id=dataset, method=args.method, max_chars=args.max_chars)
         elif args.command == "refs":
@@ -64,6 +65,8 @@ def main(argv):
         command.add_argument("--revision")
         if name == "query":
             command.add_argument("--sql", required=True)
+            command.add_argument("--max-cell-chars", type=int, default=300,
+                                 help="Cell preview length, 1..16000; use SQL substr() for longer values")
         if name in {"query", "refs"}:
             command.add_argument("--limit", type=int, default=100)
         if name == "decode":
@@ -73,6 +76,8 @@ def main(argv):
             command.add_argument("--kind", choices=("method", "field", "string", "type"), required=True)
             command.add_argument("--target", required=True)
     args = parser.parse_args(argv)
+    if args.command == "query" and not 1 <= args.max_cell_chars <= 16000:
+        parser.error("--max-cell-chars must be 1..16000")
     if args.command == "mcp":
         os.execve(sys.executable, [sys.executable, str(SERVER)], environment())
     else:

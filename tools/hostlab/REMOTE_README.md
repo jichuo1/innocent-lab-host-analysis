@@ -13,6 +13,18 @@ Windows 双击 setup-remote.cmd；若装有 Codex CLI，会注册 hostlab-remote
 - job_result(同一 request_id)
 - list_jobs()
 
+长单元格查询可以调用 `submit_job(version_code=9140200, operation="query", argument="SELECT file_id,class,name,proto FROM methods WHERE name='getUrlsMap'", max_cell_chars=3000)`。
+默认仍为 300；可调范围 1–16000，仅适用于 query。截断提示区分单元格、行数和总输出上限，索引中的完整值不受影响。
+更长的值用同一宿主样本及稳定键读取 `length(value)`、`substr(value,1,8000)`、`substr(value,8001,8000)` 等，并设置 `max_cell_chars=16000`，避免控制字符转义挤掉尾部。
+SQLite `substr` 的起点从 1 开始；按返回的实际 sample_revision/apk_sha256 检查各段来自同一份样本。
+
+远程 `result.txt` 每次返回 8000 个 Unicode 字符，`job_result` 新增 `result_page` 元数据：
+首次用 `job_result(request_id)`；若 `result_page.next_offset` 非空，将该值作为 `job_result(request_id, result_offset=该值)` 继续读取，直到游标为空。
+结果页位于 `text` 开头，在 `result_page.file + 换行` 之后，长度为 `result_page.chars`；其余内容是相关文件的摘要。
+`result_offset` 从 0 开始，按字符计数，不按 UTF-8 字节计数；读取后续页复用已下载的结果，不再启动 Actions 分析。
+`text_truncated` 明确标记是否仍有未显示的结果或其它文件内容；返回的本地文件路径可读取完整结果。
+长期多路径报告继续返回 reports 分支和文件入口，`result_offset` 只用于结果附件中的 `result.txt`。
+
 operation: info / query / decode / string_refs / decompile / audit / multipath_audit / regenerate_ai。
 新 APK 自动报告与 multipath_audit 包含有界 AI 分析；AI 建议不能替代真机验收。
 AI 先出详细逐路径草稿，再在同一模型的独立上下文中复核重点页面和全部草稿发现；评论与动态须重新取两侧证据。

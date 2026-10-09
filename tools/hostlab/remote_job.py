@@ -15,6 +15,12 @@ def main():
     argument = os.environ.get("HOSTLAB_ARGUMENT", "")
     if not re.fullmatch(r"[1-9][0-9]{0,9}", code) or len(argument) > 4096:
         raise RuntimeError("Invalid bounded input")
+    raw_max_cell = os.environ.get("HOSTLAB_MAX_CELL_CHARS", "300")
+    if not re.fullmatch(r"[0-9]{1,5}", raw_max_cell) or not 1 <= int(raw_max_cell) <= 16000:
+        raise RuntimeError("max_cell_chars must be 1..16000")
+    max_cell_chars = int(raw_max_cell)
+    if operation != "query" and max_cell_chars != 300:
+        raise RuntimeError("max_cell_chars is only supported for query")
     if operation == "regenerate_ai":
         import regenerate_report
         regenerate_report.main()
@@ -56,7 +62,8 @@ def main():
     elif operation == "decompile":
         command = base + ["decompile"] + source + ["--class", argument]
     elif operation == "query":
-        command = base + ["dexq", "query"] + source + ["--sql", argument, "--limit", "100"]
+        command = base + ["dexq", "query"] + source + ["--sql", argument, "--limit", "100",
+                                                     "--max-cell-chars", str(max_cell_chars)]
     elif operation == "decode":
         command = base + ["dexq", "decode"] + source + ["--method", argument]
     elif operation == "string_refs":
@@ -74,9 +81,17 @@ def main():
         except subprocess.TimeoutExpired:
             stream.write("Task timed out\n")
             rc = 124
-    hostlab.write_json(output / "job.json", {"version_code": int(code), "operation": operation,
+    tools = analyze.tool_hashes()
+    if operation in {"query", "decode", "string_refs", "info"}:
+        here = Path(__file__).resolve().parent
+        for name in ("dexq/server.py", "dexq/dexq_workers.py", "dexq_cli.py", "remote_job.py"):
+            tools[name] = hostlab.digest(here / name)
+    job = {"version_code": int(code), "operation": operation,
         "apk_sha256": row["sha256"], "sample_revision": head, "exit_code": rc,
-        "scope": "offline_static_only", "tools": analyze.tool_hashes()})
+        "scope": "offline_static_only", "tools": tools}
+    if operation == "query":
+        job["max_cell_chars"] = max_cell_chars
+    hostlab.write_json(output / "job.json", job)
     return rc
 
 

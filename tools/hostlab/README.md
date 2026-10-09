@@ -99,6 +99,19 @@ tools\hostlab\hostlab.cmd dexq tables --version-code 9140200
 支持 `--apk` 本地输入或 `--revision` 固定云端提交。CLI 每次打开数据集，但会复用磁盘索引。
 缓存放 `runtime/hostlab/dexq-cache`，不进压缩包；每个大宿主索引可能超过 1 GB。
 同一 APK 的首次索引不要并发执行。SQL 只读、单条、60 秒限时，输出最多 1000 行。
+查询默认每个单元格预览 300 个转义后的字符；截断只影响显示，索引保留原文，不需要重建。
+需要长签名或字符串时加 `--max-cell-chars 3000`（范围 1–16000）；出现 `cell(s) truncated` 时不能把未显示的尾部当成不存在。
+单次表格最多 64000 字符，只返回完整行；触及总上限时缩小 SELECT 列或用稳定排序分页。
+超过 16000 字符的值按 `(file_id, string_idx)` 等稳定键分段读取：
+
+```sql
+SELECT file_id, string_idx, length(value) FROM strings WHERE file_id=0 AND string_idx=7;
+SELECT substr(value,1,8000) FROM strings WHERE file_id=0 AND string_idx=7;
+SELECT substr(value,8001,8000) FROM strings WHERE file_id=0 AND string_idx=7;
+```
+
+示例键需替换为实际查询所得。分段查询设 `--max-cell-chars 16000`；8000 原始字符可容纳制表符/换行转义后的扩展。
+SQLite 的 `substr` 从 1 开始，分段后检查累计原始长度与 `length(value)` 一致。
 refs 不解析接口分派/子类重写；decode 输出 smali 类文本，不是 Java。
 
 可选 MCP 启动命令：
