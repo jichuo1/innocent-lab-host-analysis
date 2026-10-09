@@ -35,6 +35,8 @@ CACHE_DIR = Path(os.environ.get("DEXQ_CACHE_DIR", str(ROOT / "cache"))).resolve(
 SCHEMA_VERSION = 1
 QUERY_TIMEOUT_S = 60
 MAX_CELL = 300
+MAX_CELL_CHARS = 16000
+MAX_QUERY_CHARS = 64000
 ALLOWED_EXT = {".apk", ".dex", ".zip", ".jar"}
 
 INSTRUCTIONS = """\
@@ -49,6 +51,8 @@ smali, or compare versions. Use jadx only when you need readable pseudo-Java, an
 Workflow: open_dataset(inputs=[absolute apk path]) -> describe_tables -> query (SQL) -> decode / find_refs.
 The first open of a large APK builds an on-disk index (minutes for a ~30-dex host); later opens are instant.
 Duplicate class names across dex files are real: always keep file_id in your SELECTs.
+query defaults to 300 escaped chars per cell. A truncation footer means the tail was NOT observed:
+request max_cell_chars (up to 16000), or page a long value with length()/substr() and a stable key.
 """
 
 mcp = MCPServer(name="dexq", instructions=INSTRUCTIONS)
@@ -261,16 +265,22 @@ Use find_refs for callers / string users, decode for smali.
 
 
 @mcp.tool()
-def query(dataset_id: str, sql: str, limit: int = 100) -> str:
+def query(dataset_id: str, sql: str, limit: int = 100, max_cell_chars: int = MAX_CELL) -> str:
     """Run ONE read-only SELECT/WITH statement against the index. Output is a tab-separated table.
 
-    limit caps the returned rows (max 1000). Long cells are truncated. Times out after 60 s.
+    limit caps the returned rows (max 1000). max_cell_chars is 1..16000 (default 300).
+    Truncation is reported; for longer values SELECT length(value), substr(value,1,8000),
+    then substr(value,8001,8000) with the same stable key and max_cell_chars=16000.
+    Preview lengths count escaped characters; SQLite retains the full value.
+    Output is bounded to 64000 chars at complete row boundaries. Times out after 60 s.
     """
     # 不能数分号：dex 描述符本身以 ';' 结尾（'Lcom/x/Y;'）。单语句由 sqlite3 自己保证——
     # 多语句会抛 ProgrammingError；只读连接（mode=ro + query_only）再兜住任何写操作。
     text = sql.strip().rstrip(";").strip()
     if not re.match(r"(?is)^(select|with)\b", text):
         raise ToolError("only SELECT / WITH statements are allowed")
+    if not 1 <= max_cell_chars <= MAX_CELL_CHARS:
+        raise ToolError(f"max_cell_chars must be 1..{MAX_CELL_CHARS}")
     limit = max(1, min(int(limit), 1000))
     conn = _ro(_dataset(dataset_id)["db"])
     deadline = time.time() + QUERY_TIMEOUT_S
@@ -284,15 +294,37 @@ def query(dataset_id: str, sql: str, limit: int = 100) -> str:
     finally:
         conn.close()
     truncated = len(rows) > limit
-    rows = rows[:limit]
-
-    def cell(v) -> str:
+    def escaped(v) -> str:
         s = "" if v is None else str(v)
-        s = s.replace("\t", "\\t").replace("\n", "\\n")
-        return s if len(s) <= MAX_CELL else s[:MAX_CELL] + "…"
+        return s.replace("\t", "\\t").replace("\r", "\\r").replace("\n", "\\n")
 
-    lines = ["\t".join(cols)] + ["\t".join(cell(v) for v in r) for r in rows]
-    lines.append(f"-- {len(rows)} row(s){' (truncated, raise limit or add WHERE)' if truncated else ''}")
+    header = "\t".join(escaped(c) for c in cols)
+    # Reserve space for the bounded footer; never return a partially rendered row.
+    budget = MAX_QUERY_CHARS - 1024
+    if len(header) > budget:
+        raise ToolError("query header exceeds output budget; select fewer columns")
+    lines = [header]
+    used = len(header)
+    returned = clipped = 0
+    output_truncated = False
+    for row in rows[:limit]:
+        cells = [escaped(v) for v in row]
+        row_clipped = sum(len(s) > max_cell_chars for s in cells)
+        line = "\t".join(s if len(s) <= max_cell_chars else s[:max_cell_chars] + "…" for s in cells)
+        if used + 1 + len(line) > budget:
+            output_truncated = True
+            break
+        lines.append(line)
+        used += 1 + len(line)
+        returned += 1
+        clipped += row_clipped
+    lines.append(f"-- {returned} row(s){' (truncated, raise limit or add WHERE)' if truncated else ''}")
+    if clipped:
+        lines.append(f"-- {clipped} cell(s) truncated at {max_cell_chars} escaped chars; "
+                     "raise max_cell_chars (max 16000) or use length()/substr() with a stable key")
+    if output_truncated:
+        lines.append(f"-- output truncated at {MAX_QUERY_CHARS} chars; select fewer columns or "
+                     "page with ORDER BY a stable key and LIMIT/OFFSET")
     return "\n".join(lines)
 
 

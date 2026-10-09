@@ -25,6 +25,11 @@ on:
       argument:
         required: false
         type: string
+      max_cell_chars:
+        description: 'Query cell preview length (1..16000)'
+        required: false
+        type: string
+        default: '300'
 permissions:
   contents: read
 concurrency:
@@ -60,6 +65,7 @@ jobs:
           HOSTLAB_VERSION: ${{ inputs.version_code }}
           HOSTLAB_OPERATION: ${{ inputs.operation }}
           HOSTLAB_ARGUMENT: ${{ inputs.argument }}
+          HOSTLAB_MAX_CELL_CHARS: ${{ inputs.max_cell_chars }}
           HOSTLAB_REVISION: ${{ inputs.source_revision }}
           HOSTLAB_SHA: ${{ inputs.apk_sha256 }}
           HOSTLAB_BASELINE_SHA: ${{ inputs.baseline_sha256 }}

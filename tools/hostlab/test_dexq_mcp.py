@@ -28,6 +28,19 @@ async def main(apk):
         result = await call("query", dataset_id=ds, limit=5,
                             sql="SELECT class,name,proto FROM methods WHERE class='Lcom/bapis/bilibili/main/community/reply/v1/Content;' AND name='getUrlsMap'")
         assert "getUrlsMap" in result
+        long_value = "开头" + "黑神话悟空🔍" * 180 + "完整末尾"
+        sql = "SELECT '" + long_value + "' AS long_value"
+        preview = await call("query", dataset_id=ds, sql=sql)
+        assert "cell(s) truncated at 300" in preview and "完整末尾" not in preview
+        full = await call("query", dataset_id=ds, sql=sql, max_cell_chars=3000)
+        assert full.splitlines()[1] == long_value and "truncated" not in full
+        await call("query", expected_error=True, dataset_id=ds, sql=sql, max_cell_chars=0)
+        # A real indexed host signature just above the legacy 300-character boundary.
+        signature_sql = ("SELECT length(proto),substr(proto,-24),proto FROM methods "
+                         "WHERE length(proto)>300 ORDER BY length(proto),file_id,method_idx LIMIT 1")
+        signature = await call("query", dataset_id=ds, sql=signature_sql, max_cell_chars=16000)
+        length, tail, proto = signature.splitlines()[1].split("\t")
+        assert len(proto) == int(length) and proto.endswith(tail) and "truncated" not in signature
         await call("query", expected_error=True, dataset_id=ds, sql="DROP TABLE classes")
         await call("query", expected_error=True, dataset_id=ds, sql="SELECT 1; SELECT 2")
         method = "Lcom/bapis/bilibili/main/community/reply/v1/Content;->getUrlsMap()Ljava/util/Map;"
@@ -38,6 +51,8 @@ async def main(apk):
         assert info["package"] == "tv.danmaku.bili"
         await call("close_dataset", dataset_id=ds)
         print(json.dumps({"tools_verified": 8, "sql_write_rejected": True,
+                          "long_cell_retrieved_via_mcp": True,
+                          "host_long_signature_chars": int(length),
                           "multiple_statements_rejected": True, "index": opened["cache"],
                           "classes": opened["totals"]["classes"],
                           "seconds": round(time.monotonic() - start, 2)}, indent=2))

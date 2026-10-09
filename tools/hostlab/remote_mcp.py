@@ -75,14 +75,24 @@ def lookup(request_id):
 
 
 @mcp.tool()
-def submit_job(version_code: int, operation: str, argument: str = "") -> str:
-    """Submit multipath_audit (all registered pages, pinned prior baseline), audit, decompile (class), query (SELECT SQL), decode (method), string_refs (string), or info. Uses Actions minutes; returns immediately."""
+def submit_job(version_code: int, operation: str, argument: str = "", max_cell_chars: int = 300) -> str:
+    """Submit multipath_audit, audit, decompile (class), query (SELECT SQL), decode (method), string_refs (string), or info. Uses Actions minutes; returns immediately.
+
+    query supports max_cell_chars=1..16000 (default 300). Larger cells remain in the index;
+    use length()/substr() with file_id and a stable row key for longer values.
+    """
     if version_code <= 0 or version_code > 9999999999 or operation not in {"inventory", "audit", "decompile", "query", "decode", "string_refs", "info", "multipath_audit", "regenerate_ai"} or len(argument) > 4096:
         raise ToolError("Invalid bounded operation parameters")
+    if not 1 <= max_cell_chars <= 16000 or (operation != "query" and max_cell_chars != 300):
+        raise ToolError("max_cell_chars must be 1..16000 and only varies for query")
     request = uuid.uuid4().hex
+    inputs = {"request_id": request, "version_code": str(version_code),
+              "operation": operation, "argument": argument}
+    # Omit the default so an older workflow can still serve legacy clients.
+    if max_cell_chars != 300:
+        inputs["max_cell_chars"] = str(max_cell_chars)
     gh(["api", "--method", "POST", f"repos/{REPO}/actions/workflows/{WORKFLOW}/dispatches", "--input", "-"],
-       {"ref": "main", "inputs": {"request_id": request, "version_code": str(version_code),
-                                    "operation": operation, "argument": argument}})
+       {"ref": "main", "inputs": inputs})
     return json.dumps({"request_id": request, "status": "submitted", "repository": REPO})
 
 
@@ -102,10 +112,19 @@ def list_jobs() -> str:
 
 
 @mcp.tool()
-def job_result(request_id: str) -> str:
-    """Download only result artifacts and return bounded text plus local file paths. No APK or DEX."""
+def job_result(request_id: str, result_offset: int = 0) -> str:
+    """Download result artifacts and return bounded text plus local file paths. No APK or DEX.
+
+    result.txt is paged in 8000-character chunks (Unicode characters, zero-based offset).
+    Pass result_page.next_offset back as result_offset until it is null. Reading pages
+    reuses the downloaded artifact; it does not submit another Actions analysis job.
+    """
+    if not 0 <= result_offset <= 2147483647:
+        raise ToolError("result_offset must be 0..2147483647")
     durable=repository_report(request_id)
     if durable:
+        if result_offset:
+            raise ToolError("result_offset applies only to result.txt; use the returned report files")
         return json.dumps(durable,ensure_ascii=False)
     run = lookup(request_id)
     if run is None or run["status"] != "completed":
@@ -118,12 +137,34 @@ def job_result(request_id: str) -> str:
             (out / ".downloaded").touch()
         except Exception:
             raise ToolError("Results unavailable; check workflow logs or expired artifact")
-    files = [p for p in out.rglob("*") if p.is_file() and p.name != ".downloaded"]
+    files = sorted((p for p in out.rglob("*") if p.is_file() and p.name != ".downloaded"),
+                   key=lambda p: (p.name != "result.txt", str(p)))
+    if sum(p.name == "result.txt" for p in files) > 1:
+        raise ToolError("Multiple result.txt files; cannot choose an unambiguous page source")
     text = []
+    result_page = None
+    preview_truncated = False
     for p in files:
         if p.name in {"inventory.json", "job.json", "result.txt", "summary.json", "class.java", "priority-report.md"}:
-            text.append(str(p.relative_to(out)) + "\n" + p.read_text(encoding="utf-8", errors="replace")[:8000])
-    return json.dumps({"run": run["html_url"], "files": [str(p) for p in files], "text": "\n".join(text)[:24000]}, ensure_ascii=False)
+            content = p.read_text(encoding="utf-8", errors="replace")
+            if p.name == "result.txt":
+                page = content[result_offset:result_offset + 8000]
+                end = min(result_offset + len(page), len(content))
+                result_page = {"file": str(p.relative_to(out)), "offset": result_offset,
+                               "chars": len(page), "total_chars": len(content),
+                               "next_offset": end if end < len(content) else None}
+                preview_truncated |= end < len(content)
+            else:
+                page = content[:8000]
+                preview_truncated |= len(content) > 8000
+            text.append(str(p.relative_to(out)) + "\n" + page)
+    if result_offset and result_page is None:
+        raise ToolError("No result.txt to page; use the returned report files at offset 0")
+    combined = "\n".join(text)
+    preview_truncated |= len(combined) > 24000
+    return json.dumps({"run": run["html_url"], "files": [str(p) for p in files],
+                       "text": combined[:24000], "text_truncated": preview_truncated,
+                       "result_page": result_page}, ensure_ascii=False)
 
 
 if __name__ == "__main__":
