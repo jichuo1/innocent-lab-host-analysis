@@ -17,8 +17,9 @@ import ai_prompts
 MAX_REQUESTS = 8
 MAX_TRANSPORT_RETRIES = 2
 MAX_TOOLS = 8
-MAX_OUTPUT = 16384
-MAX_CONTEXT_CHARS = 160000
+MAX_OUTPUT = 32768
+MAX_CONTEXT_CHARS = 320000
+REVIEW_EXCERPT_CHARS = 2600
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -279,13 +280,28 @@ def transport_retry_credit(attempts):
     return min(failures,MAX_TRANSPORT_RETRIES)
 
 
+def bounded_journal(journal):
+    """Bound the review payload; full results stay reachable by re-reading with the same tools."""
+    rows=[]
+    for row in journal:
+        result=row.get("result")
+        text=json.dumps(result,ensure_ascii=False)
+        if len(text)>REVIEW_EXCERPT_CHARS:
+            result={"excerpt":text[:REVIEW_EXCERPT_CHARS],"truncated":True,
+                    "note":"full result omitted to bound context; re-read with the same tool arguments"}
+        rows.append({"id":row.get("id"),"tool":row.get("tool"),"args":row.get("args"),"result":result})
+    return rows
+
+
 def collect_report(messages,tools,evidence,summary,attempts,profile,request_limit,draft=None):
     review_start=len(evidence.journal)
     # One stable session ID per conversation; OpenCode-compatible gateways use it for routing
     # and prompt caching, and reject session-less requests with MissingSessionID.
     session_id="hostlab-"+os.urandom(12).hex()
     while len(attempts)<request_limit+transport_retry_credit(attempts):
-        if len(json.dumps(messages,ensure_ascii=False))>MAX_CONTEXT_CHARS:
+        size=len(json.dumps(messages,ensure_ascii=False))
+        if size>MAX_CONTEXT_CHARS:
+            print(json.dumps({"event":"context_limit_reached","chars":size,"limit":MAX_CONTEXT_CHARS,"attempts":len(attempts)}))
             break
         try:
             required=set(priority_pages(summary))&{"comment","dynamic"}
@@ -327,7 +343,10 @@ def collect_report(messages,tools,evidence,summary,attempts,profile,request_limi
                 else:
                     result=evidence.execute(name,args)
             except Exception as exc:
-                result={"error":str(exc)[:300] if type(exc) is RuntimeError else type(exc).__name__}
+                if isinstance(exc,json.JSONDecodeError):
+                    result={"error":"tool arguments were not valid JSON (most likely truncated by the output limit); resubmit this call with more concise arguments"}
+                else:
+                    result={"error":str(exc)[:300] if type(exc) is RuntimeError else type(exc).__name__}
             messages.append({"role":"tool","tool_call_id":call["id"],"content":redact(json.dumps(result,ensure_ascii=False))})
         if completed:
             return completed,profile
@@ -393,7 +412,7 @@ def run(root):
         review_schema["properties"]["findings"]["items"]["properties"]["finding_id"]=string
         review_schema["properties"]["findings"]["items"]["required"].append("finding_id")
         review_messages=[{"role":"system","content":ai_prompts.REVIEW},
-            {"role":"user","content":json.dumps({"seed":seed,"draft":draft,"priority_pages":priority_pages(summary),"evidence":evidence.journal},ensure_ascii=False)}]
+            {"role":"user","content":json.dumps({"seed":seed,"draft":draft,"priority_pages":priority_pages(summary),"evidence":bounded_journal(evidence.journal)},ensure_ascii=False)}]
         completed,profile=collect_report(review_messages,review_tools,evidence,summary,attempts,profile,MAX_REQUESTS,draft)
     (root/"ai-review.json").write_text(redact(json.dumps(completed.get("review") if completed else {"status":"not_completed"},ensure_ascii=False,indent=2)),encoding="utf-8")
     outcome = {"schema":2,"prompt_version":ai_prompts.PROMPT_VERSION,
