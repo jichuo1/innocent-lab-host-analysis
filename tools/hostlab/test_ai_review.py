@@ -57,7 +57,7 @@ class DetailedReviewTest(unittest.TestCase):
         replies=iter([response(("page_evidence",{"page":"comment"})),response(("finish_report",report())),
             response(("page_evidence",{"page":"comment"}),("page_evidence",{"page":"dynamic"})),
             response(("finish_report",report(True)))])
-        def api(profile,messages,tools,force):
+        def api(profile,messages,tools,force,session_id=None):
             seen.append(copy.deepcopy(messages))
             return next(replies)
         with tempfile.TemporaryDirectory() as folder, patch.object(ai_review,"call_api",side_effect=api):
@@ -94,6 +94,21 @@ class DetailedReviewTest(unittest.TestCase):
             self.assertEqual(api.call_count,6)
             self.assertEqual(len(outcome["attempts"]),6)
             self.assertEqual(outcome["review_status"],"completed")
+
+    def test_session_header_is_sent_for_gateway_compatibility(self):
+        captured={}
+        class FakeResponse:
+            def read(self,n):return json.dumps({"choices":[{"message":{"content":"ok"}}],"usage":{}}).encode()
+            def __enter__(self):return self
+            def __exit__(self,*args):return False
+        class FakeOpener:
+            def open(self,request,timeout=None):
+                captured["headers"]=dict(request.headers)
+                return FakeResponse()
+        with patch.dict("os.environ",{"AI_API_KEY_PRIMARY":"k","AI_PRIMARY_BASE_URL":"https://example.com/v1","AI_PRIMARY_MODEL":"m"}), \
+             patch.object(ai_review.urllib.request,"build_opener",return_value=FakeOpener()):
+            ai_review.call_api("primary",[],[],session_id="sess-123")
+        self.assertEqual(captured["headers"].get("X-opencode-session"),"sess-123")
 
     def test_transport_failure_retries_within_allowance(self):
         replies=[RuntimeError("API failure: TimeoutError"),response(("page_evidence",{"page":"comment"})),
