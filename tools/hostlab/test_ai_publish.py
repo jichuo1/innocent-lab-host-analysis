@@ -29,7 +29,7 @@ class AiBoundaryTest(unittest.TestCase):
     def test_model_cannot_read_arbitrary_file(self):
         evidence=ai_review.Evidence(Path("."),{"source_snapshot":{"source_records":[]}})
         with self.assertRaises(RuntimeError):
-            evidence.execute("module_source",{"path":"../../.env"})
+            evidence.run_tool("module_source",{"path":"../../.env"})
 
     def test_partial_ai_never_replaces_latest(self):
         with tempfile.TemporaryDirectory() as folder:
