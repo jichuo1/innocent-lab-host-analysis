@@ -75,7 +75,7 @@ if __name__ == "__main__":
     OUTPUT.mkdir(parents=True, exist_ok=True)
     result = {"schema": 1, "probes": []}
     for profile in ("primary", "backup"):
-        result["probes"].append({"attempt": 1, **probe(profile, 8)})
-        result["probes"].append({"attempt": 2, **probe(profile, 64)})
+        for attempt, tokens in ((1, 8), (2, 64), (3, 16384)):
+            result["probes"].append({"attempt": attempt, "max_tokens": tokens, **probe(profile, tokens)})
     (OUTPUT / "report.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(json.dumps(result, indent=2))
