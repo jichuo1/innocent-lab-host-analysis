@@ -14,12 +14,13 @@ import urllib.request
 import hostlab
 import ai_prompts
 
-MAX_REQUESTS = 8
+MAX_REQUESTS = 12
 MAX_TRANSPORT_RETRIES = 2
 MAX_TOOLS = 8
 MAX_OUTPUT = 32768
 MAX_CONTEXT_CHARS = 320000
 REVIEW_EXCERPT_CHARS = 2600
+DRAFT_SUBMIT_NUDGE_AT = 3
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -298,17 +299,26 @@ def collect_report(messages,tools,evidence,summary,attempts,profile,request_limi
     # One stable session ID per conversation; OpenCode-compatible gateways use it for routing
     # and prompt caching, and reject session-less requests with MissingSessionID.
     session_id="hostlab-"+os.urandom(12).hex()
+    nudged=False
     while len(attempts)<request_limit+transport_retry_credit(attempts):
         size=len(json.dumps(messages,ensure_ascii=False))
         if size>MAX_CONTEXT_CHARS:
             print(json.dumps({"event":"context_limit_reached","chars":size,"limit":MAX_CONTEXT_CHARS,"attempts":len(attempts)}))
             break
         try:
+            remaining=request_limit+transport_retry_credit(attempts)-len(attempts)
             required=set(priority_pages(summary))&{"comment","dynamic"}
             reread={r["args"].get("page") for r in evidence.journal[review_start:] if r["tool"]=="page_evidence"}
-            force=len(attempts)>=request_limit-1 or (draft is None and evidence.calls>=5)
+            # Force one request early so a rejected finish_report still has a slot to be corrected.
+            force=remaining<=2 or (draft is None and evidence.calls>=5)
             if draft is not None and not required.issubset(reread):
                 force=False
+            elif draft is None and remaining<=DRAFT_SUBMIT_NUDGE_AT and not nudged:
+                messages.append({"role":"user","content":
+                    "预算提醒：剩余请求有限。请尽快改为调用 finish_report 提交完整报告"
+                    "（覆盖全部登记页面与每条登记路径）；继续取证而不提交会导致本次分析失败。"
+                    "可在一次回复中并行调用多个证据工具以节省预算。"})
+                nudged=True
             message,usage,model=call_api(profile,messages,tools,force,session_id=session_id)
             attempts.append({"stage":"review" if draft else "draft","profile":profile,"model":model,"usage":usage,"status":"response_received"})
         except RuntimeError as exc:
@@ -392,9 +402,10 @@ def run(root):
     finding_schema["required"].append("alternatives")
     profile="backup" if os.environ.get("AI_DEFAULT_PROFILE","primary").lower()=="backup" else "primary"
     attempts=[]
-    # Reserve two tool calls and two API requests for the independent review session.
+    # Reserve four API requests so the independent review session always has slots to
+    # reread priority evidence and still submit after a rejected report.
     evidence.limit=MAX_TOOLS-2
-    draft,profile=collect_report(messages,tools,evidence,summary,attempts,profile,MAX_REQUESTS-2)
+    draft,profile=collect_report(messages,tools,evidence,summary,attempts,profile,MAX_REQUESTS-4)
     completed=None
     if draft:
         for index,finding in enumerate(draft["findings"],1):
