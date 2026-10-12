@@ -126,7 +126,7 @@ class DetailedReviewTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder, patch.object(ai_review,"call_api",side_effect=RuntimeError("API failure: TimeoutError")) as api, patch.object(ai_review.time,"sleep"), patch.dict("os.environ",{"AI_DEFAULT_PROFILE":"backup"}):
             root=self.root(folder)
             with self.assertRaises(RuntimeError):ai_review.run(root)
-            self.assertEqual(api.call_count,8)
+            self.assertEqual(api.call_count,10)
             outcome=json.loads((root/"ai-analysis.json").read_text(encoding="utf-8"))
             self.assertEqual(outcome["status"],"failed")
 
