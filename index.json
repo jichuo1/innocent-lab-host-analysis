@@ -2,6 +2,20 @@
   "schema": 1,
   "reports": [
     {
+      "report_id": "38305512429-a1",
+      "version_code": 9150200,
+      "version_name": "9.15.0",
+      "apk_sha256": "a9b70a6ffb66ed3c074ce32faa53dcbfa48d6a8cb2c80ece6921f227d178a1cd",
+      "status": "REVIEW_REQUIRED",
+      "ai_status": "completed",
+      "complete": true,
+      "path": "samples/9150200/a9b70a6ffb66ed3c074ce32faa53dcbfa48d6a8cb2c80ece6921f227d178a1cd/runs/38305512429-a1/report.md",
+      "created_at": "2026-10-12T20:44:09.509999+00:00",
+      "run_url": "https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/38305512429",
+      "release_url": "https://github.com/jichuo1/innocent-lab-host-analysis/releases/tag/analysis-9150200-a9b70a6ffb66-38305512429-a1",
+      "request_id": "d72208bb930f4093bbe67cef71b6707e"
+    },
+    {
       "report_id": "38296749268-a1",
       "version_code": 9150200,
       "version_name": "9.15.0",
