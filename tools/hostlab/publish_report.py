@@ -110,7 +110,7 @@ def release(tag,assets):
     except urllib.error.HTTPError as exc:
         if exc.code!=404: raise
         existing=api("releases",{"tag_name":tag,"target_commitish":os.environ["GITHUB_SHA"],"name":tag,
-            "body":"Private complete static evidence and AI review. See reports branch for the readable report.","draft":False,"prerelease":True})
+            "body":"Complete static evidence and AI review. See reports branch for the readable report.","draft":False,"prerelease":True})
     names={a["name"] for a in api(f"releases/{existing['id']}/assets")}
     for p in assets:
         if p.name in names: continue
@@ -134,7 +134,7 @@ def publish(entry,files):
             return
         index["reports"].append(entry)
         index["reports"].sort(key=lambda r:(r["version_code"],r["created_at"]),reverse=True)
-        readme=["# 宿主适配分析报告", "", "私有报告；任务成功不等于适配通过。AI 建议仍需人工和真机验收。", "",
+        readme=["# 宿主适配分析报告", "", "任务成功不等于适配通过。AI 建议仍需人工和真机验收。", "",
                 "| 样本 | 分析结论 | AI | 报告 | 完整证据 |", "|---|---|---|---|---|"]
         for r in index["reports"]:
             evidence="[下载]("+r["release_url"]+")" if r.get("release_url") else "—"
@@ -173,7 +173,7 @@ def publish_result(entry,files,tag,assets):
 
 if __name__=="__main__":
     if not api("")["private"]:
-        raise RuntimeError("Report repository must remain private")
+        print("Warning: report repository is public; reports and Releases will be publicly visible.")
     run_id=os.environ["GITHUB_RUN_ID"]
     attempt=os.environ.get("GITHUB_RUN_ATTEMPT","1")
     if not run_id.isdigit() or not attempt.isdigit(): raise RuntimeError("Invalid run identity")
