@@ -130,6 +130,16 @@ class DetailedReviewTest(unittest.TestCase):
             outcome=json.loads((root/"ai-analysis.json").read_text(encoding="utf-8"))
             self.assertEqual(outcome["status"],"failed")
 
+    def test_review_journal_is_bounded_but_keeps_locator_fields(self):
+        journal=[{"id":"E001","tool":"page_evidence","args":{"page":"comment"},"result":{"blob":"x"*9000}},
+                 {"id":"E002","tool":"page_evidence","args":{"page":"dynamic"},"result":{"small":"ok"}}]
+        rows=ai_review.bounded_journal(journal)
+        self.assertEqual([r["id"] for r in rows],["E001","E002"])
+        self.assertEqual(rows[0]["args"],{"page":"comment"})
+        self.assertTrue(rows[0]["result"]["truncated"])
+        self.assertLessEqual(len(rows[0]["result"]["excerpt"]),ai_review.REVIEW_EXCERPT_CHARS)
+        self.assertEqual(rows[1]["result"],{"small":"ok"})
+
     def test_missing_path_or_changed_static_status_is_rejected(self):
         for change in ("missing","status"):
             value=report()
