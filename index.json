@@ -2,6 +2,20 @@
   "schema": 1,
   "reports": [
     {
+      "report_id": "38289340270-a1",
+      "version_code": 9150200,
+      "version_name": "9.15.0",
+      "apk_sha256": "a9b70a6ffb66ed3c074ce32faa53dcbfa48d6a8cb2c80ece6921f227d178a1cd",
+      "status": "AI_ANALYSIS_FAILED",
+      "ai_status": "failed",
+      "complete": false,
+      "path": "samples/9150200/a9b70a6ffb66ed3c074ce32faa53dcbfa48d6a8cb2c80ece6921f227d178a1cd/runs/38289340270-a1/report.md",
+      "created_at": "2026-10-12T18:28:56.547140+00:00",
+      "run_url": "https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/38289340270",
+      "release_url": null,
+      "request_id": "5675d37c654d444880766fdc09a8d457"
+    },
+    {
       "report_id": "38286515231-a1",
       "version_code": 9150200,
       "version_name": "9.15.0",
