@@ -1,0 +1,32 @@
+name: AI generation probe
+run-name: ai-generation-probe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Probe generation with each profile
+        env:
+          AI_API_KEY_PRIMARY: ${{ secrets.AI_API_KEY_PRIMARY }}
+          AI_API_KEY_BACKUP: ${{ secrets.AI_API_KEY_BACKUP }}
+          AI_PRIMARY_BASE_URL: ${{ vars.AI_PRIMARY_BASE_URL }}
+          AI_PRIMARY_MODEL: ${{ vars.AI_PRIMARY_MODEL }}
+          AI_BACKUP_BASE_URL: ${{ vars.AI_BACKUP_BASE_URL }}
+          AI_BACKUP_MODEL: ${{ vars.AI_BACKUP_MODEL }}
+        run: python tools/hostlab/probe_ai_generation.py
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: ai-generation-probe-${{ github.run_id }}
+          path: runtime/hostlab/probe/report.json
+          retention-days: 7
