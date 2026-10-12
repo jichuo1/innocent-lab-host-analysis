@@ -14,7 +14,7 @@ import urllib.request
 import hostlab
 import ai_prompts
 
-DRAFT_REQUESTS = 5
+DRAFT_REQUESTS = 6
 REVIEW_TOTAL = 8
 HARD_REQUEST_CAP = 16
 MAX_TRANSPORT_RETRIES = 2
