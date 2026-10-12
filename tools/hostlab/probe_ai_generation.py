@@ -9,6 +9,7 @@ from pathlib import Path
 import time
 import urllib.error
 import urllib.request
+import uuid
 
 OUTPUT = Path("runtime/hostlab/probe")
 ENDPOINTS = {
@@ -37,9 +38,12 @@ def probe(profile, max_tokens):
     url, model = ENDPOINTS[profile]
     payload = {"model": model, "messages": [{"role": "user", "content": "Reply with the single word: pong"}],
                "max_tokens": max_tokens, "stream": False}
-    request = urllib.request.Request(url, data=json.dumps(payload).encode(),
-        headers={"Authorization": "Bearer " + key, "Content-Type": "application/json",
-                 "User-Agent": "HostLab-Probe/1"})
+    headers = {"Authorization": "Bearer " + key, "Content-Type": "application/json",
+               "User-Agent": "HostLab-Probe/1"}
+    if profile == "primary":
+        # OpenCode Go requires a stable x-opencode-session ID for routing and prompt caching.
+        headers["x-opencode-session"] = "hostlab-probe-" + uuid.uuid4().hex[:24]
+    request = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=headers)
     started = time.monotonic()
     try:
         with urllib.request.build_opener(NoRedirect()).open(request, timeout=90) as response:
