@@ -14,13 +14,19 @@ import urllib.request
 import hostlab
 import ai_prompts
 
-MAX_REQUESTS = 12
+DRAFT_REQUESTS = 5
+REVIEW_TOTAL = 8
+HARD_REQUEST_CAP = 16
 MAX_TRANSPORT_RETRIES = 2
-MAX_TOOLS = 8
-MAX_OUTPUT = 32768
-MAX_CONTEXT_CHARS = 320000
+MODEL_TOOLS = 6
+MAX_OUTPUT = 65536
+MAX_CONTEXT_CHARS = 640000
 REVIEW_EXCERPT_CHARS = 2600
+PREFETCH_VIEW_CHARS = 5000
+AI_DEADLINE_SECONDS = 1080
 DRAFT_SUBMIT_NUDGE_AT = 3
+MIN_DRAFT_DEEP_DIVES = 2
+REQUEST_TIMEOUT_SECONDS = 120
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -36,7 +42,7 @@ def redact(text):
     return text
 
 
-def call_api(profile, messages, tools, force_finish=False, session_id=None):
+def call_api(profile, messages, tools, force_tool=None, session_id=None):
     name = profile.upper()
     key = os.environ.get("AI_API_KEY_" + name, "")
     base = os.environ.get("AI_" + name + "_BASE_URL", "").rstrip("/")
@@ -45,7 +51,7 @@ def call_api(profile, messages, tools, force_finish=False, session_id=None):
     if not key or not model or parsed.scheme != "https" or parsed.username or parsed.password or parsed.query or parsed.fragment:
         raise RuntimeError("API configuration incomplete or invalid")
     payload = {"model": model, "messages": messages, "tools": tools,
-               "tool_choice": {"type": "function", "function": {"name": "finish_report"}} if force_finish else "auto",
+               "tool_choice": {"type": "function", "function": {"name": force_tool}} if force_tool else "auto",
                "max_tokens": MAX_OUTPUT, "stream": False}
     headers = {"Authorization": "Bearer " + key, "Content-Type": "application/json",
                "User-Agent": "HostLab-AIReview/1"}
@@ -55,7 +61,7 @@ def call_api(profile, messages, tools, force_finish=False, session_id=None):
     request = urllib.request.Request(base + "/chat/completions", data=json.dumps(payload).encode(),
         headers=headers)
     try:
-        with urllib.request.build_opener(NoRedirect()).open(request, timeout=180) as response:
+        with urllib.request.build_opener(NoRedirect()).open(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
             raw = response.read(2 * 1024 * 1024 + 1)
         if len(raw) > 2 * 1024 * 1024:
             raise RuntimeError("API response exceeds bound")
@@ -125,10 +131,9 @@ def priority_pages(summary):
             if name in {"comment","dynamic"} or len(page.get("paths",{}))>1 or changed.intersection(page.get("paths",{}))]
 
 
-def validate_review(report,draft,evidence,priorities,review_start):
-    review=report.get("review")
+def validate_review_record(review,draft,evidence,priorities,review_start):
     if not isinstance(review,dict):
-        raise RuntimeError("Independent review is required")
+        raise RuntimeError("Independent review record is required")
     rows=review.get("pages",[])
     if len(rows)!=len(priorities) or {r.get("page") for r in rows}!=set(priorities):
         raise RuntimeError("Review every priority page exactly once")
@@ -145,13 +150,13 @@ def validate_review(report,draft,evidence,priorities,review_start):
     for row in findings:
         if row.get("disposition") not in {"retained","revised","rejected","needs_more_evidence"}:
             raise RuntimeError("Invalid review disposition")
-    final=report.get("findings",[])
-    retained={r["finding_id"] for r in findings if r["disposition"]!="rejected"}
-    if len(final)!=len(retained) or {r.get("finding_id") for r in final}!=retained:
-        raise RuntimeError("Final findings must implement review dispositions")
-    uncertain={r["finding_id"] for r in findings if r["disposition"]=="needs_more_evidence"}
-    if any(r["finding_id"] in uncertain and r["level"]=="static_evidence" for r in final):
-        raise RuntimeError("Insufficient evidence findings must remain uncertain")
+        revision=row.get("revision")
+        if row.get("disposition")=="revised":
+            message=invalid_revision(revision)
+            if message:
+                raise RuntimeError(message)
+        elif revision is not None:
+            raise RuntimeError("Revision patch is only allowed with disposition=revised")
     gaps=review.get("remaining_gaps")
     if not isinstance(gaps,list) or len(gaps)>20 or not all(isinstance(g,str) for g in gaps):
         raise RuntimeError("Review must record bounded remaining gaps")
@@ -172,7 +177,7 @@ class Evidence:
         self.calls = 0
         self.journal = []
         self.ids = {"E000"}
-        self.limit = MAX_TOOLS
+        self.limit = MODEL_TOOLS
 
     def dataset(self, side):
         if side not in {"target", "baseline"}:
@@ -181,7 +186,18 @@ class Evidence:
             self.data[side] = json.loads((self.root / ("priority-" + side + ".json")).read_text(encoding="utf-8"))
         return self.data[side]
 
-    def execute(self, name, args):
+    def server_read(self, name, args):
+        """Server-side read that never consumes the model tool budget."""
+        saved_calls = self.calls
+        saved_limit = self.limit
+        self.limit = saved_calls + 1
+        try:
+            return self.run_tool(name, args)
+        finally:
+            self.calls = saved_calls
+            self.limit = saved_limit
+
+    def run_tool(self, name, args):
         if self.calls >= self.limit:
             raise RuntimeError("Read-only tool budget exhausted")
         self.calls += 1
@@ -281,6 +297,106 @@ def transport_retry_credit(attempts):
     return min(failures,MAX_TRANSPORT_RETRIES)
 
 
+def prefetch_view(result, limit=PREFETCH_VIEW_CHARS):
+    """Bounded per-page view for prompts; the full result stays in the journal."""
+    def build(with_callers):
+        view={"page":result.get("page"),"evidence_id":result.get("evidence_id"),
+              "limits":result.get("limits"),"sides":{}}
+        for which,data in (result.get("sides") or {}).items():
+            if data.get("missing"):
+                view["sides"][which]={"missing":True}
+                continue
+            view["sides"][which]={
+                "sample":data.get("sample"),
+                "families":{k:{"summary":v.get("summary")} for k,v in (data.get("families") or {}).items()},
+                "protocols":{k:{"summary":v.get("summary"),
+                    **({"callers":(v.get("caller_samples") or [])[:2]} if with_callers else {})}
+                    for k,v in (data.get("protocols") or {}).items()}}
+        return view
+    view=build(True)
+    if len(json.dumps(view,ensure_ascii=False))>limit:
+        view=build(False)
+    text=json.dumps(view,ensure_ascii=False)
+    if len(text)>limit:
+        view={"page":result.get("page"),"evidence_id":result.get("evidence_id"),
+              "truncated":True,"excerpt":text[:limit]}
+    return view
+
+
+def prefetch_evidence(evidence,summary):
+    """Deterministic server-side page reads; zero API cost and no model tool budget."""
+    views=[]
+    for page in summary["page_path_matrix"]:
+        views.append(prefetch_view(evidence.server_read("page_evidence",{"page":page})))
+    return views
+
+
+REVISION_FIELDS=("title","analysis","recommendation","alternatives","level")
+CLAIM_LEVELS={"candidate","static_evidence","needs_runtime"}
+
+
+def invalid_revision(revision):
+    """Return a rejection message when a revision patch fails value checks, else None."""
+    if not isinstance(revision,dict) or not revision:
+        return "revised disposition requires a non-empty revision patch"
+    for key in revision:
+        if key not in REVISION_FIELDS:
+            return "Revision patch has unsupported fields: "+str(key)
+    for key,value in revision.items():
+        if key=="level":
+            if not isinstance(value,str) or value not in CLAIM_LEVELS:
+                return "Revision level must be one of candidate/static_evidence/needs_runtime"
+        elif not isinstance(value,str) or not value.strip():
+            return "Revision field must be non-empty text: "+key
+    return None
+
+
+def assemble_report(draft,review):
+    """Deterministic assembly: draft pages plus review dispositions become the final report."""
+    if not isinstance(review,dict):
+        raise RuntimeError("Review record must be an object")
+    rows=review.get("findings")
+    if not isinstance(rows,list):
+        raise RuntimeError("Review record requires a findings list")
+    by_id={}
+    for row in rows:
+        if not isinstance(row,dict) or not isinstance(row.get("finding_id"),str):
+            raise RuntimeError("Each review finding requires a finding_id")
+        if row["finding_id"] in by_id:
+            raise RuntimeError("Duplicate review finding_id: "+row["finding_id"])
+        by_id[row["finding_id"]]=row
+    draft_ids={f.get("finding_id") for f in draft["findings"]}
+    extra=[key for key in by_id if key not in draft_ids]
+    if extra:
+        raise RuntimeError("Review references findings absent from the draft: "+",".join(sorted(extra)))
+    findings=[]
+    for item in draft["findings"]:
+        row=by_id.get(item["finding_id"])
+        if row is None:
+            raise RuntimeError("Review is missing draft finding "+item["finding_id"])
+        disposition=row.get("disposition")
+        if disposition=="rejected":
+            continue
+        if disposition not in {"retained","revised","needs_more_evidence"}:
+            raise RuntimeError("Invalid review disposition for "+item["finding_id"])
+        merged=copy.deepcopy(item)
+        revision=row.get("revision")
+        if disposition=="revised":
+            message=invalid_revision(revision)
+            if message:
+                raise RuntimeError(message)
+            merged.update({k:revision[k] for k in REVISION_FIELDS if k in revision})
+        elif revision is not None:
+            raise RuntimeError("Revision patch is only allowed with disposition=revised")
+        if disposition=="needs_more_evidence" and merged.get("level")=="static_evidence":
+            merged["level"]="needs_runtime"
+        findings.append(merged)
+    assembled=copy.deepcopy(draft)
+    assembled["findings"]=findings
+    assembled["review"]=copy.deepcopy(review)
+    return assembled
+
+
 def bounded_journal(journal):
     """Bound the review payload; full results stay reachable by re-reading with the same tools."""
     rows=[]
@@ -294,32 +410,38 @@ def bounded_journal(journal):
     return rows
 
 
-def collect_report(messages,tools,evidence,summary,attempts,profile,request_limit,draft=None):
-    review_start=len(evidence.journal)
+def collect_report(messages,tools,evidence,summary,attempts,profile,request_limit,draft=None,review_start=None,deadline=None):
+    if review_start is None:
+        review_start=len(evidence.journal)
     # One stable session ID per conversation; OpenCode-compatible gateways use it for routing
     # and prompt caching, and reject session-less requests with MissingSessionID.
     session_id="hostlab-"+os.urandom(12).hex()
     nudged=False
-    while len(attempts)<request_limit+transport_retry_credit(attempts):
+    offered={t["function"]["name"] for t in tools}
+    attempts_before=len(attempts)
+    def credit():
+        failures=transport_retry_credit(attempts[attempts_before:])
+        return min(failures,max(0,HARD_REQUEST_CAP-1-len(attempts)))
+    while len(attempts)<HARD_REQUEST_CAP and len(attempts)-attempts_before<request_limit+credit():
         size=len(json.dumps(messages,ensure_ascii=False))
+        if deadline is not None and time.monotonic()>deadline:
+            print(json.dumps({"event":"deadline_reached","attempts":len(attempts),"deadline_seconds":AI_DEADLINE_SECONDS}))
+            break
         if size>MAX_CONTEXT_CHARS:
             print(json.dumps({"event":"context_limit_reached","chars":size,"limit":MAX_CONTEXT_CHARS,"attempts":len(attempts)}))
             break
         try:
-            remaining=request_limit+transport_retry_credit(attempts)-len(attempts)
-            required=set(priority_pages(summary))&{"comment","dynamic"}
-            reread={r["args"].get("page") for r in evidence.journal[review_start:] if r["tool"]=="page_evidence"}
-            # Force one request early so a rejected finish_report still has a slot to be corrected.
-            force=remaining<=2 or (draft is None and evidence.calls>=5)
-            if draft is not None and not required.issubset(reread):
-                force=False
-            elif draft is None and remaining<=DRAFT_SUBMIT_NUDGE_AT and not nudged:
+            remaining=request_limit+credit()-(len(attempts)-attempts_before)
+            # Force the last two slots of each phase so a rejected submission can be corrected.
+            force=remaining<=2
+            if draft is None and remaining<=DRAFT_SUBMIT_NUDGE_AT and not nudged:
                 messages.append({"role":"user","content":
-                    "预算提醒：剩余请求有限。请尽快改为调用 finish_report 提交完整报告"
+                    "预算提醒：剩余请求有限。请立即调用 finish_report 提交完整报告"
                     "（覆盖全部登记页面与每条登记路径）；继续取证而不提交会导致本次分析失败。"
-                    "可在一次回复中并行调用多个证据工具以节省预算。"})
+                    "可用一次回复并行调用多个深挖工具，但优先保证提交。"})
                 nudged=True
-            message,usage,model=call_api(profile,messages,tools,force,session_id=session_id)
+            force_tool=("finish_review" if draft is not None else "finish_report") if force else None
+            message,usage,model=call_api(profile,messages,tools,force_tool,session_id=session_id)
             attempts.append({"stage":"review" if draft else "draft","profile":profile,"model":model,"usage":usage,"status":"response_received"})
         except RuntimeError as exc:
             reason=str(exc)
@@ -328,45 +450,73 @@ def collect_report(messages,tools,evidence,summary,attempts,profile,request_limi
                 profile="backup"
                 continue
             retryable=reason.startswith("API failure:") or any(code in reason for code in ("HTTP 429","HTTP 500","HTTP 502","HTTP 503","HTTP 504"))
-            if retryable and len(attempts)<request_limit+transport_retry_credit(attempts):
+            if retryable and len(attempts)<HARD_REQUEST_CAP and len(attempts)-attempts_before<request_limit+credit():
                 time.sleep(2)
                 continue
             break
         messages.append(message)
         calls=message.get("tool_calls",[])
         if not calls:
-            messages.append({"role":"user","content":"先用证据工具调查，再调用 finish_report 提交结构化报告。"})
+            usage=attempts[-1].get("usage") or {}
+            completion=usage.get("completion_tokens")
+            # Reasoning-heavy models can burn the entire output budget on hidden reasoning
+            # (completion == cap) and return no content and no tool call. Flag it so the
+            # loop issues a short resubmission instruction instead of the generic nudge.
+            if isinstance(completion,int) and completion>=MAX_OUTPUT:
+                attempts[-1]["empty_completion"]=True
+                messages.append({"role":"user","content":
+                    "上一次回复没有产生任何工具调用（输出预算被推理耗尽）。"
+                    "请立即直接调用 finish_report（复核阶段为 finish_review），不要继续推理或取证。"})
+            else:
+                messages.append({"role":"user","content":"先用证据工具调查，再调用 finish_report 提交结构化报告。"})
             continue
         completed=None
         for call in calls:
+            tool_name=None
             try:
-                name=call["function"]["name"]
+                tool_name=call["function"]["name"]
                 args=json.loads(call["function"]["arguments"])
-                if name=="finish_report":
-                    if evidence.calls==0:
-                        raise RuntimeError("Investigate actual evidence before finishing")
-                    candidate=validate_report(args,evidence.ids,list(summary["page_path_matrix"]),summary["page_path_matrix"])
+                if tool_name=="finish_report":
                     if draft is not None:
-                        validate_review(candidate,draft,evidence,priority_pages(summary),review_start)
+                        raise RuntimeError("Submit the review via finish_review in this session")
+                    if evidence.calls<MIN_DRAFT_DEEP_DIVES:
+                        raise RuntimeError("Verify at least "+str(MIN_DRAFT_DEEP_DIVES)+
+                            " hypotheses with deep-dive tools (family_evidence/protocol_evidence/module_source/decompile_class) before submitting the draft")
+                    candidate=validate_report(args,evidence.ids,list(summary["page_path_matrix"]),summary["page_path_matrix"])
+                    deep_ids={r["id"] for r in evidence.journal if r["tool"]!="page_evidence"}
+                    if candidate.get("findings") and not any(set(f.get("evidence_ids",[]))&deep_ids for f in candidate["findings"]):
+                        raise RuntimeError("At least one finding must cite deep-dive evidence (not only prefetched page evidence)")
                     completed=candidate
                     result={"accepted":True}
+                elif tool_name=="finish_review":
+                    if draft is None:
+                        raise RuntimeError("finish_review is only available in the review session")
+                    candidate=validate_review_record(args,draft,evidence,priority_pages(summary),review_start)
+                    completed=candidate
+                    result={"accepted":True}
+                elif tool_name in offered:
+                    result=evidence.run_tool(tool_name,args)
                 else:
-                    result=evidence.execute(name,args)
+                    raise RuntimeError("Tool is not allowed: "+str(tool_name))
             except Exception as exc:
                 if isinstance(exc,json.JSONDecodeError):
                     result={"error":"tool arguments were not valid JSON (most likely truncated by the output limit); resubmit this call with more concise arguments"}
                 else:
                     result={"error":str(exc)[:300] if type(exc) is RuntimeError else type(exc).__name__}
+                errors=attempts[-1].setdefault("call_errors",[])
+                if len(errors)<8:
+                    errors.append({"tool":tool_name or "invalid_call","error":result["error"]})
             messages.append({"role":"tool","tool_call_id":call["id"],"content":redact(json.dumps(result,ensure_ascii=False))})
         if completed:
             return completed,profile
     return None,profile
 
 
-def run(root):
+def _run(root):
     summary_path = root / "priority-summary.json"
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     evidence = Evidence(root, summary)
+    attempts=[]
     seed = {"evidence_id": "E000", "sample": summary["sample"], "baseline": summary.get("baseline"),
         "pages": copy.deepcopy(summary["page_path_matrix"]), "changes": summary["changes"],
         "resource_change_counts": {k:len(v) for k,v in (summary.get("resource_changes") or {}).items() if isinstance(v,list)},
@@ -377,16 +527,22 @@ def run(root):
     for page in seed["pages"].values():
         page["protocols"] = {k:{a:b for a,b in v.items() if a != "signatures"} for k,v in page.get("protocols", {}).items()}
     seed["changes"] = [{k:v for k,v in c.items() if k not in {"before","after"}} for c in seed["changes"]]
+    prefetch_entries=0
+    try:
+        views=prefetch_evidence(evidence,summary)
+        prefetch_entries=len(evidence.journal)
+    except Exception as exc:
+        attempts.append({"stage":"prefetch","status":"failed","reason":type(exc).__name__+": "+str(exc)[:200]})
+        raise RuntimeError("Evidence prefetch failed; analysis aborted before any API request") from None
     messages = [{"role":"system", "content":ai_prompts.DRAFT},
-                {"role":"user", "content":json.dumps(seed,ensure_ascii=False)}]
+                {"role":"user", "content":json.dumps({"seed":seed,"prefetch":views},ensure_ascii=False)}]
     side = {"type":"string","enum":["target","baseline"]}
     string = {"type":"string"}
-    tools = [tool("page_evidence","Compare every registered family and protocol of a page in target and baseline",{"page":string},["page"]),
-             tool("family_evidence","Read family structures, counts and bounded class samples",{"family":string,"side":side},["family","side"]),
+    deep_tools=[tool("family_evidence","Read family structures, counts and bounded class samples",{"family":string,"side":side},["family","side"]),
              tool("protocol_evidence","Read exact signatures and actual static invoke callers",{"protocol":string,"side":side},["protocol","side"]),
              tool("module_source","Read a frozen production source file, never filesystem paths",{"path":string},["path"]),
-             tool("decompile_class","Read pseudo-Java of a real frozen APK class",{"class_name":string,"side":side},["class_name","side"]),
-             tool("finish_report","Submit Chinese review with evidence citations; no adaptation acceptance",{
+             tool("decompile_class","Read pseudo-Java of a real frozen APK class",{"class_name":string,"side":side},["class_name","side"])]
+    tools = deep_tools + [tool("finish_report","Submit Chinese review with evidence citations; no adaptation acceptance",{
                  "overview":string,"pages":{"type":"array","items":{"type":"object","properties":{"page":string,"assessment":string,"evidence_ids":{"type":"array","items":string}},"required":["page","assessment","evidence_ids"]}},
                  "findings":{"type":"array","items":{"type":"object","properties":{"title":string,"page":string,"level":{"type":"string","enum":["candidate","static_evidence","needs_runtime"]},"analysis":string,"recommendation":string,"evidence_ids":{"type":"array","items":string}},"required":["title","page","level","analysis","recommendation","evidence_ids"]}},
                  "next_steps":{"type":"array","items":string}},["overview","pages","findings","next_steps"])]
@@ -401,36 +557,61 @@ def run(root):
     finding_schema["properties"]["alternatives"]=string
     finding_schema["required"].append("alternatives")
     profile="backup" if os.environ.get("AI_DEFAULT_PROFILE","primary").lower()=="backup" else "primary"
-    attempts=[]
-    # Reserve four API requests so the independent review session always has slots to
-    # reread priority evidence and still submit after a rejected report.
-    evidence.limit=MAX_TOOLS-2
-    draft,profile=collect_report(messages,tools,evidence,summary,attempts,profile,MAX_REQUESTS-4)
+    deadline=time.monotonic()+AI_DEADLINE_SECONDS
+    # Reserve two model tool calls for the review session.
+    evidence.limit=MODEL_TOOLS-2
+    draft,profile=collect_report(messages,tools,evidence,summary,attempts,profile,DRAFT_REQUESTS,deadline=deadline)
     completed=None
     if draft:
         for index,finding in enumerate(draft["findings"],1):
             finding["finding_id"]=f"F{index:03d}"
         (root/"ai-draft.json").write_text(redact(json.dumps(draft,ensure_ascii=False,indent=2)),encoding="utf-8")
-        evidence.limit=MAX_TOOLS
-        review_tools=copy.deepcopy(tools)
-        review_schema=review_tools[-1]["function"]["parameters"]
-        refs={"type":"array","items":string}
-        review_schema["properties"]["review"]={"type":"object","properties":{
-            "pages":{"type":"array","items":{"type":"object","properties":{"page":string,"assessment":string,"evidence_ids":refs},"required":["page","assessment","evidence_ids"]}},
-            "findings":{"type":"array","items":{"type":"object","properties":{"finding_id":string,"disposition":{"type":"string","enum":["retained","revised","rejected","needs_more_evidence"]},"reason":string,"evidence_ids":refs},"required":["finding_id","disposition","reason","evidence_ids"]}},
-            "remaining_gaps":{"type":"array","items":string}},"required":["pages","findings","remaining_gaps"]}
-        review_schema["required"].append("review")
-        review_schema["properties"]["findings"]["items"]["properties"]["finding_id"]=string
-        review_schema["properties"]["findings"]["items"]["required"].append("finding_id")
-        review_messages=[{"role":"system","content":ai_prompts.REVIEW},
-            {"role":"user","content":json.dumps({"seed":seed,"draft":draft,"priority_pages":priority_pages(summary),"evidence":bounded_journal(evidence.journal)},ensure_ascii=False)}]
-        completed,profile=collect_report(review_messages,review_tools,evidence,summary,attempts,profile,MAX_REQUESTS,draft)
-    (root/"ai-review.json").write_text(redact(json.dumps(completed.get("review") if completed else {"status":"not_completed"},ensure_ascii=False,indent=2)),encoding="utf-8")
+        evidence.limit=MODEL_TOOLS
+        priorities=priority_pages(summary)
+        refresh_pages=[p for p in priorities if p in {"comment","dynamic"}]
+        # The fresh reread is part of the review window, so its ids satisfy the
+        # reviewer-must-reread check in validate_review_record.
+        review_start=len(evidence.journal)
+        review=None
+        try:
+            fresh={}
+            for page in refresh_pages:
+                fresh[page]=evidence.server_read("page_evidence",{"page":page})["evidence_id"]
+            refs={"type":"array","items":string}
+            revision={"type":"object","properties":{
+                "title":string,"analysis":string,"recommendation":string,"alternatives":string,
+                "level":{"type":"string","enum":["candidate","static_evidence","needs_runtime"]}}}
+            review_tools=deep_tools+[tool("finish_review","Submit the review record only; the final report is assembled server-side",{
+                "pages":{"type":"array","items":{"type":"object","properties":{"page":string,"assessment":string,"evidence_ids":refs},"required":["page","assessment","evidence_ids"]}},
+                "findings":{"type":"array","items":{"type":"object","properties":{"finding_id":string,"disposition":{"type":"string","enum":["retained","revised","rejected","needs_more_evidence"]},"reason":string,"evidence_ids":refs,"revision":revision},"required":["finding_id","disposition","reason","evidence_ids"]}},
+                "remaining_gaps":{"type":"array","items":string}},["pages","findings","remaining_gaps"])]
+            review_messages=[{"role":"system","content":ai_prompts.REVIEW},
+                {"role":"user","content":json.dumps({"seed":seed,"draft":draft,"priority_pages":priorities,"prefetch":views,
+                    "fresh_refresh":fresh,"evidence":bounded_journal(evidence.journal[prefetch_entries:])},ensure_ascii=False)}]
+            review,profile=collect_report(review_messages,review_tools,evidence,summary,attempts,profile,REVIEW_TOTAL,
+                draft=draft,review_start=review_start,deadline=deadline)
+        except Exception as exc:
+            attempts.append({"stage":"review","profile":profile,"status":"failed",
+                             "reason":type(exc).__name__+": "+str(exc)[:200]})
+            review=None
+        if review:
+            try:
+                completed=assemble_report(draft,review)
+                validate_report(completed,evidence.ids,list(summary["page_path_matrix"]),summary["page_path_matrix"])
+            except Exception as exc:
+                attempts.append({"stage":"assembly","profile":profile,"status":"failed",
+                                 "reason":type(exc).__name__+": "+str(exc)[:200]})
+                completed=None
+    (root/"ai-review.json").write_text(redact(json.dumps((completed or {}).get("review",{"status":"not_completed"}),ensure_ascii=False,indent=2)),encoding="utf-8")
     outcome = {"schema":2,"prompt_version":ai_prompts.PROMPT_VERSION,
                "prompt_sha256":hashlib.sha256((ai_prompts.DRAFT+ai_prompts.REVIEW).encode()).hexdigest(),
                "status":"completed" if completed else "failed", "profile":profile,
                "runtime_verified":False,"claim_scope":"ai_suggestions_over_static_evidence", "attempts":attempts,
-               "limits":{"api_requests":MAX_REQUESTS,"transport_retry_allowance":MAX_TRANSPORT_RETRIES,"read_tools":MAX_TOOLS,"output_tokens_per_request":MAX_OUTPUT,"usd_cap_enforced":False},
+               "limits":{"draft_requests":DRAFT_REQUESTS,"review_requests":REVIEW_TOTAL,"hard_cap":HARD_REQUEST_CAP,
+                   "transport_retry_allowance":MAX_TRANSPORT_RETRIES,"model_read_tools":MODEL_TOOLS,
+                   "prefetched_pages":len(views),"deadline_seconds":AI_DEADLINE_SECONDS,
+                   "server_read_tool_calls":max(0,len(evidence.journal)-evidence.calls),
+                   "output_tokens_per_request":MAX_OUTPUT,"usd_cap_enforced":False},
                "report":completed,"review_status":"completed" if completed else "not_completed","review":completed.get("review") if completed else None,"read_tool_calls":evidence.calls}
     (root/"ai-analysis.json").write_text(redact(json.dumps(outcome,ensure_ascii=False,indent=2)),encoding="utf-8")
     (root/"ai-evidence.json").write_text(redact(json.dumps({"E000":seed,"tools":evidence.journal},ensure_ascii=False,indent=2)),encoding="utf-8")
@@ -461,6 +642,39 @@ def run(root):
     with md.open("a",encoding="utf-8") as stream:
         stream.write(redact("\n".join(lines)))
     print(json.dumps({"ai_status":"completed","profile":profile,"requests":len(attempts),"read_tools":evidence.calls}))
+
+
+def run(root):
+    """Failure perimeter: any unexpected crash still leaves a failed record on disk."""
+    try:
+        _run(root)
+    except Exception as exc:
+        _record_crash(root, exc)
+        raise
+
+
+def _record_crash(root, exc):
+    analysis=root/"ai-analysis.json"
+    if analysis.exists():
+        return  # The normal failure path already wrote full evidence.
+    message=redact(type(exc).__name__+": "+str(exc)[:300])
+    outcome={"schema":2,"prompt_version":ai_prompts.PROMPT_VERSION,"status":"failed",
+             "runtime_verified":False,"claim_scope":"ai_suggestions_over_static_evidence",
+             "error":message,"attempts":[]}
+    try:
+        analysis.write_text(redact(json.dumps(outcome,ensure_ascii=False,indent=2)),encoding="utf-8")
+        summary_path=root/"priority-summary.json"
+        if summary_path.exists():
+            summary=json.loads(summary_path.read_text(encoding="utf-8"))
+            summary["ai_status"]="failed"
+            summary["ai_review"]=outcome
+            hostlab.write_json(summary_path,summary)
+        report=root/"priority-report.md"
+        if report.exists():
+            with report.open("a",encoding="utf-8") as stream:
+                stream.write("\n\n# AI 分析未完成\n\n分析流程异常中止；详情见 ai-analysis.json。\n")
+    except OSError:
+        pass
 
 
 if __name__ == "__main__":
