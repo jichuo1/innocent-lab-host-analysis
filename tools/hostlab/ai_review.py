@@ -83,12 +83,23 @@ def tool(name, description, properties, required):
         "parameters": {"type": "object", "properties": properties, "required": required, "additionalProperties": False}}}
 
 
+def _diff_names(expected, got):
+    missing=sorted(set(expected)-set(got))
+    extra=sorted(set(got)-set(expected))
+    parts=[]
+    if missing: parts.append("missing="+",".join(missing))
+    if extra: parts.append("unexpected="+",".join(extra))
+    return "; ".join(parts) if parts else "duplicates present"
+
+
 def validate_report(value, ids, pages, matrix=None):
     if not isinstance(value, dict) or not isinstance(value.get("overview"), str):
         raise RuntimeError("Report requires overview")
     assessments = value.get("pages", [])
-    if len(assessments) != len(pages) or {p.get("page") for p in assessments} != set(pages):
-        raise RuntimeError("Assess every registered page exactly once")
+    got_pages=[p.get("page") for p in assessments if isinstance(p,dict)]
+    if len(assessments) != len(pages) or set(got_pages) != set(pages):
+        raise RuntimeError("Assess every registered page exactly once ("+_diff_names(pages,got_pages)+
+            "); submit exactly these page names: "+",".join(pages))
     findings = value.get("findings", [])
     if not isinstance(findings, list) or len(findings) > 12:
         raise RuntimeError("Findings exceed bound")
@@ -96,32 +107,39 @@ def validate_report(value, ids, pages, matrix=None):
         raise RuntimeError("Bound next_steps to at most twelve strings")
     for item in assessments + findings:
         refs = item.get("evidence_ids", [])
-        if not refs or any(ref not in ids for ref in refs):
-            raise RuntimeError("Only cite actual E000/E001 evidence IDs")
+        bad=[ref for ref in refs if ref not in ids]
+        if not refs or bad:
+            raise RuntimeError("Only cite actual E000/E001 evidence IDs (invalid refs: "+
+                (",".join(str(r) for r in bad) if bad else "none provided")+")")
     for item in assessments:
         if not isinstance(item.get("assessment"),str):
             raise RuntimeError("Page assessment must be text")
         if matrix is not None:
             checks=item.get("path_reviews",[])
             expected=set(matrix[item["page"]].get("paths",{}))
-            if len(checks)!=len(expected) or {c.get("path") for c in checks}!=expected:
-                raise RuntimeError("Assess each registered path exactly once")
+            got_paths=[c.get("path") for c in checks if isinstance(c,dict)]
+            if len(checks)!=len(expected) or set(got_paths)!=expected:
+                raise RuntimeError("Assess each registered path of page "+item["page"]+" exactly once ("+
+                    _diff_names(expected,got_paths)+"); expected paths: "+",".join(sorted(expected)))
             for check in checks:
                 if not all(isinstance(check.get(k),str) and check[k].strip() for k in ("status","change","impact","verification")):
-                    raise RuntimeError("Path needs status, change, impact and verification")
+                    raise RuntimeError("Path "+str(check.get("path"))+" needs status, change, impact and verification")
                 if check["status"]!=matrix[item["page"]]["paths"][check["path"]]["evidence"]:
-                    raise RuntimeError("Path status must match static evidence")
+                    raise RuntimeError("Path "+check["path"]+" status must be exactly '"+
+                        matrix[item["page"]]["paths"][check["path"]]["evidence"]+"' (copy it from prefetch)")
                 if not check.get("evidence_ids") or any(ref not in ids for ref in check["evidence_ids"]):
-                    raise RuntimeError("Path references unknown evidence")
+                    raise RuntimeError("Path "+str(check.get("path"))+" references unknown evidence")
     for item in findings:
         if item.get("level") not in {"candidate", "static_evidence", "needs_runtime"}:
-            raise RuntimeError("Unsupported claim level")
+            raise RuntimeError("Unsupported claim level (use candidate/static_evidence/needs_runtime)")
         if item.get("page") not in pages or not all(isinstance(item.get(k),str) for k in ("title","analysis","recommendation")):
-            raise RuntimeError("Finding requires a registered page and text fields")
+            raise RuntimeError("Finding requires a registered page and text fields (page='"+str(item.get("page"))+
+                "' not in "+",".join(pages)+")")
         if matrix is not None and (not isinstance(item.get("alternatives"),str) or not item["alternatives"].strip()):
             raise RuntimeError("Finding must discuss alternative explanations")
-    if len(json.dumps(value, ensure_ascii=False)) > 50000:
-        raise RuntimeError("Report exceeds output bound")
+    size=len(json.dumps(value, ensure_ascii=False))
+    if size > 100000:
+        raise RuntimeError("Report exceeds output bound ("+str(size)+" chars); shorten assessments, not coverage")
     return value
 
 
@@ -135,28 +153,37 @@ def validate_review_record(review,draft,evidence,priorities,review_start):
     if not isinstance(review,dict):
         raise RuntimeError("Independent review record is required")
     rows=review.get("pages",[])
-    if len(rows)!=len(priorities) or {r.get("page") for r in rows}!=set(priorities):
-        raise RuntimeError("Review every priority page exactly once")
+    got_pages=[r.get("page") for r in rows if isinstance(r,dict)]
+    if len(rows)!=len(priorities) or set(got_pages)!=set(priorities):
+        raise RuntimeError("Review every priority page exactly once ("+_diff_names(priorities,got_pages)+
+            "); submit exactly these pages: "+",".join(priorities))
     findings=review.get("findings",[])
     expected={r["finding_id"] for r in draft["findings"]}
-    if len(findings)!=len(expected) or {r.get("finding_id") for r in findings}!=expected:
-        raise RuntimeError("Review every draft finding exactly once")
+    got_ids=[r.get("finding_id") for r in findings if isinstance(r,dict)]
+    if len(findings)!=len(expected) or set(got_ids)!=expected:
+        raise RuntimeError("Review every draft finding exactly once ("+_diff_names(expected,got_ids)+
+            "); submit exactly these finding_ids: "+",".join(sorted(expected)))
     for row in rows+findings:
         field="assessment" if "page" in row else "reason"
         if not isinstance(row.get(field),str) or not row[field].strip():
-            raise RuntimeError("Review requires an explanation")
-        if not row.get("evidence_ids") or any(ref not in evidence.ids for ref in row["evidence_ids"]):
-            raise RuntimeError("Review references unknown evidence")
+            raise RuntimeError("Review requires an explanation ("+field+")")
+        bad=[ref for ref in row.get("evidence_ids",[]) if ref not in evidence.ids]
+        if not row.get("evidence_ids") or bad:
+            raise RuntimeError("Review references unknown evidence (invalid refs: "+
+                (",".join(str(r) for r in bad) if bad else "none provided")+
+                "); use ids from prefetch/fresh_refresh or your own tool results")
     for row in findings:
         if row.get("disposition") not in {"retained","revised","rejected","needs_more_evidence"}:
-            raise RuntimeError("Invalid review disposition")
+            raise RuntimeError("Invalid review disposition for "+str(row.get("finding_id"))+
+                " (use retained/revised/rejected/needs_more_evidence)")
         revision=row.get("revision")
         if row.get("disposition")=="revised":
             message=invalid_revision(revision)
             if message:
                 raise RuntimeError(message)
         elif revision is not None:
-            raise RuntimeError("Revision patch is only allowed with disposition=revised")
+            raise RuntimeError("Revision patch is only allowed with disposition=revised (finding "+
+                str(row.get("finding_id"))+" has revision but disposition="+str(row.get("disposition"))+")")
     gaps=review.get("remaining_gaps")
     if not isinstance(gaps,list) or len(gaps)>20 or not all(isinstance(g,str) for g in gaps):
         raise RuntimeError("Review must record bounded remaining gaps")
