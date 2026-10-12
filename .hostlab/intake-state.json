@@ -27,6 +27,7 @@
     "9cd258c9b203dbab1541b5da823aef2b00ef5f0edf6009af34258345ec72ecae",
     "a954b77ad072c2da69a2f6de80e3bd219b507cc588ac9d98d3782d4d3b4e2595",
     "a98d4eb549845665b9b546d137066edb68a75b452dda91f7e60baa113aa78e87",
+    "a9b70a6ffb66ed3c074ce32faa53dcbfa48d6a8cb2c80ece6921f227d178a1cd",
     "b710f6490f0f54322ec5e9c7ea547f67a9b9d07118a547cae738ee2f2752340c",
     "bff47d2c4488f585c0315198a150f1cf7b5a1a982204ae5ace6993ffaec08112",
     "c12dca0cd0b256e9c82c437e146f21b37ad94e4b8591396afb5ccbc05e28439c",
@@ -35,7 +36,7 @@
     "ec9b1ad929f725bdc62344039b50f7a8dfa0a00f6784844e44c347c66a73439c",
     "fc5ff38ff05a8841e89df7aaeeadbf249a4cee8ad1dff5245b6cd05d2a633567"
   ],
-  "watermark": 9150100,
+  "watermark": 9150200,
   "jobs": {
     "b9de430ac9861440f094992926e699a0": {
       "sample": "2b45ab0d934cbe000082caedfa360864de60ab46cd4d45488ae31f35693a927e",
@@ -66,6 +67,14 @@
     "698160ba998f6f396db903dd27f92a82": {
       "sample": "b710f6490f0f54322ec5e9c7ea547f67a9b9d07118a547cae738ee2f2752340c",
       "version_code": 9150100,
+      "status": "completed",
+      "run_id": 38281779188,
+      "conclusion": "failure",
+      "url": "https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/38281779188"
+    },
+    "6a5f287b6f1aaa0765d068e312272516": {
+      "sample": "a9b70a6ffb66ed3c074ce32faa53dcbfa48d6a8cb2c80ece6921f227d178a1cd",
+      "version_code": 9150200,
       "status": "submitted"
     }
   },
