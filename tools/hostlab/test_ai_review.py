@@ -95,6 +95,26 @@ class DetailedReviewTest(unittest.TestCase):
             self.assertEqual(len(outcome["attempts"]),6)
             self.assertEqual(outcome["review_status"],"completed")
 
+    def test_transport_failure_retries_within_allowance(self):
+        replies=[RuntimeError("API failure: TimeoutError"),response(("page_evidence",{"page":"comment"})),
+            response(("finish_report",report())),
+            response(("page_evidence",{"page":"comment"}),("page_evidence",{"page":"dynamic"})),
+            response(("finish_report",report(True)))]
+        with tempfile.TemporaryDirectory() as folder, patch.object(ai_review,"call_api",side_effect=replies), patch.object(ai_review.time,"sleep"), patch.dict("os.environ",{"AI_DEFAULT_PROFILE":"backup"}):
+            root=self.root(folder);ai_review.run(root)
+            outcome=json.loads((root/"ai-analysis.json").read_text(encoding="utf-8"))
+            self.assertEqual(outcome["review_status"],"completed")
+            self.assertEqual(len(outcome["attempts"]),5)
+            self.assertEqual(outcome["limits"]["transport_retry_allowance"],2)
+
+    def test_transport_retry_allowance_is_bounded(self):
+        with tempfile.TemporaryDirectory() as folder, patch.object(ai_review,"call_api",side_effect=RuntimeError("API failure: TimeoutError")) as api, patch.object(ai_review.time,"sleep"), patch.dict("os.environ",{"AI_DEFAULT_PROFILE":"backup"}):
+            root=self.root(folder)
+            with self.assertRaises(RuntimeError):ai_review.run(root)
+            self.assertEqual(api.call_count,6)
+            outcome=json.loads((root/"ai-analysis.json").read_text(encoding="utf-8"))
+            self.assertEqual(outcome["status"],"failed")
+
     def test_missing_path_or_changed_static_status_is_rejected(self):
         for change in ("missing","status"):
             value=report()
