@@ -337,6 +337,43 @@ class DetailedReviewTest(unittest.TestCase):
             self.assertIsNone(entry["release_url"])
             self.assertFalse(any(path.endswith("latest.json") for path in files))
 
+    def test_validation_errors_are_actionable_for_self_correction(self):
+        matrix=summary()["page_path_matrix"]
+        # Missing page: the error must name what is missing and list the expected set.
+        value=report({"comment":"E001","dynamic":"E002"},("comment",))
+        with self.assertRaisesRegex(RuntimeError,"missing=dynamic") as ctx:
+            ai_review.validate_report(value,{"E000","E001","E002"},["comment","dynamic"],matrix)
+        self.assertIn("comment,dynamic",str(ctx.exception))
+        # Missing path: the error must name the page and the expected paths.
+        value=report({"comment":"E001","dynamic":"E002"},("comment","dynamic"))
+        value["pages"][0]["path_reviews"]=[]
+        with self.assertRaisesRegex(RuntimeError,"missing=comment_native") as ctx:
+            ai_review.validate_report(value,{"E000","E001","E002"},["comment","dynamic"],matrix)
+        self.assertIn("comment_native",str(ctx.exception))
+        # Unknown evidence id: the error must name the invalid reference.
+        value=report({"comment":"E001","dynamic":"E002"},("comment","dynamic"))
+        value["pages"][0]["evidence_ids"]=["E999"]
+        with self.assertRaisesRegex(RuntimeError,"E999"):
+            ai_review.validate_report(value,{"E000","E001","E002"},["comment","dynamic"],matrix)
+
+    def test_review_errors_name_missing_findings_and_pages(self):
+        data=summary()
+        evidence=ai_review.Evidence(Path("."),data)
+        evidence.ids.update({"E001","E002","E003","E004"})
+        evidence.journal=[{"id":"E003","tool":"page_evidence","args":{"page":"comment"}},
+                          {"id":"E004","tool":"page_evidence","args":{"page":"dynamic"}}]
+        draft=report({"comment":"E001","dynamic":"E002"},("comment","dynamic"))
+        draft["findings"][0]["finding_id"]="F001"
+        incomplete=review_record({"comment":"E003","dynamic":"E004"},("comment","dynamic"))
+        incomplete["findings"]=[]
+        with self.assertRaisesRegex(RuntimeError,"missing=F001") as ctx:
+            ai_review.validate_review_record(incomplete,draft,evidence,["comment","dynamic"],0)
+        self.assertIn("F001",str(ctx.exception))
+        bad_revision=review_record({"comment":"E003","dynamic":"E004"},("comment","dynamic"),disposition="rejected")
+        bad_revision["findings"][0]["revision"]={"title":"x"}
+        with self.assertRaisesRegex(RuntimeError,"finding F001") as ctx:
+            ai_review.validate_review_record(bad_revision,draft,evidence,["comment","dynamic"],0)
+
     def test_unresolved_finding_cannot_be_upgraded_to_static_fact(self):
         data=summary()
         evidence=ai_review.Evidence(Path("."),data)
