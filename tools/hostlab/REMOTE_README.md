@@ -28,7 +28,7 @@ SQLite `substr` 的起点从 1 开始；按返回的实际 sample_revision/apk_s
 operation: info / query / decode / string_refs / decompile / audit / multipath_audit / regenerate_ai。
 新 APK 自动报告与 multipath_audit 包含有界 AI 分析；AI 建议不能替代真机验收。
 AI 先出详细逐路径草稿，再在同一模型的独立上下文中复核重点页面和全部草稿发现；评论与动态须重新取两侧证据。
-两阶段合计最多 8 次 API 请求（连接中断类传输失败可额外自动重试，合计至多 2 次）、8 次只读取证，每次最多 32768 输出 token。复核未完成不发布成功 Release。
+两阶段合计最多 12 次 API 请求（连接中断类传输失败可额外自动重试，合计至多 2 次）、8 次只读取证，每次最多 32768 输出 token。复核未完成不发布成功 Release。
 reports 分支保存可浏览结论，私有 Release 只保存完整成功分析的证据；失败只保留报告记录。MCP 取结果优先访问长期报告。
 不需要 HF Token、APK、JDK、JADX 或 Android SDK。只会下载报告和有界分析结果。
 计算在 GitHub Actions Runner；分析 job 最多 45 分钟，发布 job 最多 15 分钟。Actions 附件保留 14 天，仓库报告和 Release 不按这个期限清理。
