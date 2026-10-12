@@ -15,6 +15,7 @@ import hostlab
 import ai_prompts
 
 MAX_REQUESTS = 6
+MAX_TRANSPORT_RETRIES = 2
 MAX_TOOLS = 8
 MAX_OUTPUT = 12288
 MAX_CONTEXT_CHARS = 160000
@@ -267,25 +268,33 @@ class Evidence:
         return result
 
 
+def transport_retry_credit(attempts):
+    """Extra request slots for dropped connections, bounded by MAX_TRANSPORT_RETRIES."""
+    failures=sum(1 for a in attempts if a.get("status")=="failed" and str(a.get("reason","")).startswith("API failure:"))
+    return min(failures,MAX_TRANSPORT_RETRIES)
+
+
 def collect_report(messages,tools,evidence,summary,attempts,profile,request_limit,draft=None):
     review_start=len(evidence.journal)
-    while len(attempts)<request_limit:
+    while len(attempts)<request_limit+transport_retry_credit(attempts):
         if len(json.dumps(messages,ensure_ascii=False))>MAX_CONTEXT_CHARS:
             break
         try:
             required=set(priority_pages(summary))&{"comment","dynamic"}
             reread={r["args"].get("page") for r in evidence.journal[review_start:] if r["tool"]=="page_evidence"}
-            force=len(attempts)==request_limit-1 or (draft is None and evidence.calls>=5)
+            force=len(attempts)>=request_limit-1 or (draft is None and evidence.calls>=5)
             if draft is not None and not required.issubset(reread):
                 force=False
             message,usage,model=call_api(profile,messages,tools,force)
             attempts.append({"stage":"review" if draft else "draft","profile":profile,"model":model,"usage":usage,"status":"response_received"})
         except RuntimeError as exc:
-            attempts.append({"stage":"review" if draft else "draft","profile":profile,"status":"failed","reason":str(exc),"billing_unknown":True})
+            reason=str(exc)
+            attempts.append({"stage":"review" if draft else "draft","profile":profile,"status":"failed","reason":reason,"billing_unknown":True})
             if profile=="primary" and os.environ.get("AI_ALLOW_FALLBACK","true").lower()=="true":
                 profile="backup"
                 continue
-            if any(code in str(exc) for code in ("HTTP 429","HTTP 500","HTTP 502","HTTP 503","HTTP 504")) and len(attempts)<request_limit:
+            retryable=reason.startswith("API failure:") or any(code in reason for code in ("HTTP 429","HTTP 500","HTTP 502","HTTP 503","HTTP 504"))
+            if retryable and len(attempts)<request_limit+transport_retry_credit(attempts):
                 time.sleep(2)
                 continue
             break
@@ -383,7 +392,7 @@ def run(root):
                "prompt_sha256":hashlib.sha256((ai_prompts.DRAFT+ai_prompts.REVIEW).encode()).hexdigest(),
                "status":"completed" if completed else "failed", "profile":profile,
                "runtime_verified":False,"claim_scope":"ai_suggestions_over_static_evidence", "attempts":attempts,
-               "limits":{"api_requests":MAX_REQUESTS,"read_tools":MAX_TOOLS,"output_tokens_per_request":MAX_OUTPUT,"usd_cap_enforced":False},
+               "limits":{"api_requests":MAX_REQUESTS,"transport_retry_allowance":MAX_TRANSPORT_RETRIES,"read_tools":MAX_TOOLS,"output_tokens_per_request":MAX_OUTPUT,"usd_cap_enforced":False},
                "report":completed,"review_status":"completed" if completed else "not_completed","review":completed.get("review") if completed else None,"read_tool_calls":evidence.calls}
     (root/"ai-analysis.json").write_text(redact(json.dumps(outcome,ensure_ascii=False,indent=2)),encoding="utf-8")
     (root/"ai-evidence.json").write_text(redact(json.dumps({"E000":seed,"tools":evidence.journal},ensure_ascii=False,indent=2)),encoding="utf-8")
