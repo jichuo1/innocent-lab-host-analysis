@@ -41,7 +41,7 @@ jobs:
       contents: read
       actions: read
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
         with:
@@ -74,6 +74,7 @@ jobs:
         run: python tools/hostlab/remote_job.py
       - name: AI evidence review
         if: inputs.operation == 'multipath_audit' || inputs.operation == 'regenerate_ai'
+        timeout-minutes: 35
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           AI_API_KEY_PRIMARY: ${{ secrets.AI_API_KEY_PRIMARY }}
