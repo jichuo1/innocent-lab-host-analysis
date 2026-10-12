@@ -14,10 +14,10 @@ import urllib.request
 import hostlab
 import ai_prompts
 
-MAX_REQUESTS = 6
+MAX_REQUESTS = 8
 MAX_TRANSPORT_RETRIES = 2
 MAX_TOOLS = 8
-MAX_OUTPUT = 12288
+MAX_OUTPUT = 16384
 MAX_CONTEXT_CHARS = 160000
 
 
