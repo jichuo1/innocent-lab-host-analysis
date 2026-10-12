@@ -34,7 +34,7 @@ def redact(text):
     return text
 
 
-def call_api(profile, messages, tools, force_finish=False):
+def call_api(profile, messages, tools, force_finish=False, session_id=None):
     name = profile.upper()
     key = os.environ.get("AI_API_KEY_" + name, "")
     base = os.environ.get("AI_" + name + "_BASE_URL", "").rstrip("/")
@@ -45,8 +45,13 @@ def call_api(profile, messages, tools, force_finish=False):
     payload = {"model": model, "messages": messages, "tools": tools,
                "tool_choice": {"type": "function", "function": {"name": "finish_report"}} if force_finish else "auto",
                "max_tokens": MAX_OUTPUT, "stream": False}
+    headers = {"Authorization": "Bearer " + key, "Content-Type": "application/json",
+               "User-Agent": "HostLab-AIReview/1"}
+    if session_id:
+        # OpenCode-compatible gateways route and cache prompts per session ID.
+        headers["x-opencode-session"] = session_id
     request = urllib.request.Request(base + "/chat/completions", data=json.dumps(payload).encode(),
-        headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
+        headers=headers)
     try:
         with urllib.request.build_opener(NoRedirect()).open(request, timeout=180) as response:
             raw = response.read(2 * 1024 * 1024 + 1)
@@ -276,6 +281,9 @@ def transport_retry_credit(attempts):
 
 def collect_report(messages,tools,evidence,summary,attempts,profile,request_limit,draft=None):
     review_start=len(evidence.journal)
+    # One stable session ID per conversation; OpenCode-compatible gateways use it for routing
+    # and prompt caching, and reject session-less requests with MissingSessionID.
+    session_id="hostlab-"+os.urandom(12).hex()
     while len(attempts)<request_limit+transport_retry_credit(attempts):
         if len(json.dumps(messages,ensure_ascii=False))>MAX_CONTEXT_CHARS:
             break
@@ -285,7 +293,7 @@ def collect_report(messages,tools,evidence,summary,attempts,profile,request_limi
             force=len(attempts)>=request_limit-1 or (draft is None and evidence.calls>=5)
             if draft is not None and not required.issubset(reread):
                 force=False
-            message,usage,model=call_api(profile,messages,tools,force)
+            message,usage,model=call_api(profile,messages,tools,force,session_id=session_id)
             attempts.append({"stage":"review" if draft else "draft","profile":profile,"model":model,"usage":usage,"status":"response_received"})
         except RuntimeError as exc:
             reason=str(exc)
