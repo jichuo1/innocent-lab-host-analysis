@@ -7,6 +7,8 @@ import subprocess
 import sys
 import hostlab
 import analyze
+import source_snapshot
+import snapshot_transport
 
 
 def main():
@@ -25,6 +27,30 @@ def main():
         import regenerate_report
         regenerate_report.main()
         return 0
+    if operation == "source_check":
+        context, binding = snapshot_transport.load_for_analysis(os.environ.get("HOSTLAB_MODULE_SOURCE", ""))
+        snapshot_transport.cache_snapshot(context, binding)
+        output = hostlab.STATE / "remote-output"
+        output.mkdir(parents=True, exist_ok=True)
+        metadata = source_snapshot.public_context(context, binding)
+        hostlab.write_json(output / "job.json", {"operation": operation, "scope": "source_metadata_only",
+            "exit_code": 0, "source_snapshot": metadata,
+            "tools": {name: hostlab.digest(Path(__file__).with_name(name))
+                      for name in ("remote_job.py", "source_snapshot.py", "snapshot_transport.py")}})
+        (output / "result.txt").write_text(json.dumps({"source_binding_verified": True,
+            "snapshot_sha256": binding["snapshot_sha256"], "source_tree_sha256": context["source_tree_sha256"],
+            "file_count": len(context["source_records"]), "origin": binding["origin"]}), encoding="utf-8")
+        return 0
+    module_source = None
+    if operation == "multipath_audit":
+        context, binding = snapshot_transport.load_for_analysis(os.environ.get("HOSTLAB_MODULE_SOURCE", ""))
+        source_snapshot.validate(context, expected_sha256=binding["snapshot_sha256"])
+        snapshot_transport.cache_snapshot(context, binding)
+        module_source = source_snapshot.public_context(context, binding)
+        module_source["freshness"] = ("dispatch_worktree_snapshot" if binding.get("origin") == "worktree"
+                                      else "published_unverified_worktree")
+        # The subprocess must use the same immutable source selected before scanning.
+        os.environ["HOSTLAB_MODULE_SOURCE"] = json.dumps(binding, separators=(",", ":"))
     os.environ["DEXQ_WORKERS"] = "2"
     repo = "innocent-lab-dev/bilibili-host-apks"
     _, current_head = hostlab.api_private(repo)
@@ -91,6 +117,8 @@ def main():
         "scope": "offline_static_only", "tools": tools}
     if operation == "query":
         job["max_cell_chars"] = max_cell_chars
+    if module_source is not None:
+        job["source_snapshot"] = module_source
     hostlab.write_json(output / "job.json", job)
     return rc
 

@@ -27,6 +27,13 @@ def runs():
     return json.loads(gh(["api", f"repos/{REPO}/actions/workflows/{WORKFLOW}/runs?per_page=50"]))["workflow_runs"]
 
 
+def source_freshness(summary):
+    """Compare metadata with this caller's working tree without rewriting the historical report."""
+    import source_snapshot
+    result = source_snapshot.compare(summary.get("source_snapshot"), hostlab.ROOT)
+    return result
+
+
 def repository_report(request_id):
     if not re.fullmatch(r"[0-9a-f]{32}",request_id):
         raise ToolError("Invalid request ID")
@@ -57,8 +64,10 @@ def repository_report(request_id):
         target.write_bytes(raw)
         files.append(str(target))
         texts.append(raw.decode("utf-8",errors="replace")[:16000])
+    summary_file = out / "summary.json"
+    freshness = source_freshness(json.loads(summary_file.read_text(encoding="utf-8"))) if summary_file.exists() else {"status": "unavailable"}
     return {"report_url":f"https://github.com/{REPO}/blob/reports/{path}","release_url":entry.get("release_url"),
-            "files":files,"text":"\n".join(texts)[:24000],"source":"durable_reports_branch"}
+            "files":files,"text":"\n".join(texts)[:24000],"source":"durable_reports_branch", "source_freshness": freshness}
 
 
 def lookup(request_id):
@@ -75,25 +84,44 @@ def lookup(request_id):
 
 
 @mcp.tool()
-def submit_job(version_code: int, operation: str, argument: str = "", max_cell_chars: int = 300) -> str:
+def submit_job(version_code: int, operation: str, argument: str = "", max_cell_chars: int = 300,
+               source_mode: str = "auto") -> str:
     """Submit multipath_audit, audit, decompile (class), query (SELECT SQL), decode (method), string_refs (string), or info. Uses Actions minutes; returns immediately.
 
     query supports max_cell_chars=1..16000 (default 300). Larger cells remain in the index;
     use length()/substr() with file_id and a stable row key for longer values.
     """
-    if version_code <= 0 or version_code > 9999999999 or operation not in {"inventory", "audit", "decompile", "query", "decode", "string_refs", "info", "multipath_audit", "regenerate_ai"} or len(argument) > 4096:
+    if version_code <= 0 or version_code > 9999999999 or operation not in {"inventory", "audit", "decompile", "query", "decode", "string_refs", "info", "multipath_audit", "regenerate_ai", "source_check"} or len(argument) > 4096:
         raise ToolError("Invalid bounded operation parameters")
     if not 1 <= max_cell_chars <= 16000 or (operation != "query" and max_cell_chars != 300):
         raise ToolError("max_cell_chars must be 1..16000 and only varies for query")
+    if source_mode not in {"auto", "worktree", "published", "historical"}:
+        raise ToolError("Unsupported source_mode")
+    if source_mode != "auto" and operation not in {"multipath_audit", "regenerate_ai", "source_check"}:
+        raise ToolError("source_mode applies only to complete analysis")
+    if operation in {"multipath_audit", "source_check"} and source_mode == "historical":
+        raise ToolError("New analysis cannot silently use historical source")
     request = uuid.uuid4().hex
     inputs = {"request_id": request, "version_code": str(version_code),
               "operation": operation, "argument": argument}
     # Omit the default so an older workflow can still serve legacy clients.
     if max_cell_chars != 300:
         inputs["max_cell_chars"] = str(max_cell_chars)
+    binding = None
+    if operation in {"multipath_audit", "source_check"} or operation == "regenerate_ai" and source_mode not in {"auto", "historical"}:
+        import snapshot_transport
+        try:
+            binding = snapshot_transport.prepare(hostlab.ROOT, gh, mode=source_mode)
+        except Exception:
+            raise ToolError("Source snapshot preparation failed; analysis was not dispatched") from None
+        inputs["module_source"] = json.dumps(binding, separators=(",", ":"), sort_keys=True)
+    hostlab.write_json(hostlab.STATE / "remote-requests" / (request + ".json"), {
+        "request_id": request, "version_code": version_code, "operation": operation,
+        "source_mode": source_mode, "module_source": binding})
     gh(["api", "--method", "POST", f"repos/{REPO}/actions/workflows/{WORKFLOW}/dispatches", "--input", "-"],
        {"ref": "main", "inputs": inputs})
-    return json.dumps({"request_id": request, "status": "submitted", "repository": REPO})
+    return json.dumps({"request_id": request, "status": "submitted", "repository": REPO,
+                       "module_source": binding})
 
 
 @mcp.tool()
@@ -162,9 +190,11 @@ def job_result(request_id: str, result_offset: int = 0) -> str:
         raise ToolError("No result.txt to page; use the returned report files at offset 0")
     combined = "\n".join(text)
     preview_truncated |= len(combined) > 24000
+    summaries = [p for p in files if p.name == "priority-summary.json"]
+    freshness = source_freshness(json.loads(summaries[0].read_text(encoding="utf-8"))) if len(summaries) == 1 else None
     return json.dumps({"run": run["html_url"], "files": [str(p) for p in files],
                        "text": combined[:24000], "text_truncated": preview_truncated,
-                       "result_page": result_page}, ensure_ascii=False)
+                       "result_page": result_page, "source_freshness": freshness}, ensure_ascii=False)
 
 
 if __name__ == "__main__":

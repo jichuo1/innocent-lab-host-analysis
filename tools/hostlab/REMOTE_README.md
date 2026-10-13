@@ -2,7 +2,7 @@
 
 解压到项目根，使文件位于 tools/hostlab。需要 Python 3.13 和 GitHub CLI。
 运行环境在 tools/hostlab/.venv-remote，结果与配置在 runtime/hostlab；不使用项目临时目录。
-管理员先把你的 GitHub 账号加入私有分析仓库：jichuo1/innocent-lab-host-analysis。
+分析服务仓库为 jichuo1/innocent-lab-host-analysis；触发权限由管理员配置。
 触发任务需要 Actions write 权限；使用你自己的 gh auth login，不共享管理员凭据。
 Windows 双击 setup-remote.cmd；若装有 Codex CLI，会注册 hostlab-remote。
 其它 AI 客户端：command 填独立环境 python 的绝对路径，args 只填 remote_mcp.py 的绝对路径。
@@ -24,6 +24,29 @@ SQLite `substr` 的起点从 1 开始；按返回的实际 sample_revision/apk_s
 `result_offset` 从 0 开始，按字符计数，不按 UTF-8 字节计数；读取后续页复用已下载的结果，不再启动 Actions 分析。
 `text_truncated` 明确标记是否仍有未显示的结果或其它文件内容；返回的本地文件路径可读取完整结果。
 长期多路径报告继续返回 reports 分支和文件入口，`result_offset` 只用于结果附件中的 `result.txt`。
+
+## 模块源码快照
+
+完整分析与普通 DEX 查询分别处理。`multipath_audit` 提交前会在有生产目录的本地项目中捕获工作树，
+包含范围内未提交和新增源码；没有生产目录的远程客户端会读取最近发布快照的元数据。
+两者都把不可变私有存储 revision、payload SHA-256、源码树 SHA-256 和捕获时间绑定进任务。
+APK 的 `source_revision` 仍指 APK 数据集，不是模块源码 revision。
+
+源码全文保存于已验证可访问的私有 `innocent-lab-dev/bilibili-host-apks` 数据集的 `source-snapshots/` 独立目录。
+源码写入不会改动 APK manifest 或已有样本字节；模块源码 revision 与 APK revision 分别记录。公开状态、报告和索引只包含
+来源元数据与文件哈希，缺失、损坏或未校验的快照不会回退到旧 `production-context.json`。
+普通 `query/info/decode/string_refs` 不捕获或上传源码。远程客户端使用 published 模式不需要 HF 凭据；
+本地 worktree 模式使用已登录的完整工具环境（既有 `huggingface_hub`），上传前执行明确的令牌/私钥门禁。
+
+可通过 `source_mode="worktree"` 要求存在本地源码，通过 `source_mode="published"` 指定最近发布的来源；
+默认 `auto` 自动选择。`regenerate_ai` 默认重用原报告历史源码，显式 source_mode 才使用新源码审查，
+并保留原始静态证据 run；它不表示重新扫描 APK。
+
+`job_result` 返回独立 `source_freshness`：`current`、`drift`、`unavailable` 或 `legacy`，以及变化文件列表。
+这是与调用方当前项目的比较，不改写历史报告。只有本地完整生产树能确认 current；远端 recently published
+来源仍明确标注 published，不能声称观察到了桌面的最新工作树。
+
+客户端更新后需重载 MCP 服务或开启新会话，才能使用提交前的自动捕获；服务端默认发布源读取仍独立生效。
 
 operation: info / query / decode / string_refs / decompile / audit / multipath_audit / regenerate_ai。
 新 APK 自动报告与 multipath_audit 包含有界 AI 分析；AI 建议不能替代真机验收。

@@ -12,8 +12,12 @@ on:
       operation:
         required: true
         type: choice
-        options: [inventory, info, query, decode, string_refs, decompile, audit, multipath_audit, regenerate_ai]
+        options: [inventory, info, query, decode, string_refs, decompile, audit, multipath_audit, regenerate_ai, source_check]
       source_revision:
+        required: false
+        type: string
+      module_source:
+        description: 'Pinned private module source binding JSON'
         required: false
         type: string
       apk_sha256:
@@ -67,6 +71,7 @@ jobs:
           HOSTLAB_ARGUMENT: ${{ inputs.argument }}
           HOSTLAB_MAX_CELL_CHARS: ${{ inputs.max_cell_chars }}
           HOSTLAB_REVISION: ${{ inputs.source_revision }}
+          HOSTLAB_MODULE_SOURCE: ${{ inputs.module_source }}
           HOSTLAB_SHA: ${{ inputs.apk_sha256 }}
           HOSTLAB_BASELINE_SHA: ${{ inputs.baseline_sha256 }}
           JAVA_TOOL_OPTIONS: '-Xmx4g'
