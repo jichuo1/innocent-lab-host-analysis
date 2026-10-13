@@ -1,6 +1,5 @@
 """Audit all detected priority families and compare a pinned baseline APK."""
 from concurrent.futures import ProcessPoolExecutor
-from pathlib import Path
 from types import SimpleNamespace
 import json
 import os
@@ -10,6 +9,8 @@ import hashlib
 import analyze
 import hostlab
 import surface_workers as W
+import source_snapshot
+import snapshot_transport
 
 
 def scan_apk(apk, sample):
@@ -78,6 +79,11 @@ def main():
     sha = os.environ["HOSTLAB_SHA"]
     out = hostlab.STATE / "remote-output"
     out.mkdir(parents=True, exist_ok=True)
+    context, binding = snapshot_transport.load_for_analysis(os.environ.get("HOSTLAB_MODULE_SOURCE", ""))
+    source_snapshot.validate(context, expected_sha256=binding["snapshot_sha256"])
+    source_context = source_snapshot.public_context(context, binding)
+    source_context["freshness"] = ("dispatch_worktree_snapshot" if binding.get("origin") == "worktree"
+                                   else "published_unverified_worktree")
     target_apk, target_sample = resolve(code, sha, revision)
     target_audit = audit_sample(target_sample, revision)
     target = scan_apk(target_apk, target_sample)
@@ -97,8 +103,6 @@ def main():
         hostlab.write_json(out / "priority-baseline.json", baseline)
     changes = W.compare(baseline, target) if baseline else []
     resource_diff = resource_changes(baseline, target) if baseline else None
-    context = Path(__file__).with_name("production-context.json")
-    source_context = json.loads(context.read_text(encoding="utf-8")) if context.exists() else None
     summary = {"sample": target_sample, "baseline": baseline["sample"] if baseline else None,
                "standard_target_audit": target_audit, "standard_baseline_audit": baseline_audit,
                "changes": changes, "families": target["families"], "unknown_families": target["unknown_families"],

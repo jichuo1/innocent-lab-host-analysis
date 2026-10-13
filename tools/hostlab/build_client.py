@@ -11,7 +11,8 @@ files = [here / name for name in ("hostlab.py", "analyze.py", "dexq_cli.py", "re
 files += [here / "test_dexq_mcp.py", here / "bench_dexq.py"]
 files += [here / "remote_mcp.py", here / "remote_job.py", here / "host-analysis.yml", here / "install_jadx.py"]
 files += [here / "requirements-remote.txt", here / "setup-remote.cmd", here / "REMOTE_README.md"]
-files += [here / "surface_workers.py", here / "priority_analysis.py", here / "production-context.json",
+files += [here / "surface_workers.py", here / "priority_analysis.py", here / "source_snapshot.py",
+          here / "snapshot_context.py", here / "snapshot_transport.py",
           here / "bootstrap-samples.json", here / "auto_intake.py", here / "auto-intake.yml"]
 files += [here / "ai_review.py", here / "ai_prompts.py", here / "publish_report.py", here / "regenerate_report.py"]
 files += sorted(p for p in (here / "analysis").iterdir() if p.suffix in {".py", ".java", ".md"})
@@ -29,6 +30,7 @@ print(str(output))
 print(f"Files: {len(files) + 1}; bytes: {output.stat().st_size}")
 remote = output.with_name("hostlab-remote-client.zip")
 with zipfile.ZipFile(remote, "w", zipfile.ZIP_DEFLATED) as archive:
-    for name in ("hostlab.py", "remote_mcp.py", "requirements-remote.txt", "setup-remote.cmd", "REMOTE_README.md"):
+    for name in ("hostlab.py", "remote_mcp.py", "source_snapshot.py", "snapshot_transport.py",
+                 "requirements-remote.txt", "setup-remote.cmd", "REMOTE_README.md"):
         archive.write(here / name, "tools/hostlab/" + name)
 print(f"Remote-only client: {remote}; bytes: {remote.stat().st_size}")

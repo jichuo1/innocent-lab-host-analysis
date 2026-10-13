@@ -7,6 +7,7 @@ import os
 import urllib.error
 import urllib.request
 import hostlab
+import snapshot_transport
 
 REPO = "jichuo1/innocent-lab-host-analysis"
 STATE_PATH = ".hostlab/intake-state.json"
@@ -56,6 +57,8 @@ def main():
         file = None
     old_state = json.dumps(state, sort_keys=True)
     fresh, eligible = choose_new(state, rows)
+    # This cloud poller can see only the published source, never the caller's worktree.
+    module_source = snapshot_transport.resolve_published() if eligible else None
     existing_runs = api("actions/workflows/host-analysis.yml/runs?per_page=100")["workflow_runs"]
     for key, job in state["jobs"].items():
         run = next((r for r in existing_runs if r["display_title"] == "hostlab-" + key), None)
@@ -75,8 +78,10 @@ def main():
             baseline = max(bases, key=lambda r:r["version_code"])["sha256"] if bases else ""
             api("actions/workflows/host-analysis.yml/dispatches", {"ref": "main", "inputs": {
                 "request_id": key, "version_code": str(row["version_code"]), "operation": "multipath_audit",
-                "source_revision": revision, "apk_sha256": row["sha256"], "baseline_sha256": baseline}})
-            state["jobs"][key] = {"sample": row["sha256"], "version_code": row["version_code"], "status": "submitted"}
+                "source_revision": revision, "apk_sha256": row["sha256"], "baseline_sha256": baseline,
+                "module_source": json.dumps(module_source, separators=(",", ":"))}})
+            state["jobs"][key] = {"sample": row["sha256"], "version_code": row["version_code"], "status": "submitted",
+                                  "module_source": module_source, "source_freshness": "published_unverified_worktree"}
             dispatched.append(row["version_code"])
         state["seen"].append(row["sha256"])
     deferred = {r["sha256"] for r in eligible[2:]}
@@ -84,6 +89,9 @@ def main():
     if eligible:
         state["watermark"] = max(state["watermark"], max(r["version_code"] for r in eligible[:2]))
     state["mode"] = "static_plus_bounded_ai_review"
+    state["source_freshness"] = "published_unverified_worktree"
+    if module_source is not None:
+        state["module_source"] = module_source
     if file is None or json.dumps(state, sort_keys=True) != old_state:
         payload = {"message": "chore(intake): update sample analysis state", "branch": BRANCH,
                    "content": base64.b64encode(json.dumps(state, indent=2).encode()).decode()}

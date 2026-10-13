@@ -13,6 +13,8 @@ import urllib.parse
 import urllib.request
 import hostlab
 import ai_prompts
+import source_snapshot
+import snapshot_transport
 
 DRAFT_REQUESTS = 6
 REVIEW_TOTAL = 8
@@ -205,6 +207,36 @@ class Evidence:
         self.journal = []
         self.ids = {"E000"}
         self.limit = MODEL_TOOLS
+        self.source_context = None
+
+    def module_context(self):
+        if self.source_context is not None:
+            return self.source_context
+        metadata = self.summary.get("source_snapshot") or {}
+        binding = metadata.get("binding")
+        if binding:
+            context = snapshot_transport.load_pinned(binding)
+            source_snapshot.validate(context, expected_sha256=binding["snapshot_sha256"])
+            verified_metadata = source_snapshot.public_context(context)
+            for key in ("schema", "selection_version", "repository_head", "source_tree_sha256", "captured_at",
+                        "working_tree_dirty", "source_records"):
+                if metadata.get(key) != verified_metadata.get(key):
+                    raise RuntimeError("Source snapshot metadata differs from its pinned payload")
+        else:
+            if metadata.get("schema", 0) >= 2:
+                raise RuntimeError("Verified source snapshot binding is missing")
+            digest = metadata.get("legacy_cache_sha256", "")
+            if not re.fullmatch(r"[0-9a-f]{64}", digest):
+                raise RuntimeError("Legacy source is unavailable; historical metadata is not current source")
+            cache = hostlab.STATE / "source-snapshots" / ("legacy-" + digest) / "context.json"
+            if not cache.is_file():
+                raise RuntimeError("Legacy source cache is unavailable; no latest source fallback")
+            raw = cache.read_bytes()
+            if hashlib.sha256(raw).hexdigest() != digest:
+                raise RuntimeError("Legacy source cache digest differs")
+            context = json.loads(raw)
+        self.source_context = context
+        return context
 
     def dataset(self, side):
         if side not in {"target", "baseline"}:
@@ -272,13 +304,17 @@ class Evidence:
             result = {"protocol": protocol, "side": side, "summary": protocol_summary,
                       "total_callers": len(calls), "caller_samples": calls[:12], "sample_limit": 12}
         elif name == "module_source":
-            records = (self.summary.get("source_snapshot") or {}).get("source_records", [])
+            context = self.module_context()
+            metadata = self.summary.get("source_snapshot") or {}
+            records = context.get("source_records", [])
             matches = [r for r in records if r["path"] == args["path"]]
             if len(matches) != 1:
                 raise RuntimeError("Select an exact source path from E000")
             r = matches[0]
             result = {"path": r["path"], "sha256": r["sha256"], "source": r["source"][:9000],
-                      "truncated": len(r["source"]) > 9000, "working_tree_dirty": self.summary["source_snapshot"].get("working_tree_dirty")}
+                      "truncated": len(r["source"]) > 9000, "working_tree_dirty": context.get("working_tree_dirty"),
+                      "source_snapshot": {k:v for k,v in metadata.items() if k != "source_records"},
+                      "source_status": "verified_pinned" if metadata.get("binding") else "legacy_not_current"}
         elif name == "decompile_class":
             data = self.dataset(side)
             class_name = args["class_name"]
@@ -311,11 +347,28 @@ class Evidence:
         eid = "E" + str(len(self.journal) + 1).zfill(3)
         result["evidence_id"] = eid
         text = redact(json.dumps(result, ensure_ascii=False))
+        if name == "module_source":
+            # Escaped source can exceed the JSON bound even below the character limit.
+            # Trim only the source field so the immutable identity always survives.
+            while len(text) > 14000 and result["source"]:
+                result["source"] = result["source"][:len(result["source"]) // 2]
+                result["truncated"] = True
+                text = redact(json.dumps(result, ensure_ascii=False))
+            if len(text) > 14000:
+                raise RuntimeError("Source metadata exceeds the evidence bound")
         if len(text) > 14000:
             result = {"evidence_id": eid, "truncated": True, "total_characters": len(text), "excerpt": text[:13000]}
         self.ids.add(eid)
         self.journal.append({"id": eid, "tool": name, "args": args, "result": result})
         return result
+
+    def public_journal(self):
+        rows = copy.deepcopy(self.journal)
+        for row in rows:
+            if row["tool"] == "module_source":
+                row["result"].pop("source", None)
+                row["result"].pop("excerpt", None)
+        return rows
 
 
 def transport_retry_credit(attempts):
@@ -543,12 +596,17 @@ def _run(root):
     summary_path = root / "priority-summary.json"
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     evidence = Evidence(root, summary)
+    source_metadata = summary.get("source_snapshot") or {}
+    if source_metadata.get("binding") or source_metadata.get("schema", 0) >= 2:
+        # Source corruption must stop the review before the first model request.
+        evidence.module_context()
     attempts=[]
     seed = {"evidence_id": "E000", "sample": summary["sample"], "baseline": summary.get("baseline"),
         "pages": copy.deepcopy(summary["page_path_matrix"]), "changes": summary["changes"],
         "resource_change_counts": {k:len(v) for k,v in (summary.get("resource_changes") or {}).items() if isinstance(v,list)},
         "limitations": summary["limitations"], "source_files": [r["path"] for r in (summary.get("source_snapshot") or {}).get("source_records", [])],
         "source_dirty": (summary.get("source_snapshot") or {}).get("working_tree_dirty"),
+        "source_snapshot": {k:v for k,v in source_metadata.items() if k != "source_records"},
         "unregistered_protocols": summary.get("unregistered_protocols", [])}
     # Keep detailed signatures in tools; initial evidence covers all registered pages.
     for page in seed["pages"].values():
@@ -633,6 +691,8 @@ def _run(root):
     outcome = {"schema":2,"prompt_version":ai_prompts.PROMPT_VERSION,
                "prompt_sha256":hashlib.sha256((ai_prompts.DRAFT+ai_prompts.REVIEW).encode()).hexdigest(),
                "status":"completed" if completed else "failed", "profile":profile,
+               "source_snapshot": {k:v for k,v in source_metadata.items() if k != "source_records"},
+               "static_evidence_run": summary.get("static_evidence_run"),
                "runtime_verified":False,"claim_scope":"ai_suggestions_over_static_evidence", "attempts":attempts,
                "limits":{"draft_requests":DRAFT_REQUESTS,"review_requests":REVIEW_TOTAL,"hard_cap":HARD_REQUEST_CAP,
                    "transport_retry_allowance":MAX_TRANSPORT_RETRIES,"model_read_tools":MODEL_TOOLS,
@@ -641,7 +701,7 @@ def _run(root):
                    "output_tokens_per_request":MAX_OUTPUT,"usd_cap_enforced":False},
                "report":completed,"review_status":"completed" if completed else "not_completed","review":completed.get("review") if completed else None,"read_tool_calls":evidence.calls}
     (root/"ai-analysis.json").write_text(redact(json.dumps(outcome,ensure_ascii=False,indent=2)),encoding="utf-8")
-    (root/"ai-evidence.json").write_text(redact(json.dumps({"E000":seed,"tools":evidence.journal},ensure_ascii=False,indent=2)),encoding="utf-8")
+    (root/"ai-evidence.json").write_text(redact(json.dumps({"E000":seed,"tools":evidence.public_journal()},ensure_ascii=False,indent=2)),encoding="utf-8")
     summary["ai_status"] = outcome["status"]
     summary["ai_review"] = outcome
     hostlab.write_json(summary_path, summary)

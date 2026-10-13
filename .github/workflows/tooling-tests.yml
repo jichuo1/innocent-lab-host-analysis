@@ -1,0 +1,24 @@
+name: Analysis tooling tests
+on:
+  pull_request:
+    paths: ['tools/hostlab/**/*.py', '.github/workflows/host-analysis.yml', '.github/workflows/tooling-tests.yml']
+  push:
+    branches: [main]
+    paths: ['tools/hostlab/**/*.py', '.github/workflows/host-analysis.yml', '.github/workflows/tooling-tests.yml']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: python -m pip install -r tools/hostlab/requirements.txt
+      - name: Offline source, dispatch, AI and report checks
+        working-directory: tools/hostlab
+        run: python -m unittest discover -p 'test_*.py' -v
