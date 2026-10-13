@@ -82,5 +82,6 @@
     }
   },
   "mode": "static_plus_bounded_ai_review",
-  "initialized_revision": "e87fda0285f99c8ac568060b878a184a126fb778"
+  "initialized_revision": "e87fda0285f99c8ac568060b878a184a126fb778",
+  "source_freshness": "published_unverified_worktree"
 }
