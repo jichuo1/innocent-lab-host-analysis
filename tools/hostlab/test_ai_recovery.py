@@ -3,6 +3,7 @@ import copy
 import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 import tempfile
 import unittest
 
@@ -19,11 +20,16 @@ def policy():
 class FakeEvidence:
     def __init__(self, document):
         self.document = copy.deepcopy(document)
-        self.summary = {"page_path_matrix": {page: {} for page in ("p0", "p1", "p2")}}
-        self.journal = copy.deepcopy(document["tools"][:3])
+        prefetched = []
+        for row in document["tools"]:
+            if row["tool"] != "page_evidence":
+                break
+            prefetched.append(row)
+        self.summary = {"page_path_matrix": {row["args"]["page"]: {} for row in prefetched}}
+        self.journal = copy.deepcopy(prefetched)
         self.ids = {"E000", *[row["id"] for row in self.journal]}
         self.calls = 0
-        self.limit = 6
+        self.limit = 8
 
     def public_journal(self):
         return copy.deepcopy(self.journal)
@@ -98,6 +104,71 @@ class AiRecoveryTest(unittest.TestCase):
         value = checkpoint.Checkpoint(self.output, self.new_binding)
         self.addCleanup(value.close)
         return value
+
+    def completion_fixture(self):
+        """A complete v1 parent: 21 paid attempts, five drafts, r0, and review boundary 14."""
+        parent = self.root/"completion-parent"; parent.mkdir()
+        origin = self.root/"completion-origin"; origin.mkdir()
+        target = self.root/"completion-output"; target.mkdir()
+        old = copy.deepcopy(self.original)
+        pages = ["comment", "dynamic", "home", "search", "detail", "pgc", "player", "danmaku", "story", "mine"]
+        old["binding"]["draft_units"] = [pages[index:index+2] for index in range(0, len(pages), 2)]
+        old["binding_sha256"] = checkpoint.digest(old["binding"])
+        for index in range(2):
+            result = {"pages": [{"page": page} for page in old["binding"]["draft_units"][index]],
+                      "findings": [], "overview": "accepted"}
+            old["units"]["d"+str(index)] = {"result": result, "result_sha256": checkpoint.digest(result)}
+        document = {"E000": {}, "tools": []}
+        tools = [("page_evidence", {"page": page}) for page in pages]
+        tools += [("protocol_evidence", {"protocol": "p"+str(index)}) for index in range(4)]
+        tools += [("page_evidence", {"page": page}) for page in ("comment", "dynamic")]
+        tools += [("protocol_evidence", {"protocol": "review"+str(index)}) for index in range(2)]
+        for index, (tool, args) in enumerate(tools, 1):
+            eid = "E"+str(index).zfill(3)
+            document["tools"].append({"id": eid, "tool": tool, "args": args, "result": {"evidence_id": eid}})
+        ancestor_document = {**document, "tools": document["tools"][:12]}
+        (origin/"ai-checkpoint.json").write_text(json.dumps(old), encoding="utf-8")
+        (origin/"ai-evidence.json").write_text(json.dumps(ancestor_document), encoding="utf-8")
+        for name in self.binding["static_files"]:
+            (parent/name).write_bytes((self.output/name).read_bytes())
+            (target/name).write_bytes((self.output/name).read_bytes())
+        v1 = copy.deepcopy(old["binding"])
+        v1["code"].update({name: "d"*64 for name in recovery.MUTABLE_CODE})
+        v1["policy"].update(max_requests=24, transport_retries=4, max_output=16384, recovery_policy="extended-v1")
+        inputs = recovery.restore_inputs(parent, list(origin.iterdir()), 987)
+        summary = {"ai_recovery_policy": "extended-v1", "checkpoint_from_run": 987, "ai_recovery_inputs": inputs}
+        recovery.prepare_recovery(parent, summary, v1, FakeEvidence(ancestor_document))
+        value = checkpoint.Checkpoint(parent, v1)
+        try:
+            for index in range(10, 21):
+                request = format(index, "064x")
+                token = value.claim("draft" if index < 19 else "review", "d2" if index < 19 else "r0",
+                                    request, "backup", "paid-parent")
+                value.received(token, request, {"role": "assistant", "content": None},
+                               {"_usage_unknown": True} if index == 10 else {"total_tokens": index}, "model")
+            for index in range(2, 5):
+                value.save_unit("d"+str(index), {"pages": [{"page": page} for page in v1["draft_units"][index]],
+                    "findings": [], "overview": "accepted"})
+            value.save_unit("r0", {"pages": [{"page": page} for page in pages[:2]], "findings": [], "remaining_gaps": []})
+            token = value.claim("review", "r1", "f"*64, "backup", "paid-parent")
+            value.failed(token, SimpleNamespace(reason="API total deadline exceeded", kind="timeout", retryable=True,
+                billing_unknown=True, http_status=None, retry_after=None, metrics={"total_ms": 6672.12}))
+            value.record_elapsed(1800.013845373)
+        finally:
+            value.close()
+        (parent/"ai-evidence.json").write_text(json.dumps(document), encoding="utf-8")
+        original = json.loads((parent/"ai-checkpoint.json").read_text())
+        v2 = copy.deepcopy(v1)
+        v2["code"].update({name: "e"*64 for name in recovery.MUTABLE_CODE})
+        v2["policy"].update(max_requests=32, deadline_seconds=3600, recovery_policy="completion-v2")
+        inputs = recovery.restore_inputs(target, list(parent.iterdir()), 988, policy="completion-v2")
+        summary = {"ai_recovery_policy": "completion-v2", "checkpoint_from_run": 988, "ai_recovery_inputs": inputs}
+        return SimpleNamespace(parent=parent, target=target, original=original, binding=v2,
+                               document=document, summary=summary)
+
+    def prepare_completion(self, fixture, *, root=None, summary=None, document=None):
+        return recovery.prepare_recovery(root or fixture.target, summary or fixture.summary, fixture.binding,
+                                         FakeEvidence(document or fixture.document))
 
     def test_migrate_preserves_nine_attempts_unknown_usage_two_units_and_elapsed(self):
         origin = (self.output/"ai-resume-checkpoint.json").read_bytes()
@@ -230,6 +301,158 @@ class AiRecoveryTest(unittest.TestCase):
         with self.assertRaisesRegex(checkpoint.CheckpointError, "request budget"):
             resumed.claim("draft", "d2", "f"*64, "backup", "s")
         self.assertEqual(len(resumed.value["attempts"]), 24)
+
+    def test_completion_adopts_full_latest_parent_and_preserves_all_paid_accounting(self):
+        fixture = self.completion_fixture()
+        metadata = self.prepare_completion(fixture)
+        value = json.loads((fixture.target/"ai-checkpoint.json").read_text())
+        for name in ("attempts", "units", "responses", "providers", "transport_retries", "elapsed_seconds", "created_at"):
+            with self.subTest(field=name):
+                self.assertEqual(value[name], fixture.original[name])
+        self.assertEqual(len(value["attempts"]), 21)
+        self.assertEqual(value["transport_retries"], 3)
+        self.assertGreater(value["elapsed_seconds"], 1800)
+        self.assertEqual(metadata["imported_units"], ["d"+str(index) for index in range(5)])
+        self.assertEqual(metadata["imported_review_units"], ["r0"])
+        self.assertEqual(metadata["original_review_start"], 14)
+        self.assertEqual(metadata["adopted_attempt_count"], 21)
+        self.assertEqual(value["recovery"]["parent_recovery"], fixture.original["recovery"])
+        self.assertEqual(value["recovery"]["original_binding"], fixture.original["binding"])
+        self.assertEqual(value["recovery"]["old_limits"]["max_requests"], 24)
+        self.assertEqual(value["recovery"]["new_limits"]["max_requests"], 32)
+        self.assertEqual((fixture.target/"ai-completion-checkpoint.json").read_bytes(),
+                         (fixture.parent/"ai-checkpoint.json").read_bytes())
+        self.assertFalse((fixture.target/"ai-resume-checkpoint.json").exists())
+
+    def test_completion_review_compensation_spends_remaining_slot_once_and_keeps_request_cap(self):
+        fixture = self.completion_fixture(); self.prepare_completion(fixture)
+        value = checkpoint.Checkpoint(fixture.target, fixture.binding)
+        try:
+            for stage, unit in (("draft", "r1"), ("review", "r0"), ("review", "r2")):
+                with self.subTest(stage=stage, unit=unit), self.assertRaisesRegex(checkpoint.CheckpointError, "reserved"):
+                    value.claim(stage, unit, "a"*64, "backup", "continuation")
+            self.assertEqual(len(value.value["attempts"]), 21)
+            self.assertEqual(value.value["transport_retries"], 3)
+            token = value.claim("review", "r1", "a1"*32, "backup", "continuation")
+            value.received(token, "a1"*32, {"role": "assistant", "content": None}, {"total_tokens": 7}, "m")
+            value.save_unit("r1", {"pages": [], "findings": [], "remaining_gaps": []})
+        finally:
+            value.close()
+        metadata = self.prepare_completion(fixture)
+        self.assertEqual(metadata["imported_review_units"], ["r0", "r1"])
+        self.assertEqual(metadata["adopted_attempt_count"], 21)
+        resumed = checkpoint.Checkpoint(fixture.target, fixture.binding)
+        try:
+            self.assertEqual(resumed.value["transport_retries"], 4)
+            with self.assertRaisesRegex(checkpoint.CheckpointError, "compensation"):
+                resumed.claim("review", "r2", "b"*64, "backup", "continuation", transport_retry=True)
+            for index in range(10):
+                request = format(index+100, "064x")
+                token = resumed.claim("review", "r2", request, "backup", "continuation")
+                resumed.received(token, request, {"role": "assistant", "content": None}, {}, "m")
+            self.assertEqual(len(resumed.value["attempts"]), 32)
+            with self.assertRaisesRegex(checkpoint.CheckpointError, "request budget"):
+                resumed.claim("review", "r2", "c"*64, "backup", "continuation")
+            self.assertEqual(resumed.value["attempts"][:21], fixture.original["attempts"])
+        finally:
+            resumed.close()
+
+    def test_same_completion_resume_restores_active_reviews_and_new_evidence_without_recharging(self):
+        fixture = self.completion_fixture(); self.prepare_completion(fixture)
+        value = checkpoint.Checkpoint(fixture.target, fixture.binding)
+        try:
+            token = value.claim("review", "r1", "b"*64, "backup", "continuation")
+            value.received(token, "b"*64, {"role": "assistant", "content": None}, {"_usage_unknown": True}, "m")
+            value.save_unit("r1", {"pages": [], "findings": [], "remaining_gaps": ["E019"]})
+        finally:
+            value.close()
+        current = copy.deepcopy(fixture.document)
+        current["tools"].append({"id": "E019", "tool": "protocol_evidence", "args": {"protocol": "continued"},
+                                  "result": {"evidence_id": "E019"}})
+        (fixture.target/"ai-evidence.json").write_text(json.dumps(current), encoding="utf-8")
+        target = self.root/"completion-resumed"
+        inputs = recovery.restore_inputs(target, list(fixture.target.iterdir()), 989, policy="completion-v2")
+        self.assertIn("active_evidence_sha256", inputs)
+        for name in self.binding["static_files"]:
+            (target/name).write_bytes((self.output/name).read_bytes())
+        summary = {**fixture.summary, "checkpoint_from_run": 989, "ai_recovery_inputs": inputs}
+        metadata = self.prepare_completion(fixture, root=target, summary=summary, document=current)
+        restored = json.loads((target/"ai-checkpoint.json").read_text())
+        self.assertEqual(metadata["imported_review_units"], ["r0", "r1"])
+        self.assertEqual(metadata["restored_tool_rows"], 19)
+        self.assertEqual(metadata["original_review_start"], 14)
+        self.assertEqual(len(restored["attempts"]), 22)
+        self.assertEqual(restored["transport_retries"], 4)
+        self.assertEqual(restored["attempts"][:21], fixture.original["attempts"])
+        self.assertEqual(restored["recovery"]["parent_recovery"], fixture.original["recovery"])
+        self.assertFalse(restored["recovery"]["resume_transport_retry_pending"])
+
+    def test_completion_rejects_missing_drafts_nonprefix_reviews_and_unchanged_budget_bypass(self):
+        fixture = self.completion_fixture()
+        for change in ("draft", "reviews", "gap", "failed_unit", "compensation", "no_fresh", "default"):
+            value = copy.deepcopy(fixture.original); document = copy.deepcopy(fixture.document)
+            if change == "draft":
+                del value["units"]["d4"]
+            elif change == "reviews":
+                del value["units"]["r0"]
+            elif change == "gap":
+                value["units"]["r2"] = value["units"].pop("r0")
+            elif change == "failed_unit":
+                value["attempts"][-1]["unit"] = "r4"
+            elif change == "compensation":
+                value["transport_retries"] = 4
+            elif change == "no_fresh":
+                document["tools"][14]["args"]["page"] = "home"
+            else:
+                value["binding"]["policy"] = policy()
+            with self.subTest(change=change), self.assertRaises(checkpoint.CheckpointError):
+                recovery._completion_parent(value, document)
+        with self.assertRaises(checkpoint.CheckpointError):
+            checkpoint.Checkpoint(self.root/"unproven-completion", fixture.binding)
+        with self.assertRaises(checkpoint.CheckpointError):
+            recovery._binding(self.binding, fixture.binding)
+        for key in ("source_snapshot", "provider_config_sha256", "draft_units", "prompt_version", "matrix_sha256", "static_files"):
+            changed = copy.deepcopy(fixture.binding); changed[key] = {} if isinstance(changed[key], dict) else "changed"
+            with self.subTest(binding=key), self.assertRaises(checkpoint.CheckpointError):
+                recovery._binding(fixture.original["binding"], changed)
+        for name in ("ai_review.py", "ai_prompts.py"):
+            changed = copy.deepcopy(fixture.binding); changed["code"][name] = "f"*64
+            with self.subTest(code=name), self.assertRaises(checkpoint.CheckpointError):
+                recovery._binding(fixture.original["binding"], changed)
+        self.assertFalse((fixture.target/"ai-checkpoint.json").exists())
+
+    def test_completion_restart_rejects_changed_history_parent_metadata_and_evidence(self):
+        fixture = self.completion_fixture(); self.prepare_completion(fixture)
+        path = fixture.target/"ai-checkpoint.json"
+        raw = path.read_bytes()
+        for field in ("attempts", "responses", "units", "providers", "elapsed", "parent_recovery"):
+            value = json.loads(raw)
+            if field == "attempts":
+                value["attempts"][0]["billing_unknown"] = False
+            elif field == "responses":
+                saved = value["responses"]["a"*64]; saved["usage"] = {"total_tokens": 1}
+                saved["response_sha256"] = checkpoint.digest({key: saved[key] for key in ("clean", "usage", "model")})
+            elif field == "units":
+                saved = value["units"]["d0"]; saved["result"]["overview"] = "changed"
+                saved["result_sha256"] = checkpoint.digest(saved["result"])
+            elif field == "providers":
+                value["providers"]["backup"]["failures"] = 0
+            elif field == "elapsed":
+                value["elapsed_seconds"] = 0
+            else:
+                value["recovery"]["parent_recovery"]["parent_run"] += 1
+            path.write_text(json.dumps(value), encoding="utf-8")
+            with self.subTest(field=field), self.assertRaises(checkpoint.CheckpointError):
+                recovery.restore_inputs(self.root/("changed-"+field), list(fixture.target.iterdir()), 989,
+                                        policy="completion-v2")
+        path.write_bytes(raw)
+        changed = copy.deepcopy(fixture.document); changed["tools"][0]["result"]["drift"] = True
+        (fixture.target/"ai-evidence.json").write_text(json.dumps(changed), encoding="utf-8")
+        with self.assertRaisesRegex(checkpoint.CheckpointError, "evidence changed"):
+            recovery.restore_inputs(self.root/"changed-evidence", list(fixture.target.iterdir()), 989,
+                                    policy="completion-v2")
+        with self.assertRaisesRegex(checkpoint.CheckpointError, "explicit completion"):
+            recovery.restore_inputs(self.root/"implicit-completion", list(fixture.target.iterdir()), 989)
 
 
 if __name__ == "__main__": unittest.main()

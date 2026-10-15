@@ -71,6 +71,41 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(outcome["read_tool_calls"], 2)
         self.assertEqual((self.root / "priority-report.md").read_text().count("# AI 适配分析"), 1)
 
+    def test_forced_submission_only_offers_the_finish_tool(self):
+        offered = []
+        def api(profile, messages, tools, **options):
+            if options.get("force_tool"):
+                offered.append([row["function"]["name"] for row in tools])
+                self.assertEqual(offered[-1], [options["force_tool"]])
+            return self.provider(profile, messages, tools, **options)
+        with patch.object(ai_review, "call_api", side_effect=api):
+            ai_review.run(self.root)
+        self.assertTrue(offered)
+
+    def test_missing_review_finding_id_has_precise_feedback_and_retains_validation(self):
+        corrupted = False
+        observed_feedback = []
+        def api(*args, **options):
+            nonlocal corrupted
+            messages = args[1]
+            observed_feedback.extend(row["content"] for row in messages if row["role"] == "tool")
+            message, usage, model = self.provider(*args, **options)
+            for call in message.get("tool_calls", []):
+                if call["function"]["name"] == "finish_review" and not corrupted:
+                    data = json.loads(call["function"]["arguments"])
+                    for row in data["findings"]:
+                        row.pop("finding_id")
+                    call["function"]["arguments"] = json.dumps(data)
+                    corrupted = True
+            return message, usage, model
+        with patch.object(ai_review, "call_api", side_effect=api):
+            ai_review.run(self.root)
+        outcome = json.loads((self.root / "ai-analysis.json").read_text())
+        self.assertEqual(outcome["status"], "completed")
+        self.assertTrue(any("requires a non-empty finding_id" in value and "F001" in value for value in observed_feedback))
+        self.assertFalse(any("TypeError" in value for value in observed_feedback))
+        self.assertEqual(len(outcome["review"]["findings"]), 4)
+
     def test_primary_auth_rejection_switches_credentials_once_and_keeps_accounting(self):
         profiles = []
         def api(profile, *args, **options):

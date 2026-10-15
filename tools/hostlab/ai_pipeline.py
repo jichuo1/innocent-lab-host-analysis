@@ -24,7 +24,7 @@ UNIT_PATHS = 10
 def execution_policy(summary):
     """Keep the default contract stable; extension requires an explicit recovery."""
     recovery = summary.get("ai_recovery_policy")
-    if recovery not in (None, "extended-v1"):
+    if recovery not in (None, "extended-v1", "completion-v2"):
         raise RuntimeError("Unsupported AI recovery policy")
     policy = {"max_requests": 16, "transport_retries": 2, "deadline_seconds": 1800,
         "initial_profile": "backup" if os.environ.get("AI_DEFAULT_PROFILE", "primary").lower() == "backup" else "primary",
@@ -32,6 +32,9 @@ def execution_policy(summary):
         "max_output": MAX_OUTPUT, "total_timeout": 240, "idle_timeout": 45, "stream": True}
     if recovery == "extended-v1":
         policy.update(recovery_policy=recovery, max_requests=24, transport_retries=4, max_output=16384)
+    elif recovery == "completion-v2":
+        policy.update(recovery_policy=recovery, max_requests=32, transport_retries=4,
+                      max_output=16384, deadline_seconds=3600)
     return policy
 
 
@@ -230,7 +233,7 @@ class Coordinator:
     def __init__(self, checkpoint, api, *, profile, deadline):
         self.checkpoint, self.api, self.profile, self.deadline = checkpoint, api, profile, deadline
         self.limits = ai_checkpoint.policy_limits(checkpoint.value["binding"])
-        recovered = self.limits.get("recovery_policy") == "extended-v1"
+        recovered = self.limits.get("recovery_policy") in ("extended-v1", "completion-v2")
         self.reused = 0
         self.position = checkpoint.value.get("recovery", {}).get("adopted_attempt_count", 0) if recovered else 0
         if (type(self.position) is not int or not 0 <= self.position <= len(checkpoint.value["attempts"])
@@ -370,13 +373,16 @@ def review_tool(assigned):
 
 def collect(coordinator, stage, unit, messages, tools, evidence, validate, *, allow_deep=False, reserve_after=0):
     import ai_review as review
-    offered = {row["function"]["name"] for row in tools}
     for _ in range(6 if allow_deep else 3):
         finish = "finish_report" if stage == "draft" else "finish_review"
         force = finish if (not allow_deep or evidence.calls >= evidence.limit
             or coordinator.available_slots(reserve_after) <= 1
             or unit == "d0" and evidence.calls >= review.MIN_DRAFT_DEEP_DIVES) else None
-        message = coordinator.request(stage, unit, messages, tools, force)
+        # Some compatible gateways ignore tool_choice. Removing exhausted read
+        # tools also makes the available contract unambiguous to those models.
+        request_tools = [row for row in tools if row["function"]["name"] == finish] if force else tools
+        offered = {row["function"]["name"] for row in request_tools}
+        message = coordinator.request(stage, unit, messages, request_tools, force)
         messages.append(message)
         accepted = None
         calls = message.get("tool_calls", [])
@@ -413,6 +419,26 @@ def collect(coordinator, stage, unit, messages, tools, evidence, validate, *, al
     raise RuntimeError("assigned AI unit did not complete within its logical request budget")
 
 
+def validate_review_part(value, draft, evidence, assigned, review_start):
+    """Give actionable protocol errors before the unchanged semantic validator."""
+    import ai_review as review
+    if not isinstance(value, dict):
+        raise RuntimeError("Independent review must be an object")
+    for field, identity, expected in (("pages", "page", assigned["pages"]),
+                                      ("findings", "finding_id", assigned["findings"])):
+        rows = value.get(field)
+        if not isinstance(rows, list):
+            raise RuntimeError("Review "+field+" must be a list")
+        for index, row in enumerate(rows):
+            if not isinstance(row, dict) or not isinstance(row.get(identity), str) or not row[identity]:
+                raise RuntimeError("Review "+field+"["+str(index)+"] requires a non-empty "+identity+
+                                   "; submit exactly these values: "+",".join(expected))
+            refs = row.get("evidence_ids")
+            if not isinstance(refs, list) or not all(isinstance(ref, str) for ref in refs):
+                raise RuntimeError("Review "+field+"["+str(index)+"].evidence_ids must be a list of evidence IDs")
+    return review.validate_review_record(value, draft, evidence, assigned["pages"], review_start)
+
+
 def validate_draft_part(value, evidence, pages, matrix, finding_budget, *, first):
     import ai_review as review
     value = review.validate_report(value, evidence.ids, pages, matrix)
@@ -447,6 +473,33 @@ def imported_drafts(checkpoint, recovery, evidence, summary, units):
     return result
 
 
+def local_review_draft(draft, assigned):
+    selected = [row for row in draft["findings"] if row["finding_id"] in assigned["findings"]]
+    pages = set(assigned["pages"]) | {row["page"] for row in selected}
+    return {**draft, "overview": draft["overview"][:1200],
+            "pages": [row for row in draft["pages"] if row["page"] in pages], "findings": selected}
+
+
+def imported_reviews(checkpoint, recovery, evidence, draft, plan):
+    names = recovery.get("imported_review_units", [])
+    if (not isinstance(names, list) or names != ["r"+str(index) for index in range(len(names))]
+            or len(names) > len(plan)):
+        raise RuntimeError("Imported review units must form the unchanged plan's complete prefix")
+    if not names:
+        return {}
+    start = recovery.get("original_review_start")
+    if type(start) is not int or not 0 <= start < len(evidence.journal):
+        raise RuntimeError("Imported review needs its verified original fresh-read boundary")
+    result = {}
+    for index, name in enumerate(names):
+        saved = checkpoint.value["units"].get(name)
+        if not isinstance(saved, dict) or not isinstance(saved.get("result"), dict):
+            raise RuntimeError("Imported review unit is missing")
+        value = copy.deepcopy(saved["result"])
+        result[name] = validate_review_part(value, local_review_draft(draft, plan[index]), evidence, plan[index], start)
+    return result
+
+
 def run(root, *, api):
     import ai_review as review
     root = Path(root)
@@ -469,13 +522,15 @@ def run(root, *, api):
         units = draft_units(summary["page_path_matrix"])
         binding = build_binding(root, summary, units)
         limits = ai_checkpoint.policy_limits(binding)
-        if limits.get("recovery_policy") == "extended-v1":
+        if limits.get("recovery_policy") in ("extended-v1", "completion-v2"):
             import ai_recovery
             recovery = ai_recovery.prepare_recovery(root, summary, binding, evidence)
         checkpoint = ai_checkpoint.Checkpoint(root, binding, resume_unknown=summary.get("ai_resume_unknown", False))
         prior_requests = len(checkpoint.value["attempts"])
         profile = limits["initial_profile"]
-        deadline = started+max(0, min(limits["deadline_seconds"], review.AI_DEADLINE_SECONDS)-checkpoint.elapsed_base)
+        duration = (limits["deadline_seconds"] if limits.get("recovery_policy") == "completion-v2"
+                    else min(limits["deadline_seconds"], review.AI_DEADLINE_SECONDS))
+        deadline = started+max(0, duration-checkpoint.elapsed_base)
         coordinator = Coordinator(checkpoint, api, profile=profile, deadline=deadline)
         imported = imported_drafts(checkpoint, recovery, evidence, summary, units)
         evidence.limit = review.MODEL_TOOLS-2
@@ -518,24 +573,27 @@ def run(root, *, api):
         priorities = review.priority_pages(summary)
         review_start = len(evidence.journal)
         evidence.limit = review.MODEL_TOOLS
-        fresh = {page: evidence.server_read("page_evidence", {"page": page})["evidence_id"]
-                 for page in priorities if page in {"comment", "dynamic"}}
         review_plan = review_units(priorities, draft)
+        imported_review = imported_reviews(checkpoint, recovery, evidence, draft, review_plan)
+        covered = {page for index in range(len(imported_review)) for page in review_plan[index]["pages"]}
+        fresh = {page: evidence.server_read("page_evidence", {"page": page})["evidence_id"]
+                 for page in priorities if page in {"comment", "dynamic"} and page not in covered}
         records = []
         for index, assigned in enumerate(review_plan):
-            assigned_findings = [row for row in draft["findings"] if row["finding_id"] in assigned["findings"]]
-            included_pages = set(assigned["pages"]) | {row["page"] for row in assigned_findings}
+            if "r"+str(index) in imported_review:
+                records.append(imported_review["r"+str(index)]); reused_units += 1
+                continue
+            local_draft = local_review_draft(draft, assigned)
+            included_pages = {row["page"] for row in local_draft["pages"]}
             included_order = [page for page in summary["page_path_matrix"] if page in included_pages]
-            local_draft = {**draft, "overview": draft["overview"][:1200],
-                "pages": [row for row in draft["pages"] if row["page"] in included_pages], "findings": assigned_findings}
             messages = [{"role": "system", "content": ai_prompts.SHARDED_REVIEW}, {"role": "user", "content": json.dumps({
                 "seed": unit_seed(seed, summary, included_order),
                 "draft": local_draft, "priority_pages": assigned["pages"], "assigned_pages": assigned["pages"],
                 "assigned_findings": assigned["findings"], "prefetch": [row for row in views if row["page"] in assigned["pages"]],
                 "fresh_refresh": {page: identifier for page, identifier in fresh.items() if page in assigned["pages"]},
                 "evidence": review.bounded_journal([row for row in evidence.journal if row["tool"] != "page_evidence"])}, ensure_ascii=False)}]
-            validate = lambda value, local=local_draft, assigned=assigned: review.validate_review_record(
-                value, local, evidence, assigned["pages"], review_start)
+            validate = lambda value, local=local_draft, assigned=assigned: validate_review_part(
+                value, local, evidence, assigned, review_start)
             record = collect(coordinator, "review", "r"+str(index), messages,
                 deep_tools(summary.get("ai_no_apk_access") is True)+[review_tool(assigned)], evidence, validate,
                 allow_deep=True, reserve_after=len(review_plan)-index-1)
@@ -545,7 +603,8 @@ def run(root, *, api):
         merged = {"pages": [row for record in records for row in record["pages"]],
             "findings": [row for record in records for row in record["findings"]],
             "remaining_gaps": remaining_gaps}
-        review.validate_review_record(merged, draft, evidence, priorities, review_start)
+        final_review_start = recovery["original_review_start"] if imported_review else review_start
+        review.validate_review_record(merged, draft, evidence, priorities, final_review_start)
         completed = review.assemble_report(draft, merged)
         review.validate_report(completed, evidence.ids, list(summary["page_path_matrix"]), summary["page_path_matrix"])
     except Exception as exc:
@@ -585,7 +644,8 @@ def run(root, *, api):
         "review": completed.get("review") if completed else None, "read_tool_calls": evidence.calls,
         "model_requests": len(attempts), "cached_responses_reused": coordinator.reused if coordinator else 0,
         "new_model_requests": max(0, len(attempts)-prior_requests),
-        "imported_units": len(recovery.get("imported_units", [])), "reused_units": reused_units,
+        "imported_units": len(recovery.get("imported_units", []))+len(recovery.get("imported_review_units", [])),
+        "imported_review_units": len(recovery.get("imported_review_units", [])), "reused_units": reused_units,
         "merged_items": merged_counts,
         "usage_unknown": any(not row.get("usage") or row.get("billing_unknown") for row in attempts),
         **({"error": error} if error else {}),

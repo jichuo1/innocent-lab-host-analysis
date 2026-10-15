@@ -25,6 +25,16 @@ class CheckpointTest(unittest.TestCase):
         extended = copy.deepcopy(self.binding)
         extended["policy"].update(max_requests=24, transport_retries=4, max_output=16384, recovery_policy="extended-v1")
         self.assertEqual(checkpoint.policy_limits(extended)["max_requests"], 24)
+        completion = copy.deepcopy(extended)
+        completion["policy"].update(max_requests=32, deadline_seconds=3600, recovery_policy="completion-v2")
+        self.assertEqual(checkpoint.policy_limits(completion)["max_requests"], 32)
+        self.assertEqual(checkpoint.policy_limits(completion)["transport_retries"], 4)
+        self.assertEqual(checkpoint.policy_limits(completion)["deadline_seconds"], 3600)
+        for update in ({"max_requests": 33}, {"transport_retries": 5}, {"deadline_seconds": 3601},
+                       {"max_output": 8192}, {"recovery_policy": "completion-v3"}):
+            value = copy.deepcopy(completion); value["policy"].update(update)
+            with self.subTest(completion=update), self.assertRaises(checkpoint.CheckpointError):
+                checkpoint.policy_limits(value)
         for update in ({"max_requests": 17}, {"max_output": 16384}, {"transport_retries": 4},
                        {"recovery_policy": "extended-v2"}, {"deadline_seconds": 1801}, {"stream": 1}):
             value = copy.deepcopy(self.binding); value["policy"].update(update)
