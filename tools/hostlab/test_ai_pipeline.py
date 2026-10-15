@@ -82,6 +82,26 @@ class PipelineTest(unittest.TestCase):
             ai_review.run(self.root)
         self.assertTrue(offered)
 
+    def test_adaptive_timeout_keeps_slow_reasoning_within_fixed_and_remaining_caps(self):
+        limits = ai_pipeline.execution_policy({"ai_recovery_policy": "completion-v3"})
+        slow = {"profile": "backup", "status": "response_received", "billing_unknown": False,
+                "usage": {"completion_tokens": 12629, "_transport": {"total_ms": 235810}}}
+        self.assertGreater(ai_pipeline.request_timeout(limits, [slow], "backup", 1000), 400)
+        self.assertLessEqual(ai_pipeline.request_timeout(limits, [slow], "backup", 1000), 600)
+        self.assertEqual(ai_pipeline.request_timeout(limits, [slow], "backup", 17.5), 17.5)
+        self.assertEqual(ai_pipeline.request_timeout(limits, [], "backup", 1000), 600)
+        self.assertEqual(ai_pipeline.request_timeout(ai_pipeline.execution_policy({}), [slow], "backup", 1000), 240)
+
+    def test_timeout_calibration_ignores_unknown_zero_cross_profile_and_malformed_usage(self):
+        limits = ai_pipeline.execution_policy({"ai_recovery_policy": "completion-v3"})
+        base = {"profile": "backup", "status": "response_received", "billing_unknown": False,
+                "usage": {"completion_tokens": 0, "_transport": {"total_ms": 1}}}
+        rows = [base, {**base, "usage": None}, {**base, "usage": {"_transport": "invalid"}},
+                {**base, "usage": {"completion_tokens": 999999, "_transport": {"total_ms": 1}}},
+                {**base, "profile": "primary", "usage": {"completion_tokens": 1000, "_transport": {"total_ms": 1}}},
+                {**base, "billing_unknown": True, "usage": {"completion_tokens": 1000, "_transport": {"total_ms": 1}}}]
+        self.assertEqual(ai_pipeline.request_timeout(limits, rows, "backup", 1000), 600)
+
     def test_missing_review_finding_id_has_precise_feedback_and_retains_validation(self):
         corrupted = False
         observed_feedback = []

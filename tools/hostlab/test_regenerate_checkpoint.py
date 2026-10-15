@@ -105,6 +105,20 @@ class RegenerateCheckpointTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             regen.argument('{"static_run":987,"recovery_policy":"completion-v2"}')
 
+    def test_final_completion_policy_uses_its_own_explicit_verified_parent(self):
+        checkpoint_files = self.checkpoint()
+        restore = Mock(return_value={"parent_run": 988, "checkpoint_sha256": "a"*64, "evidence_sha256": "b"*64})
+        with patch.object(regen, "verified_artifact", side_effect=lambda run: (self.run,
+                checkpoint_files if run == 988 else self.downloaded)), \
+             patch.dict("sys.modules", {"ai_recovery": SimpleNamespace(restore_inputs=restore)}), \
+             patch.dict("os.environ", {"HOSTLAB_ARGUMENT": '{"static_run":987,"checkpoint_run":988,"recovery_policy":"completion-v3"}'}):
+            regen.main()
+        restore.assert_called_once_with(hostlab.STATE/"remote-output", checkpoint_files["files"], 988, policy="completion-v3")
+        self.assertEqual(self.restored()["ai_recovery_policy"], "completion-v3")
+        for value in (None, {}, [], "completion-v4"):
+            with self.assertRaises(RuntimeError):
+                regen.argument(json.dumps({"static_run": 987, "checkpoint_run": 988, "recovery_policy": value}))
+
     def test_current_restore_metrics_do_not_relabel_the_original_apk_scan(self):
         original = {**self.job, "command": ["old-apk-auditor"], "phases": {"analysis_ms": 319000},
                     "preparation": {"requirements": "requirements.txt", "elapsed_ms": 5000}}

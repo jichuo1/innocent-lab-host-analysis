@@ -170,6 +170,37 @@ class AiRecoveryTest(unittest.TestCase):
         return recovery.prepare_recovery(root or fixture.target, summary or fixture.summary, fixture.binding,
                                          FakeEvidence(document or fixture.document))
 
+    def final_fixture(self):
+        """The v2 parent has 23 attempts, all drafts, r0/r1, and a timed-out r2."""
+        previous = self.completion_fixture(); self.prepare_completion(previous)
+        value = checkpoint.Checkpoint(previous.target, previous.binding)
+        try:
+            token = value.claim("review", "r1", "b"*64, "backup", "paid-v2-parent")
+            value.received(token, "b"*64, {"role": "assistant", "content": None},
+                {"prompt_tokens": 3240, "completion_tokens": 12629,
+                 "completion_tokens_details": {"reasoning_tokens": 9316}}, "model")
+            value.save_unit("r1", {"pages": [{"page": page} for page in ("home", "search")],
+                "findings": [], "remaining_gaps": []})
+            token = value.claim("review", "r2", "c"*64, "backup", "paid-v2-parent")
+            value.failed(token, SimpleNamespace(reason="API total deadline exceeded", kind="timeout", retryable=True,
+                billing_unknown=True, http_status=None, retry_after=None, metrics={"total_ms": 240049.431}))
+            value.record_elapsed(2279.517702325)
+        finally:
+            value.close()
+        (previous.target/"ai-evidence.json").write_text(json.dumps(previous.document), encoding="utf-8")
+        original = json.loads((previous.target/"ai-checkpoint.json").read_text())
+        target = self.root/"final-output"; target.mkdir()
+        for name in self.binding["static_files"]:
+            (target/name).write_bytes((self.output/name).read_bytes())
+        v3 = copy.deepcopy(previous.binding)
+        v3["code"].update({name: "f"*64 for name in recovery.MUTABLE_CODE})
+        v3["policy"].update(max_requests=40, transport_retries=6, deadline_seconds=4800, total_timeout=600,
+                            adaptive_timeout=True, recovery_policy="completion-v3")
+        inputs = recovery.restore_inputs(target, list(previous.target.iterdir()), 989, policy="completion-v3")
+        summary = {"ai_recovery_policy": "completion-v3", "checkpoint_from_run": 989, "ai_recovery_inputs": inputs}
+        return SimpleNamespace(parent=previous.target, target=target, original=original, binding=v3,
+                               document=previous.document, summary=summary)
+
     def test_migrate_preserves_nine_attempts_unknown_usage_two_units_and_elapsed(self):
         origin = (self.output/"ai-resume-checkpoint.json").read_bytes()
         evidence = FakeEvidence(self.document)
@@ -453,6 +484,126 @@ class AiRecoveryTest(unittest.TestCase):
                                     policy="completion-v2")
         with self.assertRaisesRegex(checkpoint.CheckpointError, "explicit completion"):
             recovery.restore_inputs(self.root/"implicit-completion", list(fixture.target.iterdir()), 989)
+
+    def test_final_adopts_all_twenty_three_attempts_seven_units_and_nested_provenance(self):
+        fixture = self.final_fixture()
+        metadata = self.prepare_completion(fixture)
+        value = json.loads((fixture.target/"ai-checkpoint.json").read_text())
+        for name in ("attempts", "responses", "units", "providers", "transport_retries", "elapsed_seconds", "created_at"):
+            with self.subTest(field=name):
+                self.assertEqual(value[name], fixture.original[name])
+        self.assertEqual(len(value["attempts"]), 23)
+        self.assertEqual(len(value["units"]), 7)
+        self.assertEqual(value["transport_retries"], 4)
+        self.assertGreater(value["elapsed_seconds"], 2279)
+        self.assertEqual(metadata["adopted_attempt_count"], 23)
+        self.assertEqual(metadata["imported_review_units"], ["r0", "r1"])
+        self.assertEqual(metadata["original_review_start"], 14)
+        self.assertEqual(value["recovery"]["parent_recovery"], fixture.original["recovery"])
+        self.assertEqual(value["recovery"]["parent_recovery"]["policy"], "completion-v2")
+        self.assertEqual(value["recovery"]["parent_recovery"]["parent_recovery"]["policy"], "extended-v1")
+        self.assertEqual(value["recovery"]["old_limits"]["max_requests"], 32)
+        self.assertEqual(value["recovery"]["new_limits"]["max_requests"], 40)
+        self.assertEqual(value["recovery"]["next_retry_unit"], "r2")
+        self.assertTrue(value["attempts"][-1]["billing_unknown"])
+        self.assertTrue(value["attempts"][0]["billing_unknown"])
+        self.assertEqual(value["attempts"][-2]["usage"]["completion_tokens_details"]["reasoning_tokens"], 9316)
+        self.assertEqual((fixture.target/"ai-final-checkpoint.json").read_bytes(),
+                         (fixture.parent/"ai-checkpoint.json").read_bytes())
+        self.assertFalse((fixture.target/"ai-completion-checkpoint.json").exists())
+
+    def test_final_pending_r2_spends_fifth_compensation_then_sixth_and_caps_at_forty(self):
+        fixture = self.final_fixture(); self.prepare_completion(fixture)
+        value = checkpoint.Checkpoint(fixture.target, fixture.binding)
+        try:
+            for stage, unit in (("draft", "r2"), ("review", "r1"), ("review", "r3")):
+                with self.subTest(stage=stage, unit=unit), self.assertRaisesRegex(checkpoint.CheckpointError, "reserved"):
+                    value.claim(stage, unit, "d1"*32, "backup", "final")
+            self.assertEqual(value.value["transport_retries"], 4)
+            for index in range(2):
+                request = format(400+index, "064x")
+                token = value.claim("review", "r2", request, "backup", "final", transport_retry=index == 1)
+                value.received(token, request, {"role": "assistant", "content": None}, {"total_tokens": 1}, "m")
+                self.assertEqual(value.value["transport_retries"], 5+index)
+            value.save_unit("r2", {"pages": [], "findings": [], "remaining_gaps": []})
+        finally:
+            value.close()
+        metadata = self.prepare_completion(fixture)
+        self.assertEqual(metadata["adopted_attempt_count"], 23)
+        self.assertEqual(metadata["imported_review_units"], ["r0", "r1", "r2"])
+        resumed = checkpoint.Checkpoint(fixture.target, fixture.binding)
+        try:
+            self.assertEqual(resumed.value["transport_retries"], 6)
+            with self.assertRaisesRegex(checkpoint.CheckpointError, "compensation"):
+                resumed.claim("review", "r3", "d"*64, "backup", "final", transport_retry=True)
+            for index in range(40-len(resumed.value["attempts"])):
+                request = format(500+index, "064x")
+                token = resumed.claim("review", "r3", request, "backup", "final")
+                resumed.received(token, request, {"role": "assistant", "content": None}, {}, "m")
+            with self.assertRaisesRegex(checkpoint.CheckpointError, "request budget"):
+                resumed.claim("review", "r3", "e"*64, "backup", "final")
+            self.assertEqual(len(resumed.value["attempts"]), 40)
+            self.assertEqual(resumed.value["attempts"][:23], fixture.original["attempts"])
+        finally:
+            resumed.close()
+
+    def test_same_final_restore_preserves_new_review_evidence_and_does_not_recharge(self):
+        fixture = self.final_fixture(); self.prepare_completion(fixture)
+        value = checkpoint.Checkpoint(fixture.target, fixture.binding)
+        try:
+            token = value.claim("review", "r2", "d"*64, "backup", "final")
+            value.received(token, "d"*64, {"role": "assistant", "content": None}, {"_usage_unknown": True}, "m")
+            value.save_unit("r2", {"pages": [], "findings": [], "remaining_gaps": ["E019"]})
+        finally:
+            value.close()
+        current = copy.deepcopy(fixture.document)
+        current["tools"].append({"id": "E019", "tool": "protocol_evidence", "args": {"protocol": "final-read"},
+                                  "result": {"evidence_id": "E019"}})
+        (fixture.target/"ai-evidence.json").write_text(json.dumps(current), encoding="utf-8")
+        target = self.root/"final-resumed"
+        inputs = recovery.restore_inputs(target, list(fixture.target.iterdir()), 990, policy="completion-v3")
+        for name in self.binding["static_files"]:
+            (target/name).write_bytes((self.output/name).read_bytes())
+        summary = {**fixture.summary, "checkpoint_from_run": 990, "ai_recovery_inputs": inputs}
+        metadata = self.prepare_completion(fixture, root=target, summary=summary, document=current)
+        restored = json.loads((target/"ai-checkpoint.json").read_text())
+        self.assertEqual(metadata["adopted_attempt_count"], 23)
+        self.assertEqual(metadata["imported_review_units"], ["r0", "r1", "r2"])
+        self.assertEqual(metadata["original_review_start"], 14)
+        self.assertEqual(metadata["restored_tool_rows"], 19)
+        self.assertEqual(len(restored["attempts"]), 24)
+        self.assertEqual(restored["transport_retries"], 5)
+        self.assertFalse(restored["recovery"]["resume_transport_retry_pending"])
+        self.assertEqual(restored["attempts"][:23], fixture.original["attempts"])
+        self.assertEqual(restored["recovery"]["parent_recovery"], fixture.original["recovery"])
+        changed = json.loads((target/"ai-checkpoint.json").read_text())
+        changed["recovery"]["parent_recovery"]["parent_run"] += 1
+        (target/"ai-checkpoint.json").write_text(json.dumps(changed), encoding="utf-8")
+        with self.assertRaisesRegex(checkpoint.CheckpointError, "immutable parent"):
+            recovery.restore_inputs(self.root/"final-tampered", list(target.iterdir()), 991, policy="completion-v3")
+
+    def test_final_rejects_skips_downgrades_unknown_generations_and_changed_same_policy(self):
+        fixture = self.final_fixture()
+        for old in (self.binding, self.new_binding, fixture.binding):
+            new = fixture.binding if old != fixture.binding else fixture.original["binding"]
+            with self.subTest(old=old["policy"].get("recovery_policy")), self.assertRaises(checkpoint.CheckpointError):
+                recovery._binding(old, new)
+        for policy in (None, "extended-v1", "completion-v4"):
+            with self.subTest(policy=policy), self.assertRaises(checkpoint.CheckpointError):
+                recovery.restore_inputs(self.root/("invalid-final-"+str(policy)), list(fixture.parent.iterdir()), 990,
+                                        policy=policy)
+        changed = copy.deepcopy(fixture.binding); changed["code"]["ai_pipeline.py"] = "1"*64
+        with self.assertRaisesRegex(checkpoint.CheckpointError, "binding changed"):
+            recovery._binding(fixture.binding, changed)
+        for field in ("ai_review.py", "ai_prompts.py"):
+            changed = copy.deepcopy(fixture.binding); changed["code"][field] = "1"*64
+            with self.subTest(code=field), self.assertRaises(checkpoint.CheckpointError):
+                recovery._binding(fixture.original["binding"], changed)
+        changed = copy.deepcopy(fixture.original); changed["transport_retries"] = 6
+        with self.assertRaisesRegex(checkpoint.CheckpointError, "remaining compensation"):
+            recovery._completion_parent(changed, fixture.document, "completion-v3")
+        with self.assertRaises(checkpoint.CheckpointError):
+            checkpoint.Checkpoint(self.root/"unproven-final", fixture.binding)
 
 
 if __name__ == "__main__": unittest.main()

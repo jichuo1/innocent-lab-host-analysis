@@ -24,7 +24,7 @@ UNIT_PATHS = 10
 def execution_policy(summary):
     """Keep the default contract stable; extension requires an explicit recovery."""
     recovery = summary.get("ai_recovery_policy")
-    if recovery not in (None, "extended-v1", "completion-v2"):
+    if recovery not in (None, "extended-v1", "completion-v2", "completion-v3"):
         raise RuntimeError("Unsupported AI recovery policy")
     policy = {"max_requests": 16, "transport_retries": 2, "deadline_seconds": 1800,
         "initial_profile": "backup" if os.environ.get("AI_DEFAULT_PROFILE", "primary").lower() == "backup" else "primary",
@@ -35,6 +35,9 @@ def execution_policy(summary):
     elif recovery == "completion-v2":
         policy.update(recovery_policy=recovery, max_requests=32, transport_retries=4,
                       max_output=16384, deadline_seconds=3600)
+    elif recovery == "completion-v3":
+        policy.update(recovery_policy=recovery, max_requests=40, transport_retries=6,
+                      max_output=16384, deadline_seconds=4800, total_timeout=600, adaptive_timeout=True)
     return policy
 
 
@@ -229,11 +232,39 @@ def error_info(exc):
         billing_unknown=True, http_status=status, retry_after=None, metrics={})
 
 
+def request_timeout(limits, attempts, profile, remaining):
+    """Bound slow reasoning by observed throughput, without reducing output quality."""
+    cap = limits["total_timeout"]
+    if limits.get("adaptive_timeout") is True:
+        rates = []
+        for row in reversed(attempts):
+            if row.get("profile") != profile or row.get("status") != "response_received" or row.get("billing_unknown"):
+                continue
+            usage = row.get("usage") or {}
+            if not isinstance(usage, dict) or usage.get("_usage_unknown") is True:
+                continue
+            metrics = usage.get("_transport") or {}
+            if not isinstance(metrics, dict):
+                continue
+            tokens, elapsed = usage.get("completion_tokens"), metrics.get("total_ms")
+            if (type(tokens) is int and 512 <= tokens <= limits["max_output"] and type(elapsed) in {int, float}
+                    and math.isfinite(elapsed) and elapsed > 0):
+                rates.append(tokens/(elapsed/1000))
+            if len(rates) == 8:
+                break
+        if rates:
+            # A low quantile plus headroom handles cold prefill and reasoning;
+            # zero/missing usage is never treated as fast or free work.
+            rate = sorted(rates)[int((len(rates)-1)*0.1)]
+            cap = min(cap, max(360, math.ceil(limits["max_output"]/rate*1.5+30)))
+    return min(cap, remaining)
+
+
 class Coordinator:
     def __init__(self, checkpoint, api, *, profile, deadline):
         self.checkpoint, self.api, self.profile, self.deadline = checkpoint, api, profile, deadline
         self.limits = ai_checkpoint.policy_limits(checkpoint.value["binding"])
-        recovered = self.limits.get("recovery_policy") in ("extended-v1", "completion-v2")
+        recovered = self.limits.get("recovery_policy") in ("extended-v1", "completion-v2", "completion-v3")
         self.reused = 0
         self.position = checkpoint.value.get("recovery", {}).get("adopted_attempt_count", 0) if recovered else 0
         if (type(self.position) is not int or not 0 <= self.position <= len(checkpoint.value["attempts"])
@@ -276,10 +307,13 @@ class Coordinator:
                 token = self.checkpoint.claim(stage, unit, request_hash, self.profile, session,
                                              transport_retry=transport_retry)
                 self.position = len(self.checkpoint.value["attempts"])
+                timeout = request_timeout(self.limits, self.checkpoint.value["attempts"], self.profile, remaining)
+                self.checkpoint.value["attempts"][-1]["request_timeout_seconds"] = timeout
+                self.checkpoint.save()
                 try:
                     message, usage, model = self.api(self.profile, messages, tools, force_tool=force_tool, session_id=session,
-                        max_output=self.limits["max_output"], total_timeout=min(self.limits["total_timeout"], remaining),
-                        idle_timeout=min(self.limits["idle_timeout"], remaining), stream=self.limits["stream"])
+                        max_output=self.limits["max_output"], total_timeout=timeout,
+                        idle_timeout=min(self.limits["idle_timeout"], timeout), stream=self.limits["stream"])
                 except Exception as exc:
                     info = error_info(exc)
                     self.checkpoint.failed(token, info)
@@ -522,13 +556,13 @@ def run(root, *, api):
         units = draft_units(summary["page_path_matrix"])
         binding = build_binding(root, summary, units)
         limits = ai_checkpoint.policy_limits(binding)
-        if limits.get("recovery_policy") in ("extended-v1", "completion-v2"):
+        if limits.get("recovery_policy") in ("extended-v1", "completion-v2", "completion-v3"):
             import ai_recovery
             recovery = ai_recovery.prepare_recovery(root, summary, binding, evidence)
         checkpoint = ai_checkpoint.Checkpoint(root, binding, resume_unknown=summary.get("ai_resume_unknown", False))
         prior_requests = len(checkpoint.value["attempts"])
         profile = limits["initial_profile"]
-        duration = (limits["deadline_seconds"] if limits.get("recovery_policy") == "completion-v2"
+        duration = (limits["deadline_seconds"] if limits.get("recovery_policy") in ("completion-v2", "completion-v3")
                     else min(limits["deadline_seconds"], review.AI_DEADLINE_SECONDS))
         deadline = started+max(0, duration-checkpoint.elapsed_base)
         coordinator = Coordinator(checkpoint, api, profile=profile, deadline=deadline)
