@@ -1,0 +1,604 @@
+## 模块源码快照
+
+- 来源：worktree
+- 捕获时间（UTC）：2026-10-15T14:19:32.431433Z
+- 源码 HEAD：5422fad1e3f798252619d610a0504573ff47211b
+- 快照 SHA-256：2fa2d3b70f73fa431ed83267a9519c726a41b67de39eb7ee785813de39067120
+- 源码树 SHA-256：37745f8f27c41c22eab6e0bc780c6af700d650f49c3f004f862bf9c5f1548a5c
+- 含未提交修改：True
+- 时效状态：historical_static_evidence_new_source
+
+复用历史静态证据 run 38716769106；本轮只重新执行 AI 审查。模块源码重新绑定到上述快照。
+
+## 静态事实核对（程序计算）
+
+登记页面 10 个，登记路径 25 条；其中 22 条有静态调用证据，3 条未检出。路径数量与状态以静态矩阵为准，AI 文字可能存在计数或解释错误。
+
+方法定义数与调用边数不是同一计量单位，二者相除不能作为覆盖率或故障判据。证据 ID 校验只检查引用存在，不代表每项 AI 推论都已验证。未提交源码应按文件哈希追溯，不应为采纳 AI 建议而清理或丢弃工作树。
+
+# 页面多路径覆盖与样式变化审计
+
+分析结果：REVIEW_REQUIRED
+
+任务执行成功不等于模块适配通过。评论区、动态页最高优先级；所有登记路径分别核对。静态证据；AI 已完成独立分析（见后文），运行期样式启用未知。
+
+| 家族 | 类数 | Compose 方法 | 外部 invoke 边 | 证据 |
+|---|---:|---:|---:|---|
+| comment_compose | 2417 | 274 | 918 | static_invoke_observed |
+| comment_legacy_v2 | 581 | 0 | 734 | static_invoke_observed |
+| comment_native_exp3 | 60 | 0 | 59 | static_invoke_observed |
+| comment_native_legacy | 156 | 0 | 177 | static_invoke_observed |
+| comment_native_next | 45 | 0 | 46 | static_invoke_observed |
+| comment_other_ui:(root) | 227 | 2 | 524 | static_invoke_observed |
+| comment_other_ui:adapter | 8 | 0 | 24 | static_invoke_observed |
+| comment_other_ui:nextwidget | 15 | 0 | 12 | static_invoke_observed |
+| comment_other_ui:span | 15 | 0 | 13 | static_invoke_observed |
+| comment_other_ui:view | 217 | 0 | 110 | static_invoke_observed |
+| comment_other_ui:webview | 3 | 0 | 1 | static_invoke_observed |
+| comment_other_ui:widget | 232 | 33 | 342 | static_invoke_observed |
+| danmaku_kotlin | 56 | 1 | 9 | static_invoke_observed |
+| danmaku_legacy | 0 | 0 | 0 | absent |
+| detail_legacy | 0 | 0 | 0 | absent |
+| detail_theseus_ugc | 1953 | 25 | 515 | static_invoke_observed |
+| detail_theseus_united | 4602 | 98 | 4163 | static_invoke_observed |
+| dynamic_compose | 956 | 112 | 170 | static_invoke_observed |
+| dynamic_legacy | 3227 | 105 | 2193 | static_invoke_observed |
+| dynamic_opus | 1341 | 92 | 190 | static_invoke_observed |
+| dynamic_other:appointment | 26 | 3 | 19 | static_invoke_observed |
+| dynamic_other:card | 412 | 82 | 290 | static_invoke_observed |
+| dynamic_other:commonCore | 24 | 0 | 58 | static_invoke_observed |
+| dynamic_other:commonPerf | 12 | 1 | 4 | static_invoke_observed |
+| dynamic_other:commonUi | 21 | 5 | 8 | static_invoke_observed |
+| dynamic_other:lightBrowser | 72 | 18 | 32 | static_invoke_observed |
+| dynamic_other_legacy | 2091 | 4 | 2137 | static_invoke_observed |
+| home_legacy | 1004 | 128 | 236 | static_invoke_observed |
+| home_new_frame | 196 | 33 | 46 | static_invoke_observed |
+| mine_account_model | 132 | 0 | 54 | static_invoke_observed |
+| mine_native | 324 | 7 | 95 | static_invoke_observed |
+| pgc_legacy | 353 | 0 | 401 | static_invoke_observed |
+| pgc_theseus | 2249 | 131 | 742 | static_invoke_observed |
+| player_java | 953 | 0 | 3225 | static_invoke_observed |
+| player_kotlin | 7 | 0 | 100 | static_invoke_observed |
+| search_compose | 3149 | 556 | 616 | static_invoke_observed |
+| search_native | 1674 | 2 | 2789 | static_invoke_observed |
+| story_kotlin | 0 | 0 | 0 | absent |
+| story_native | 2958 | 44 | 1380 | static_invoke_observed |
+
+## 需要复核的变化
+
+
+## 原生资源变化
+
+{'added': 0, 'removed': 0, 'changed': 1}
+
+## 未归类的源码多路径候选
+
+- Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/agent/host/HostAgentWindow.kt
+- Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/HookEntry.kt
+- Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/RoamingCompatHook.kt
+- Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/VersionAdapter.kt
+- Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/VersionAdapterContract.kt
+- Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/feature/KotlinMossChannel.kt
+- Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/feature/KotlinMossReplyBridge.kt
+- Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/feature/NativeFeedbackPanel.kt
+- Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/feature/ReplyTopologyComposeMenu.kt
+- Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/runtime/HostThreadGuard.kt
+- Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/runtime/replytopology/ReplyTopologyGraphBuilder.kt
+- Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/ui/skin/activity/SkinnedActivity.kt
+- Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/ui/skin/liquid/LiquidRefractionBackendApi33.kt
+
+## 未归类协议调用者
+
+完整列表见 priority-summary.json；这些调用者不会静默排除。
+
+## 未覆盖边界
+
+- Server-controlled visual variants without structural changes may be invisible
+- Invoke edges do not resolve interface dispatch or prove runtime activation
+- Obfuscation/DEX relocation can change fingerprints without a new style
+- Unknown families are investigation candidates, not confirmed new styles
+
+# AI 适配分析
+
+AI 建议；证据引用已检查，仍须人工及真机验证。
+
+本轮仅覆盖 comment 与 dynamic 两页。预取证据显示：目标 9150300 与基线 9150200 在五个评论路径、三个动态路径上的类数、compose_methods、external_invoke_edges 与 fingerprint 全部逐字相同；changes 为空数组，resource_change_counts 仅 changed=1。因此没有任何静态结构变化可作为“新样式/新路径”的依据；指纹未变也意味着既不能确认适配通过，也不能排除服务端 A/B 样式差异——后者在无结构改动时静态不可见。两条评论协议与两条动态协议仍只到 static_invoke_observed，runtime_enabled=unknown、module_coverage=requires_installer_review，安装器与真机激活均未验证。源码快照带未提交修改（source_dirty=true），且存在未映射到路径的候选文件（HookEntry、VersionAdapter 等），这限制了对 Hook 覆盖的推断。
+
+本单元覆盖 home 与 search 两页登记路径。目标包 9.15.0(9150300) 与基线 9150200 字节级同尺寸(220423137)、证书一致，四个登记路径的指纹与类计数在预取两侧完全一致，changes 为空，resource_change_counts 仅 1 处 changed。因此静态证据显示本区间不存在新注册样式家族：home_legacy/home_new_frame、search_native/search_compose 均为 static_invoke_observed，runtime_enabled 与 module_coverage 全为 unknown/requires_installer_review。home_new_frame 类样本落在 tv.danmaku.bili.khome.widget.bubble 与 khome.vm(HomeFrameViewModel$dispatchAction$1，持有 $action:LLo1/b)，说明新框架走 ViewModel+action 派发；search_kotlin_moss 的 18 条实际调用边全部来自 search_compose 家族(aggregate/comic/repository)，方法语义为 searchAll/searchOGV/searchComic/searchAddReserve/searchDelReserve/searchReserveCancel。指纹未变不等于模块 Hook 在真机生效，安装器覆盖与运行开关仍需验证。
+
+本单元覆盖 detail 与 pgc 两页。种子证据显示：detail_legacy 在 9.15.0 与基线 9150200 均为 absent（classes/compose/invoke 全 0，指纹为空集哈希），其余路径指纹与基线逐字节一致，说明 9150300 相对 9150200 在登记家族结构上静默；changes 为空、资源仅 changed=1。已确认的差异不是新样式，而是模块源码侧：prefetch 未暴露模块内 detail/pgc 插入点，源码快照 working_tree_dirty=true，故模块覆盖只能记为 requires_installer_review。所有路径 runtime_enabled=unknown，静态调用边不等于真机启用，本报告不宣称任何路径适配通过。
+
+本单元审计 player 与 danmaku 两页在 tv.danmaku.bili 9.15.0 (9150300, sha256 c07cf…6110) 相对基线 9150200 (a9b70…a1cd) 的注册路径证据。差分结果为 changes 为空、resource_change_counts 仅 changed=1，说明本版本窗口内无注册路径级结构变化；两页指纹与基线逐字节一致（E007/E008），因此任何“出现新样式/新家族”的说法缺乏结构依据。player 两条路径均为 static_invoke_observed：player_java 953 类 / 3225 外部调用边，player_kotlin 7 类 / 100 边，Kotlin Moss 定义 34 条但实际调用边仅 3；danmaku_legacy 为 absent（0 类 / 0 边），danmaku_kotlin 56 类 / 9 边、1 个 compose 方法，danmaku_java_moss 定义 22 条却有 20 条实际调用边。所有路径 runtime_enabled=unknown、module_coverage=requires_installer_review，complete_coverage=false，且 APK access disabled，故本报告不判定适配通过，仅给出静态观察与最小补证任务。源码快照 working_tree_dirty=true，按文件哈希追溯，不清理工作树。
+
+本轮仅审计 story（动态/故事流）与 mine（我的）两页，样本 9150300 与基线 9150200 的预取家族摘要完全一致（story_native、story_kotlin、mine_native、mine_account_model 四族计数与指纹逐位相同），resource_change_counts 仅 1 处改动且无新增/删除条目，说明本次版本差异在静态家族层面不可见。四条登记路径中 story_kotlin 的摘要为全零（classes=0、compose_methods=0、external_invoke_edges=0），预取侧 evidence 直接标记 absent，属于该族在本 APK 中未被观测到，而非页面功能消失；其余三条为 static_invoke_observed，但 runtime_enabled 均为 unknown、module_coverage 均为 requires_installer_review，因此静态调用存在既不证明真机启用，也不证明模块 Hook 生效。story 与 mine 的 complete_coverage 均为 false，协议区为空，而上下文另行列出大量未登记 MOSS 协议（含 StoryMoss、KMineMoss、MineMoss、KOpusMoss、OpusMoss 等），说明 story/mine 的协议面尚未登记，协议侧变化对本次两页实际不可评估。模块侧有 22 个候选源码文件被固定快照，但快照工作树为 dirty，且 13 个多路径候选（含 HookEntry、VersionAdapter、KotlinMossChannel、ReplyTopologyComposeMenu 等）未映射到任一登记路径，故本报告只能给出结构层结论，不宣称适配通过。
+
+## 各页面评估
+
+### comment
+
+评论页登记五条路径：comment_legacy_v2、comment_native_legacy、comment_native_next、comment_native_exp3、comment_compose，全部与基线逐项相同（581/156/45/60/2417 类，734/177/46/59/918 外部调用边，compose_methods 仅 comment_compose=274），fingerprint 完全一致、changes 为空，故不存在可归因于本次升级的结构变化；指纹一致也可能是混淆改名、DEX 重排或编译器变化彼此抵消后的结果，静态无法区分。协议侧 comment_java_moss（50 定义/50 边）与 comment_kotlin_moss（130 定义/26 边）仅为静态调用观测，不等于真机启用，也不证明共同协议是否有跨家族消费者。E011 抽样仅见 kntr/common/comment 的 service/store 小类（多为 1-2 方法、无 compose 签名），不能代表 2417 个类的整体实现，因此对 Compose 复制/净化桥（CommentComposeCopyBridge、CommentComposePurifyBridge、CommentComposeViewAccess）的实际命中类名仍未确认。结论：未知，需安装器与真机验证。
+
+证据：E001, E011
+
+#### 路径：comment_legacy_v2
+
+- 状态：static_invoke_observed
+- 变化：类数 581、外部调用边 734、fingerprint dc1ce6f2… 与基线逐字一致；changes 为空，无可归因结构变化。
+- 可能影响：CommentClassicStyleLocator / CommentLegacyCopyBridge 的解析点无结构变化依据；是否命中仍取决于类名与调用点是否被混淆改名，未知。
+- 验证：真机在经典（旧原生）评论区触发复制/净化，抓取方法级 Hook 命中日志与堆栈，比对指纹对应的类名是否与定位器候选一致。
+- 证据：E001
+
+#### 路径：comment_native_legacy
+
+- 状态：static_invoke_observed
+- 变化：156 类 / 177 边 / fingerprint 5f1a4dd5… 与基线一致，无新增或删除方法边。
+- 可能影响：CommentNativeBindingCatalog 与 CommentNativeSupplementBridge 的绑定目标未变，但未见任何真机激活证据，绑定是否生效未知。
+- 验证：真机进入视频评论区，确认渲染走 native legacy 家族，并采集嗅探 Hook 是否在对应类上安装成功。
+- 证据：E001
+
+#### 路径：comment_native_next
+
+- 状态：static_invoke_observed
+- 变化：45 类 / 46 边 / fingerprint 4f7755ff… 与基线一致；路径规模最小，未观察到新增调用边。
+- 可能影响：若服务端继续下发 next 家族，模块对该家族的覆盖仍只有静态可能；未读到的安装条件无法推断启用策略。
+- 验证：以服务端开关强制走 next 家族（或灰度命中），记录该家族类是否被 HookEntry 注册与调用。
+- 证据：E001
+
+#### 路径：comment_native_exp3
+
+- 状态：static_invoke_observed
+- 变化：60 类 / 59 边 / fingerprint d0a1de81… 与基线逐字一致；无调用边增减。
+- 可能影响：exp3 为实验家族，唤起条件未知；静态同构不代表真机仍走 exp3 路径，模块覆盖要求安装器评审。
+- 验证：查服务端实验开关配置与本地抓包，确认 exp3 当前是否处于开启分桶，再验证 Hook 命中。
+- 证据：E001
+
+#### 路径：comment_compose
+
+- 状态：static_invoke_observed
+- 变化：2417 类 / 274 compose 方法 / 918 边 / fingerprint b91f8725… 与基线一致；无结构变化证据。
+- 可能影响：CommentComposeCopyBridge、CommentComposePurifyBridge、CommentComposeViewAccess 依赖的 Compose 类名与方法未变，但 E011 抽样只见少量 service/store 类且无 compose 签名，不能推断桥接触达面。
+- 验证：真机在 Compose 评论区触发复制/净化，核对桥接解析到的 Composer 调用点；并对可疑类用 decompile_class 复核 compose 签名。
+- 证据：E001, E011
+
+### dynamic
+
+动态页登记三条路径：dynamic_legacy（3227 类/105 compose/2193 边）、dynamic_compose（956 类/112 compose/170 边）、dynamic_opus（1341 类/92 compose/190 边），三者 fingerprint 与基线逐字相同，changes 为空。协议侧 dynamic_java_moss（134 定义/134 边，定义边持平）与 dynamic_kotlin_moss（382 定义/26 边，定义远多于边）只有静态观测，runtime_enabled=unknown。E012 抽样显示 dynamic_opus 家族同时存在普通数据类与带 Compose 签名的方法（如 api/r.a(Modifier,Composer,int)V、api/i.d(Composer,int)V），说明该家族内部步骤并存 Compose 与旧视图两条渲染栈，但抽样被截断，无法据此断言哪条栈在真机启用，也无法断言 Opus 家族已被 DynamicPurifyFeatureInstaller/DynamicTabsFeatureInstaller 覆盖。OpusMoss、KOpusMoss 等协议未登记，若模块净化逻辑依赖具体协议 stubs，跨家族消费者与兜底路径需另行验证。结论：未知，安装器与运行时验证均未完成。
+
+证据：E002, E012
+
+#### 路径：dynamic_legacy
+
+- 状态：static_invoke_observed
+- 变化：3227 类 / 105 compose 方法 / 2193 外部调用边 / fingerprint d5217d02… 与基线一致；无新增或删除边。
+- 可能影响：DynamicPurifyPolicy 与 DynamicPurifyFeatureInstaller 的目标集合未见结构变化，但类内可能同时含旧原生与 Compose 分支，实际走哪条栈未知。
+- 验证：真机进入动态（关注）页，记录实际渲染家族与净化 Hook 命中；对照该家族 105 个 compose 方法的调用是否发生。
+- 证据：E002
+
+#### 路径：dynamic_compose
+
+- 状态：static_invoke_observed
+- 变化：956 类 / 112 compose 方法 / 170 边 / fingerprint 84a035d3… 与基线逐字一致。
+- 可能影响：若服务端或版本开关切到 Compose 动态页，模块净化/复制桥是否覆盖该家族无证据；启用条件未读到，记为未知。
+- 验证：以开关或灰度强制 Compose 动态页，采集 Hook 安装与调用日志，确认家族类是否被 installer 注册。
+- 证据：E002
+
+#### 路径：dynamic_opus
+
+- 状态：static_invoke_observed
+- 变化：1341 类 / 92 compose 方法 / 190 边 / fingerprint 5f15905b… 与基线一致；E012 仅给出被截断的类抽样。
+- 可能影响：Opus 详情页存在 Compose 与普通数据类混用，未登记协议（OpusMoss/KOpusMoss）可能承载其数据；模块覆盖与跨家族消费者未确认。
+- 验证：对 E012 抽样类（如 Lkntr/app/following/opusDetail/api/r;）用 decompile_class 复核其 Compose 调用点，并在真机 Opus 详情页验证净化是否生效。
+- 证据：E002, E012
+
+### home
+
+home 登记两条路径。home_legacy(1004 类/128 compose 方法/236 外部调用边)与 home_new_frame(196 类/33 compose 方法/46 外部调用边)在目标与基线上的指纹、类数与边数逐字相同，E003 两侧摘要完全对称，未见结构哈希变化，故本区间无可归因于新样式出现的静态证据。home_new_frame 的类样本位于 tv.danmaku.bili.khome.widget.bubble(d/e/f/t)与 tv.danmaku.bili.khome.vm.HomeFrameViewModel$dispatchAction$1，后者字段含 $action:LLo1/b 与 this$0:HomeFrameViewModel，方法为 create/invoke/invokeSuspend，表明新框架由 ViewModel 协程派发动作驱动；该结构在基线侧同指纹，属既有实现而非新增。模块侧登记了 HomeFrameListHook、HomeFrameTabLocator、HomeTopBarFeatureInstaller、HomeBannerFeatureInstaller、HomeTabFilterFeatureInstaller、HomeRecommendPurifyFeatureInstaller、HomeExtraCardPolicy、HomeVerticalDetailRouting、HostHomeCardSpacingHooks、BottomBarFeatureInstaller 等安装器/定位器文件，但其对上述家族的绑定深度、定位串与兜底分支尚未在本轮逐文件读取，故 module_coverage 保持 requires_installer_review。需要强调：静态调用存在只说明调用边可见，不证明类在真机被加载，也不证明 Hook 生效；home 页 status 为 installer_and_runtime_validation_required，complete_coverage 为 false。宽屏/平板分支与服务端开关未见静态判据，保持未知。
+
+证据：E003, E000
+
+#### 路径：home_legacy
+
+- 状态：static_invoke_observed
+- 变化：目标与基线指纹 aa99feb8…f4a9、1004 类、128 compose 方法、236 外部调用边完全一致，未观察到结构变化；不得据此断言新样式未出现，只表明静态结构相同。
+- 可能影响：既有旧原生/混合路径的模块 Hook(首页列表、Tab、顶栏、Banner、卡片过滤、间距)在本区间无新结构可依赖，行为差异若存在只可能来自服务端内容或运行开关；模块可能需要针对性兜底，但当前无证据表明必须改。
+- 验证：真机开启模块后 dump 首页视图树与类加载日志，确认 home_legacy 家族类与既有 Hook 点是否被实际命中；结合安装器命中日志校验定位器是否落到该家族。
+- 证据：E003
+
+#### 路径：home_new_frame
+
+- 状态：static_invoke_observed
+- 变化：指纹 e3ea6856…a3d4、196 类、33 compose 方法、46 外部调用边与基线逐字一致，无结构哈希变化。
+- 可能影响：khome.vm.HomeFrameViewModel$dispatchAction$1 证实新框架由 ViewModel 协程派发动作，若模块 Hook 仅依赖旧框架类名，需要确认 HomeFrameTabLocator/HomeFrameListHook 对该路径的覆盖与兜底；但本区间未见新增类或边，属于既有实现延续。
+- 验证：在真机切换到新版首页框架(若存在服务端或本地开关)，观察 HomeFrameViewModel/HFrame 定位器是否命中，并记录未命中时的回落分支是否可用。
+- 证据：E003, E013
+
+### search
+
+search 登记两条路径与两组共同协议。search_native(1674 类/2 compose 方法/2789 外部调用边)与 search_compose(3149 类/556 compose 方法/616 外部调用边)在目标与基线上的类数、compose 方法数、边数与指纹全部一致，E004 两侧摘要对称，未见新样式结构变化。协议侧 search_java_moss(24 定义/22 实际调用边)与 search_kotlin_moss(52 定义/18 实际调用边)runtime_enabled 均为 unknown；深挖 E014 显示 search_kotlin_moss 的 18 条调用边全部来自 search_compose 家族，调用者为 kntr.app.search.aggregate.repository.b、kntr.app.search.comic.repository.b、kntr.app.search.repository.o，语义覆盖 searchAll/searchOGV/searchComic/searchAddReserve/searchDelReserve/searchReserveCancel，说明 Kotlin MOSS 消费者绑定在 compose 聚合仓库层而非 native 层，这是跨家族消费关系的关键事实。Java MOSS 的 22 条边调用者本轮未展开，是否存在 native 侧消费者仍未知，不能反推覆盖。模块侧登记 SearchHomeRecommendLocator、SearchDefaultWordsCleaner、SearchPurifyFeatureInstaller、SearchHomeRecommendFeatureInstaller、SearchHomeRecommendPolicy、SettingsSearchMatcher，以及 KotlinMossChannel/KotlinMossReplyBridge 等未映射候选，其对 search 家族与 Moss 协议的实际解析点尚未逐文件核实；search 页 complete_coverage 为 false。
+
+证据：E004, E000
+
+#### 路径：search_native
+
+- 状态：static_invoke_observed
+- 变化：指纹 481dae50…c740、1674 类、2 compose 方法、2789 外部调用边与基线完全一致，未见结构变化。
+- 可能影响：native 搜索路径体量大且边数最多，但仅在 E004 摘要层面被观测；已知 search_kotlin_moss 消费者不落在此家族，故若模块只针对 compose Moss 做净化，native 侧首页推荐/默认词相关 Hook 的覆盖与兜底需单独确认。
+- 验证：真机进入搜索页并区分 native/compose 两种渲染，dump 视图树确认实际生效路径；对 native 路径检查 SearchHomeRecommendLocator 与 SearchPurifyFeatureInstaller 是否命中。
+- 证据：E004
+
+#### 路径：search_compose
+
+- 状态：static_invoke_observed
+- 变化：指纹 6c663f2d…86e1、3149 类、556 compose 方法、616 外部调用边与基线逐字一致，无结构哈希变化。
+- 可能影响：search_kotlin_moss 的 18 条实际调用边全部由该家族三个 repository 类发出(E014)，说明 Kotlin Moss 协议消费者集中于 compose 聚合层；若模块通过 Moss 通道做净化，需确认对 repository.o/b 等方法返回结构的解析点是否覆盖 searchOGV/searchAll 等分支，以及未在样本中的其余调用者。
+- 验证：用 module_source 读取 KotlinMossChannel/KotlinMossReplyBridge 与 SearchHomeRecommendPolicy，比对其挂载方法是否对应 kntr/app/search/repository/o 等类；真机对同一关键词分别以 compose 与 native 渲染抓取返回结构差异。
+- 证据：E004, E014
+
+### detail
+
+详情页登记三条路径。detail_legacy：目标与基线均为 absent（classes=0, compose_methods=0, external_invoke_edges=0，指纹 4f53cda1…，即空集合哈希），可判定该家族在本版对静态扫描不可见，但 absent 不等于页面功能消失，可能只是回归旧原生实现或被桥接到 theseus 路径，需运行期确认。detail_theseus_ugc：1953 类、25 compose 方法、515 外部调用边，指纹 c36f2a42…与基线完全相同；detail_theseus_united：4602 类、98 compose 方法、4163 调用边，指纹 83e1f0b1…亦与基线完全相同。三条路径的结构哈希零变化，说明分类结果不能用“新样式”解释，更可能是同一 DEX 布局下的同构产物。协议侧 detail_java_moss 32 定义/35 调用边、detail_kotlin_moss 76 定义/10 调用边，只有“定义数”和“调用边数”两个不同口径，禁止相除推导覆盖率。运行时启用与安装器/定位器覆盖均未验证。
+
+证据：E000, E005, E011
+
+#### 路径：detail_legacy
+
+- 状态：absent
+- 变化：目标 9150300 与基线 9150200 均为 absent：classes=0、compose_methods=0、external_invoke_edges=0，指纹同为 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945（空集哈希），无任何登记类样本。
+- 可能影响：该家族无静态锚点，模块中针对 legacy 详情页的 Hook 若按类名/方法签名定位将无目标可挂；也不排除页面被 theseus 路径完全替代，需按路径分别确认，不能据此判定页面能力消失。
+- 验证：在真机上分别进入普通视频详情与合集/联合投稿详情，抓取实际加载的 Activity/Fragment 与类加载列表，确认是否存在 legacy 视图实现；对模块日志检查 legacy 定位器是否报未命中。
+- 证据：E000, E005
+
+#### 路径：detail_theseus_ugc
+
+- 状态：static_invoke_observed
+- 变化：目标与基线一致：1953 类、25 compose 方法、515 外部调用边，指纹 c36f2a42930dc4782361f39a8b58afc94a19649469b9b6797f8ad2138d4984cc 无变化，changes 列表为空。
+- 可能影响：结构无变化意味着既有 UGC 详情 Hook 的类/方法锚点在 9150300 上仍应命中，但命中不等于生效；模块覆盖仍需安装器与运行期确认，未读到安装器类名绑定前保持未知。
+- 验证：在真机上打开 UGC 详情，核对模块 Hook 日志中的实际命中类与方法签名，并与该指纹下的类样本（如 Lkntr/app/following/opusDetail/api/*）逐一比对；另做一次模块关闭的对照。
+- 证据：E000, E005, E012
+
+#### 路径：detail_theseus_united
+
+- 状态：static_invoke_observed
+- 变化：目标与基线一致：4602 类、98 compose 方法、4163 外部调用边，指纹 83e1f0b1ede48a39a9bf5c8c7654481a5c08f067ddaacb373c21cf169b07f5fe 无变化。
+- 可能影响：联合投稿/United 路径与 UGC 路径并存，两条路径均为静态可见且结构未变；但哪条在真机实际挂载取决于路由与开关，模块对两条路径的覆盖是否分别建立未知。
+- 验证：构造可触发 united 与 ugc 两种渲染的详情入口，记录进入时模块命中的路径标识；检查模块是否存在按路径分流的注册逻辑（对应 DetailUnitedModulePurify 系列安装器）及其兜底分支。
+- 证据：E000, E005
+
+### pgc
+
+PGC 页登记两条路径，均 static_invoke_observed。pgc_legacy：353 类、0 compose 方法、401 外部调用边，指纹 58516e1d…与基线完全相同；pgc_theseus：2249 类、131 compose 方法、742 调用边，指纹 e02d9f27…同样零变化。与 detail_legacy 的 absent 不同，pgc_legacy 在本版仍有静态类与调用边，说明 PGC 旧原生路径并未从静态视野消失，但也无法据此判定真机优先走哪条。协议侧 pgc_player_moss 12 定义/3 调用边、pgc_view_moss 14 定义/7 调用边，调用边数量明显低于定义数，可能意味着新定义尚未接入调用方或调用方在未读取的类中，不能推导覆盖率。资源变化仅 1 项 changed，无新增/删除，与结构零变化相互印证。PgcAutoActivityPopupLocator 的定位目标与这些路径的对应关系未在本轮源码中展开，需单独核对。
+
+证据：E000, E006
+
+#### 路径：pgc_legacy
+
+- 状态：static_invoke_observed
+- 变化：目标与基线一致：353 类、0 compose 方法、401 外部调用边，指纹 58516e1deb4e63124df153e402f253f340fbc9f99e34a43606ac4c176ebfebeb 无变化；无 compose 方法表明该路径仍为旧原生（View/Activity）实现。
+- 可能影响：旧原生 PGC 路径依旧静态可见，面向 legacy 页面的净化/弹窗 Hook 具备类级锚点；但静态存在不证明该路径在真机被选中，弹窗定位器可能命中 theseus 路径而非此路径。
+- 验证：在真机打开番剧/影视详情与播放页，抓取弹窗相关 Activity 与模块定位器日志，确认命中类属于 legacy 还是 theseus；同时对 PgcAutoActivityPopupLocator 的匹配条件做一次单路径置空对照。
+- 证据：E000, E006
+
+#### 路径：pgc_theseus
+
+- 状态：static_invoke_observed
+- 变化：目标与基线一致：2249 类、131 compose 方法、742 外部调用边，指纹 e02d9f2747072662b44fd47822116e1d35c46efc5096dddedea9ee915428fe12 无变化；含 131 个 compose 方法，属 Compose 家族。
+- 可能影响：theseus 路径与 legacy 路径在 PGC 中并存，风格候选应优先视为“两栈并存”而非新样式；模块若只覆盖其中一条，另一条在真机生效时表现为未净化，具体覆盖范围未验证。
+- 验证：在同一 PGC 入口用路由/开关切换两种渲染，比对模块命中路径；检查模块是否同时注册 legacy 与 theseus 两套安装器及缺一时的兜底行为。
+- 证据：E000, E006
+
+### player
+
+player 页两条登记路径证据级别一致，均为 static_invoke_observed，且指纹与基线完全相同（player_java 4102698f…4403bc，953 类/0 compose/3225 外部调用边；player_kotlin b275709b…d7edc，7 类/0 compose/100 边），配合 changes=[] 可判定：本版本窗口内该页注册家族没有可观测的结构性变化，既无新增家族也无删除家族。协议侧存在明显不对称：player_java_moss 18 条定义对应 2 条实际调用边，player_kotlin_moss 34 条定义仅对应 3 条实际调用边，说明 Kotlin Moss 通道在静态图上大面积“定义了但无人调用”，这是接口分发/反射/混淆后调用点未被解析的常见形态，而不是功能缺失的证明。模块侧源码快照包含大量 Player*Locator、Player*FeatureInstaller、Player*Policy（如 PlayerSpeedLocator/PlayerSpeedFeatureInstaller/PlayerCapabilityAccess/SponsorPlayerLocator），提示模块对 player 页采用“定位器 + 安装器 + 策略”的分层 Hook，但运行时是否命中目标类与方法仍未验证，module_coverage 保持 requires_installer_review。注意 player_java 的 3225 条边与 953 个类不是同一单位，不能据此推导覆盖率；指纹未变亦不排除服务端开关控制下的视觉差异。结论：无变化证据，但适配状态未知，需真机 + 安装器日志补齐。
+
+证据：E000, E007, E011
+
+#### 路径：player_java
+
+- 状态：static_invoke_observed
+- 变化：与基线 9150200 相比指纹完全一致（4102698f3c1fdaab7ca6c3526b3d0ff77426ca433eaf8bd71fdde0d3824403bc），class 数 953、compose_methods 0、external_invoke_edges 3225 均无变化；changes 列表为空。
+- 可能影响：该路径静态结构未变，模块既有 Java 侧定位器/安装器（PlayerBufferLocator、PlayerSpeedLocator、SponsorPlayerLocator 等）理论上无需按版本迁移；但结构哈希不变不等于 Hook 在真机生效，runtime_enabled 仍为 unknown，module_coverage 为 requires_installer_review。
+- 验证：真机安装模块后，用安装器/定位器日志确认 Player*Locator 与 Player*FeatureInstaller 是否解析到 9150300 的目标类与方法，并对比命中签名是否与 953 类集合交集非空；同时抓取播放器页面 Hook 回调计数。
+- 证据：E000, E007, E011
+
+#### 路径：player_kotlin
+
+- 状态：static_invoke_observed
+- 变化：与基线指纹一致（b275709b530b2d285814f47291544549ad6ce5359fca2f93a8a7c5cc8a9d7edc），7 类、0 compose 方法、100 外部调用边均未变；player_kotlin_moss 34 条定义但实际调用边仅 3 条，与基线相同。
+- 可能影响：Kotlin 侧样本极小（仅 7 类），无法代表整套 Kotlin 播放器实现（源码/反编译抽样限制需声明）。Moss 定义与实际调用边严重不匹配，若模块依赖调用边推断 Hook 点，可能在实际运行时定位不到 Kotlin 通道入口，导致部分功能静默失效。
+- 验证：针对 player_kotlin_moss 的 3 条实调用边，用调用图工具回溯其宿主类与方法，确认是否落在模块 KotlinMossChannel/KotlinMossReplyBridge 的解析范围内；并在真机验证 Kotlin 通道请求是否被拦截。
+- 证据：E000, E007
+
+### danmaku
+
+danmaku 页呈现家族替换式结构：danmaku_legacy 在目标与基线上均为 absent（classes=0、compose_methods=0、external_invoke_edges=0，指纹 4f53cda1…2b945 即空集常量哈希），而 danmaku_kotlin 为 static_invoke_observed（56 类、1 个 compose 方法、9 条外部调用边，指纹 f55e24e0…1cb）。由于基线同样 absent，这不是本版本引入的变化，而是两边一致的既有格局，因此不能解读为“旧家族在 9150300 被移除导致功能消失”。协议侧更值得注意：danmaku_java_moss 22 条定义对应 20 条实际调用边，调用边密度高；danmaku_kotlin_moss 46 条定义却只有 4 条实际调用边，两者不对称，提示 Java 侧 Moss 是当前实际被消费的主通道，而 Kotlin Moss 大量定义可能通过反射/接口分发调用，静态不可见。需要注意“java_moss”是协议标识而非登记路径，且其定义/调用边命名不构成某一路径已被模块 Hook 覆盖的证据。模块源码快照中包含 DanmakuPurifyFeatureInstaller 与 DanmakuPurifyPolicy，显示存在净化类 Hook 的安装器与策略，但安装目标家族、兜底逻辑与真机生效情况均未读到运行条件，记为未知。danmaku_kotlin 的 56 类中仅 1 个 compose 方法，无法据此断言 Compose 化程度。结论：无版本级变化，适配状态未知。
+
+证据：E000, E008
+
+#### 路径：danmaku_legacy
+
+- 状态：absent
+- 变化：目标与基线两侧均为 absent：classes=0、external_invoke_edges=0，指纹 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945（空集常量哈希），无任何差分信号。
+- 可能影响：无旧原生家族可被模块定位，若模块仍保留面向 legacy 弹幕的实现，其在 9150300 上不存在静态挂载点，相关 Hook 只能走兜底或完全无效。absent 仅表示该家族在当前静态抽取中无类，不等于弹幕页功能消失，也不排除抽取规则未覆盖该家族。
+- 验证：用同一静态抽取规则在目标 APK 上按 legacy 家族的已知类名前缀做定向检索，确认是真无类还是抽取口径缺失；随后在真机弹幕页验证模块净化/样式 Hook 是否仍有回调命中，以区分‘无家族’与‘无命中’。
+- 证据：E000, E008
+
+#### 路径：danmaku_kotlin
+
+- 状态：static_invoke_observed
+- 变化：与基线指纹一致（f55e24e08dd891f8591d14fb9233e06a202bdfc5d566ed086334fa848bfab1cb），56 类、1 compose 方法、9 外部调用边均无变化。
+- 可能影响：该路径是弹幕页当前唯一有静态证据的家族，模块 DanmakuPurifyFeatureInstaller/DanmakuPurifyPolicy 若面向该家族，需确认定位器命中其类与方法；9 条外部调用边数量极少，接口分发或反射调用未解析，存在静态图上看不到实际调用者的可能，故不能据此断言 Hook 覆盖充分。
+- 验证：按 danmaku_kotlin 家族名与类名清单与模块 DanmakuPurifyFeatureInstaller 的 hook 目标做集合比对，确认目标类是否命中；在真机弹幕页开启净化，检查是否走到策略分支（日志/回调计数），并检查 Kotlin Moss 4 条实调用边对应的宿主。
+- 证据：E000, E008
+
+### story
+
+story 登记两条路径。story_native 在目标与基线两侧摘要完全一致：2958 个类、44 个 Compose 方法、1380 条外部调用边、指纹 6b74bce4…83e99，evidence=static_invoke_observed，但 runtime_enabled=unknown、module_coverage=requires_installer_review，故只能确认存在静态调用面，无法确认该家族在真机走哪条原生实现或模块是否已覆盖（E009）。story_kotlin 两侧摘要均为零（0 类、0 Compose 方法、0 调用边，空指纹 4f53cda1…2b945），evidence 逐字为 absent，属观察范围内未出现该族，需与混淆改名、DEX 重排、代码迁移合并考虑，不能据此判定页面已无 Kotlin 样式或功能被移除（E009）。两侧 story.protocols 均为空，而上下文列出 StoryMoss 等未登记协议，说明本页协议消费面未登记，评论/动态家族（comment_compose、dynamic_opus、home_new_frame）虽在预取深挖中可读（E011/E012/E13），但其类样本归属 file_id 21/19/24，未确认由 story 路径消费，且 module_coverage 同为 requires_installer_review，不得登记为 story 的已确认新样式。另需注意：结构哈希未变既可能代表真无改动，也可能被服务端 A/B 样式下发掩盖，静态不可见。
+
+证据：E009, E011, E012, E013
+
+#### 路径：story_native
+
+- 状态：static_invoke_observed
+- 变化：目标 9150300 与基线 9150200 的类数 2958、Compose 方法 44、外部调用边 1380 与指纹 6b74bce42db028676a9b876d8f332257e2f9b8ad604dcfce1b0841742d483e99 完全一致，预取未给出任何结构性差异；全样本 resource_change_counts 为 added=0/removed=0/changed=1，但该项归属未细化到本路径。
+- 可能影响：在静态家族层面对模块无可观测新增或消失的调用面，既不能据此认为现有 Hook 目标仍匹配，也不能认为已失效；runtime_enabled=unknown 与 module_coverage=requires_installer_review 意味着调用面存在不等于真机启用、更不等于模块 Hook 命中。
+- 验证：按指纹定位 44 个 Compose 方法与 1380 条调用边中与模块 HookEntry/VersionAdapter 声明目标同名的类方法，逐条比对方法签名与参数类型；真机侧在已安装模块上抓取这两个家族对应类的加载与 Hook 回调日志，确认 runtime 是否触发。
+- 证据：E009
+
+#### 路径：story_kotlin
+
+- 状态：absent
+- 变化：目标与基线两侧均为 classes=0、compose_methods=0、external_invoke_edges=0，指纹为空的 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945，evidence 逐字 absent，两侧无差异。
+- 可能影响：若模块存在针对 story Kotlin 家族（如 MOSS/Compose 侧故事流）的 Hook 或策略开关，需确认其目标是否为其它家族或已被混淆改名并入 story_native；absent 仅表示当前静态取样未观察到该族，不代表页面功能消失。
+- 验证：用 family_evidence 对 story 侧补取候选族名（含改名后的 kntr/story、kotlin 通道）确认是否被并入 story_native；用 module_source 检索模块源码中 story/Kotlin 相关 handler 与其声明目标类名，核对是否落在已观测族内。
+- 证据：E009
+
+### mine
+
+mine 登记两条路径。mine_native 目标与基线均为 324 类、7 个 Compose 方法、95 条外部调用边、指纹 cf69dfa7…8ae35d，evidence=static_invoke_observed，runtime_enabled=unknown、module_coverage=requires_installer_review，即调用面存在但真机启用与模块覆盖均未知（E010）。mine_account_model 两侧均为 132 类、0 Compose 方法、54 条调用边、指纹 d5370d6e…a011996，属账号模型侧静态面，同样 runtime_enabled=unknown（E010）。两侧 mine.protocols 均为空，但上下文列出 KMineMoss、MineMoss、AccountInterfaceV1Moss 等未登记协议，且 prefetch 深挖的 comment_compose（E011）、dynamic_opus（E012）、home_new_frame（E013）类样本分别归属 file_id 21/19/24，不能作为 mine 页的已确认样式证据。模块侧候选源码包含 MineComponentFilterFeatureInstaller.kt、MineComponentSnapshot.kt、MineVipFeatureInstaller.kt、MineComponentSnapshotStore/QueryClient/QueryContract/HostBridge 以及 HostMineReadingCard.kt，说明存在按组件快照做过滤/查询的实现面，但源码快照工作树 dirty、且未读取这些文件内容，因此无法确认其解析字段是否与本版本 mine 的类结构对齐；不宣称这些 Hook 生效。
+
+证据：E010, E011, E012, E013
+
+#### 路径：mine_native
+
+- 状态：static_invoke_observed
+- 变化：目标与基线摘要逐项相同：classes=324、compose_methods=7、external_invoke_edges=95、fingerprint=cf69dfa72bd0aab4bb89f33ac7b5ad3e0483282d900389ec538da9133b8ae35d；预取范围内无结构性差异。
+- 可能影响：mine 原生组件面静态稳定，但 module_coverage=requires_installer_review 表明模块的组件过滤/快照安装器是否命中本版本未验证；若安装器按类名或字段名匹配，混淆改名或 DEX 重排可能在不改变指纹语义的情况下改变匹配结果，反之指纹不变也可能掩盖服务端下发样式的变化。
+- 验证：用 module_source 读取 MineComponentFilterFeatureInstaller.kt 与 MineComponentSnapshot.kt，列出其匹配的类名/字段名/方法签名，与 mine_native 的 324 类清单逐项核对；真机验证在已安装模块下抓取快照查询客户端与宿主桥的调用日志，确认查询是否返回且过滤是否按预期生效。
+- 证据：E010
+
+#### 路径：mine_account_model
+
+- 状态：static_invoke_observed
+- 变化：目标与基线摘要逐项相同：classes=132、compose_methods=0、external_invoke_edges=54、fingerprint=d5370d6ef7f86f092837bbc4aaa634512a18266f46db9e0eb8d7dcb03a011996；无结构性差异。
+- 可能影响：账号模型侧静态面未变，但 MineVipFeatureInstaller.kt 等模块实现是否以本族字段/方法为解析点未被读取确认；若模块依赖该模型的 VIP 判定字段，字段语义或来源变化（含服务端下发）可能使判断失效而不反映在指纹上。
+- 验证：用 module_source 读取 MineVipFeatureInstaller.kt 与 MineComponentSnapshotQueryContract.kt，标出引用本族类/字段的具体位置；真机在登录与未登录两种状态下核对 VIP/账号相关展示与模块日志，确认解析点是否命中。
+- 证据：E010
+
+### F001：9150300 与 9150200 八条登记路径指纹逐字相同、changes 为空，不能推出“适配通过”
+E015 显示评论五条路径的类数、compose_methods、外部调用边与 fingerprint 与基线完全一致；E016 显示动态三条路径同样一致；changes 为空数组，resource_change_counts 仅 changed=1；本轮独立复读 comment_compose 两侧（E017 目标 / E018 基线）可见 5 个抽样类的类名、method_bodies_sha256 与方法签名逐字一致。这指向样本区间差异极小，而非新样式出现。两点限制必须保留：其一，抽样为每家族 2 类上限且结果被截断，不能代表整族实现；其二，指纹一致可能由混淆改名、DEX 重排、编译器变化互相抵消造成，也可能是同一构建产物。反向同样成立——指纹未变排除不掉服务端 A/B 下发的视觉/渲染变体，这类变体常无结构差异，静态不可见。因此“无变化”既不支持适配通过，也不支持已适配结论。
+反例与替代解释：若后续发现 fingerprint 相同但方法体哈希或调用点行号变化，则存在被指纹掩盖的实际改动，当前“无变化”推断需撤销；若真机确认某路径完全未安装 Hook，则“无变化”不影响该路径仍需修复；若服务端 A/B 造成视觉差异而无结构变化，静态侧无法排除，须标注为运行期验证项。
+建议：以 9150300 真机为基准，逐路径采集 Hook 安装与调用日志；对无变化路径仍按未知处理，不得默认沿用基线适配结论，也不得把指纹一致写成“已适配”。
+证据：E001, E002
+
+### F002：评论与动态协议只到静态调用观测，module_coverage 均需安装器评审
+seed 中 comment_java_moss（50 定义/50 边）、comment_kotlin_moss（130 定义/26 边）、dynamic_java_moss（134/134）、dynamic_kotlin_moss（382/26）的 runtime_enabled 均为 unknown，且四条路径的 module_coverage 都是 requires_installer_review。定义数与调用边数单位不同，不能相除推导覆盖率；kotlin moss 定义多而边少，只能说明静态调用点稀疏，不能说明协议已被消费。共同协议是否有跨家族消费者、安装器/定位器是否有兜底，本轮均未读到。
+反例与替代解释：若安装器日志显示某协议 stub 从未被注册，则“需安装器评审”可升级为明确缺口；若真机日志显示协议方法被调用且 Hook 生效，则当前保守结论可放宽。
+建议：优先核 HookEntry/VersionAdapter/VersionAdapterContract 的安装分支：确认这些协议 stub 与评论/动态家族是否被同一安装器注册，以及未命中时的 fallback 行为。
+证据：E001, E002
+
+### F003：Opus 家族静态同时存在 Compose 与普通类形态，是否并存渲染栈与覆盖归属均未确认
+E012 抽样显示 dynamic_opus 家族中既有纯数据类（api/k、api/C、api/H），也有带 Compose 签名的方法（api/r.a(Modifier,Composer,int)V、api/i.d(Composer,int)V），说明该家族静态层面同时包含两类形态，可能对应多种渲染栈；但结果被截断、样本仅 5 个类，不能代表 1341 个类，也无法证明两条栈在真机并存或哪条被启用——未读方法体不能推断 Compose 调用点真正执行。E016 确认三条动态路径整体与基线同构且 runtime_enabled=unknown。OpusMoss/KOpusMoss 处于 unregistered_protocols，若模块依赖这些协议结构做定位，可能缺少对应消费者，跨家族消费者与兜底路径未验证。
+反例与替代解释：若完整读取后发现这些 compose 方法属未启用的可选模块，则“并存栈”推断应降级为静态存在但运行不激活；若真机 Opus 页仅走 legacy 栈，则 Opus 覆盖问题转为冗余而非缺失；若确定无任何模块消费者依赖 OpusMoss/KOpusMoss，则协议未登记的缺口等级应下调。
+建议：对 api/r、api/i 等类用 decompile_class 读取完整方法体，确认 compose 调用点与调用者；真机 Opus 详情页验证 DynamicPurifyFeatureInstaller 是否命中，并抓取 OpusMoss/KOpusMoss 的协议消费方。
+证据：E002, E012
+
+### F004：search_kotlin_moss 已观测调用边全部落在 search_compose 聚合仓库层，跨家族覆盖边界未闭合
+E014(protocol_evidence, search_kotlin_moss, target)返回 definitions=52、actual_invoke_edges=18、total_callers=18，caller_samples(上限 4 条)全部属于 search_compose 家族：Lkntr/app/search/aggregate/repository/b;、Lkntr/app/search/comic/repository/b;、Lkntr/app/search/repository/o;，绑定 <init>(Lkntr/base/moss/api/KCallOptions;…) 与 searchAll/searchOGV/searchComic/searchAddReserve/searchDelReserve/searchReserveCancel 等 KSearchMoss 成员。据此只能陈述“在已返回的调用边记录中未见 search_native 消费者”，52 个定义中其余 34 个签名的消费者归属仍未知。E004 中 search_java_moss(24 定义/22 边)的调用者家族未被展开，Java/Kotlin 双 Moss 的分工无法静态判定。调用边可见不等于真机调用，也不证明模块 Hook 对返回结构生效。
+反例与替代解释：替代解释：(1) 该聚合仓库可能同时被 native 与 compose 复用，18 条边只是采样/可达性偏差；(2) Kotlin Moss 可能存在未被预取或被接口分发隐藏的第四个消费者类，静态调用图不解析接口调用与动态代理；(3) 若 module_source 显示模块通过统一 Moss 通道而非按类名挂载，跨家族覆盖担忧可消除；(4) 若真机抓取显示两种渲染返回结构一致，本推断被推翻。
+建议：用 module_source 读取 KotlinMossChannel.kt 与 KotlinMossReplyBridge.kt，确认其挂载类/方法与上述三个 repository 类及 KSearchMoss 成员的对应关系；若挂载点只覆盖 searchAll 或只覆盖 native 侧，则在 compose 渲染切换时可能漏净化。另用 protocol_evidence 展开 search_java_moss 的调用者家族，确认是否存在 native 侧消费者。真机对同一关键词分别以 compose/native 渲染抓取返回结构，比较净化前后差异。
+证据：E014, E004
+
+### F005：home_new_frame 的 HomeFrameViewModel 动作派发签名已观测，定位器覆盖与兜底仍未读取
+E013(family_evidence, home_new_frame, target)给出类样本：tv.danmaku.bili.khome.widget.bubble.d/e/f/t 与 tv.danmaku.bili.khome.vm.HomeFrameViewModel$dispatchAction$1；后者 superclass 为 Lkotlin/coroutines/jvm/internal/SuspendLambda，fields 为 ["$action","LLo1/b;"]、["label","I"]、["this$0","Ltv/danmaku/bili/khome/vm/HomeFrameViewModel;"]，methods 为 <init>(HomeFrameViewModel;LLo1/b;Continuation)、create、invoke、invokeSuspend。由此可推断新框架通过 SuspendLambda 包装 action 对象派发，但这是对签名的语义推断，不是对 method body 的直读。E013 摘要 total_classes=196、fingerprint e3ea6856…a3d4，与 E003 基线侧同指纹，属既有实现延续，本区间无新增类或调用边。HomeFrameTabLocator.kt 与 HomeFrameListHook.kt 的匹配条件、命中日志与回落分支本轮均未读取，module_coverage=requires_installer_review、runtime_enabled=unknown 保持不变。
+反例与替代解释：替代解释：(1) $action:LLo1/b 可能是被多个模块共享的通用 action 基类，不足以判定定位器脆弱；(2) 该 ViewModel 可能存在于 APK 但真机不加载(类计数包含未使用代码)，则 Hook 覆盖问题不成立；(3) 定位器若基于方法签名或注解而非类名，类名变更不影响命中。若真机日志显示稳定命中，本推断被推翻。
+建议：用 module_source 读取 HomeFrameTabLocator.kt 与 HomeFrameListHook.kt，核对匹配条件是否包含 tv/danmaku/bili/khome/vm/HomeFrameViewModel 或 khome/widget/bubble 族，以及 $action:LLo1/b 是否被用作定位条件；同时读取 HookEntry.kt/VersionAdapter.kt 确认两家族是否经同一安装器注册。真机上(存在本地或服务端框架开关时)触发框架切换，记录定位器命中与未命中时的回落行为。
+证据：E013, E003
+
+### F006：四路径静态零变化，但 changed=1 资源路径与混淆/DEX 重排干扰均未排除
+E003 与 E004 两侧显示 home_legacy(1004/128/236, aa99feb8…f4a9)、home_new_frame(196/33/46, e3ea6856…a3d4)、search_native(1674/2/2789, 481dae50…c740)、search_compose(3149/556/616, 6c663f2d…86e1)的指纹、类数、compose 方法数、外部调用边数在 9150200 与 9150300 上逐字相同；E000 显示两包尺寸同为 220423137 且证书 sha256 一致，changes 为空数组，resource_change_counts 记录 added=0/removed=0/changed=1。证据支持“本区间无结构性新家族”，但不支持“所有样式已穷尽”：changed=1 的具体资源路径与类型未在预取中给出；两个 APK 的 DEX 重排或包装层变动若未触及被抽样家族，也不会体现为家族指纹变化；服务端 A/B 视觉变体在无结构变化时静态不可见。故不能把指纹不变当作适配通过。
+反例与替代解释：替代解释：(1) 若 changed 资源正是首页/搜索样式相关，则存在需补登记的静态未见家族；(2) 若两 APK 除版本元信息外完全同类(尺寸与证书均一致)，则零变化解释更可信；(3) 资源改名/复用或混淆改名可能掩盖真实差异，指纹不变也可能是采样家族之外的代码被改动所致。
+建议：最小补证任务：(1) 解析该 changed=1 资源的完整路径与类型，判断是否落在首页/搜索相关资源(布局、图集、strings)；(2) 对两版本分别抽取资源表与资源引用差异，排除资源改名掩盖；(3) 真机在同一版本上切换服务端实验开关，观察首页与搜索页是否出现未登记样式，并按运行期证据补登记。
+证据：E003, E004, E000
+
+### F007：detail 三条路径与基线结构逐字一致，无新样式证据，但模块源码为未提交状态、协议调用边归属未知
+E005（本轮重新取证，target/baseline 双侧）显示三个登记路径的汇总值完全一致：detail_legacy 两侧 absent（classes=0、compose_methods=0、external_invoke_edges=0，指纹 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945，空集哈希）；detail_theseus_ugc 两侧 1953/25/515，指纹 c36f2a42930dc4782361f39a8b58afc94a19649469b9b6797f8ad2138d4984cc；detail_theseus_united 两侧 4602/98/4163，指纹 83e1f0b1ede48a39a9bf5c8c7654481a5c08f067ddaacb373c21cf169b07f5fe。changes 为空，资源仅 1 项 changed。该区间内无任何结构变化可解释为“新样式/新路径”。需注意指纹不变只说明本抽取口径下家族归类稳定，混淆改名或 DEX 重排若在两侧同样稳定，仍会给出相同指纹，因此不能由指纹相同反推“未发生混淆改名”。协议侧 detail_java_moss（32 定义/35 调用边）与 detail_kotlin_moss（76 定义/10 调用边）runtime_enabled 均为 unknown，且这 35/10 条调用边的宿主类归属 ugc 还是 united 本轮未取，属实质缺口。模块侧仅登记了 source_files 候选（DetailModulePurify*、DetailUnitedModulePurify*、HostDetailSurfaces 等），本轮未读取其类名/方法签名绑定；且源码快照 working_tree_dirty=true、source_tree_sha256=37745f8f…，未提交改动可能正落在这些 Hook 解析逻辑上，故模块对三路径的定位器是否仍与 9150300 类样本吻合保持未知。静态调用存在不证明路径在真机启用，也不证明 Hook 生效。
+反例与替代解释：替代解释一：detail_legacy 的 absent 是抽取口径（类名前缀/包名限定）未覆盖而非实现消失，需用已知 legacy 类名定向检索同一 APK 验证。替代解释二：三路径指纹一致源自模块所依赖的类样本恰好未被本次编译改动触及，而实际页面渲染已由服务端配置切换到其它未登记实现，静态不可见。替代解释三：若真机日志显示 ugc 与 united 两路径均有命中且行为与 9150200 一致，“覆盖未知”可下调；若命中类名与源码快照绑定不符，则说明快照不能代表实际注入版本，须以运行期为准。
+建议：1) 用 protocol_evidence 重读 detail_java_moss 与 detail_kotlin_moss 的完整调用方列表，逐个标注宿主类所属路径（ugc / united / 未归类），输出两协议各自的实际消费者清单。2) 按文件哈希（不清理工作树）逐个读取 Detail*Installer/Policy、DetailUnitedModulePurify*、HostDetailSurfaces，记录其匹配的类名、方法签名与兜底分支。3) 真机上分别进入普通 UGC 详情与合集/联合投稿详情、番剧详情，采集模块 Hook 命中日志，与上述绑定逐条比对；对 detail_legacy 记录实际加载的 Activity/Fragment 与类加载列表，区分“抽取口径未覆盖”与“实现确实不存在”。4) 保留 status=absent，不得因真机可见页面而改写。
+证据：E000, E005
+
+### F008：PGC 两协议调用边少于定义数，消费者路径归属与模块定位器目标均未确认
+E006（本轮重新取证，target/baseline 双侧一致）显示 pgc_legacy 353 类/0 compose 方法/401 外部调用边（指纹 58516e1d…）、pgc_theseus 2249 类/131 compose 方法/742 边（指纹 e02d9f27…），二者均 static_invoke_observed、runtime_enabled=unknown、module_coverage=requires_installer_review。协议 pgc_player_moss 为 12 定义/3 调用边，pgc_view_moss 为 14 定义/7 调用边；定义数与调用边数单位不同，禁止相除推导覆盖率。调用边偏低的解释至少有三种，本轮不可择一：(a) 部分定义尚未被任何页面类调用；(b) 调用方位于本抽取范围外的类；(c) 定义侧本身就包含 <init>、$default、序列化桩等桥接方法——同形态的 search_kotlin_moss 签名列表（E014）即含 <clinit>/<init>/searchAddReserve$default 等多个非业务入口，说明定义数天然高于可观测调用边。本轮 E006 的 caller_samples 未取到，故调用方家族归属完全未知，无法判断消费者落在 pgc_legacy 还是 pgc_theseus。模块侧本页仅登记了 PgcAutoActivityPopupLocator.kt 与 PgcAutoActivityPopup*Installer/Policy，其匹配条件（针对旧原生 Activity 还是 theseus 页面）本轮未读取，而这直接决定弹窗 Hook 的命中面。pgc_legacy 的 compose_methods=0 只表示未见 Compose 方法计数，不足以断言实现范式的种类。
+反例与替代解释：替代解释一：调用边偏低纯粹由定义侧桥接方法构成造成，业务入口实际已被充分调用，则缺口可归为口径问题而非消费缺失。替代解释二：调用方集中在未登记家族（unregistered_protocols 中已列 KPlayerMoss/PlayerMoss 等），说明协议被跨家族消费，模块覆盖评估需扩展范围。替代解释三：两栈并非并存，而是 pgc_legacy 仅为历史类残留、真机恒走 theseus，则 legacy 侧净化逻辑为空转，需真机路径日志证实或证伪。
+建议：1) 用 protocol_evidence 重读 pgc_player_moss 与 pgc_view_moss 的完整调用方列表（含 caller_samples），逐个标注所属家族与路径，并区分业务入口与桥接/序列化桩。2) 用 module_source 读取 PgcAutoActivityPopupLocator.kt 与 PgcAutoActivityPopupPolicy.kt，记录其类名/方法签名匹配条件与兜底分支，判断命中 legacy 还是 theseus。3) 真机上在番剧/影视详情与播放页抓取弹窗相关 Activity 与定位器日志，并做单路径置空对照（对其中一条路径强制关闭，观察是否仍命中）。4) 未读到运行条件前保持 runtime_enabled=unknown，不因页面可用而改写 status。
+证据：E006
+
+### F009：player 页两条注册路径指纹与基线逐字节一致，本版本窗口内无可观测家族变化
+目标 9150300 与基线 9150200 的 player_java 指纹同为 4102698f3c1fdaab7ca6c3526b3d0ff77426ca433eaf8bd71fdde0d3824403bc（953 类 / 0 compose / 3225 外部调用边），player_kotlin 同为 b275709b530b2d285814f47291544549ad6ce5359fca2f93a8a7c5cc8a9d7edc（7 类 / 0 compose / 100 边）；changes 为空数组，resource_change_counts 仅 changed=1，未登记任何家族级增删。协议侧 player_java_moss 18 定义 / 2 实调用，player_kotlin_moss 34 定义 / 3 实调用，同样与基线一致。这说明该页没有结构级适配风险信号，但结构无变化也可能意味着变化发生在服务端开关控制的视觉层，静态不可见。
+反例与替代解释：指纹一致也可能掩盖两类情形：一是 DEX 重排/编译参数变化但方法体哈希恰好稳定，二是家族类集合未变而内部实现被替换但抽取粒度未捕捉。若能取得目标 APK 中同一批类的方法体哈希并与基线逐一比对、或安装器日志显示定位器失败，则当前‘无变化’推断应被推翻。
+建议：（1）真机安装模块，抓取 Player*Locator 解析日志，记录命中类名/方法签名与未命中项；（2）对 player_kotlin_moss 的 3 条实调用边做宿主回溯，确认模块 Kotlin Moss 解析点是否落在其中；（3）若安装器日志显示遍历类数与 953/7 明显偏离，需排查混淆改名导致定位器按名匹配失效。
+证据：E000, E007
+
+### F010：danmaku_legacy 双侧 absent、Kotlin 家族承压，模块净化 Hook 挂载点仍需按家族核对
+danmaku_legacy 在目标与基线均为 absent（0 类 / 0 边，指纹 4f53cda1…2b945 为空集常量哈希），danmaku_kotlin 为 static_invoke_observed（56 类 / 1 compose 方法 / 9 外部调用边 / 指纹 f55e24e0…1cb），两侧指纹与计数一致，说明这是本版本窗口之前已确立的格局，而非 9150300 新增变化；absent 也不等于弹幕页功能消失，且不排除抽取口径未覆盖该家族。协议侧 danmaku_java_moss 为 22 定义 / 20 实调用，danmaku_kotlin_moss 为 46 定义 / 4 实调用，调用密度存在差异，可为后续定位 Java 侧 Moss 消费者的线索；但定义数与调用边数单位不同，禁止相除推导覆盖率，协议标识也不是登记路径，不能把 20 条调用边直接记作 danmaku_kotlin 的覆盖证据，实调用边偏少同样可能来自接口分发、反射或混淆后调用点未解析。danmaku_kotlin 仅 1 个 compose 方法，不足以断言该路径的 Compose 化程度。模块源码快照含 DanmakuPurifyFeatureInstaller 与 DanmakuPurifyPolicy，但其目标家族、兜底分支与激活条件在本次复核中未读到（source_dirty=true，且存在 HookEntry、VersionAdapter、KotlinMossChannel 等未映射候选文件），故挂载点仍属未知，module_coverage 维持 requires_installer_review。
+反例与替代解释：若真机日志显示净化策略分支正常命中且样式生效，则“挂载点存疑”推断被推翻；若定向检索能在目标 APK 中找到 legacy 家族类，则 absent 属抽取口径缺失而非家族消失；若安装器日志显示定位器遍历到的类名与静态家族不一致，则可能是混淆改名导致家族归并错误；若 danmaku_kotlin_moss 的 4 条实调用边宿主不在 56 类集合内，则 Kotlin Moss 消费者可能位于未登记家族。
+建议：（1）将 danmaku_kotlin 的 56 类清单与 DanmakuPurifyFeatureInstaller 的 hook 目标集合逐项比对，输出命中/缺失清单与绑定签名；（2）回溯 danmaku_java_moss 的 20 条实调用边宿主类，判定其归属家族（Kotlin 家族或未登记调用者）；（3）用同一静态抽取规则对 danmaku_legacy 已知类名前缀在目标 APK 做定向检索，区分真 absent 与抽取口径缺失；（4）真机弹幕页对净化开关做 A/B，记录 DanmakuPurifyPolicy 分支命中与未命中时的兜底日志；（5）核对未映射候选 KotlinMossChannel/KotlinMossReplyBridge/HookEntry 是否参与弹幕路径分发，避免漏算覆盖。
+证据：E000, E008, E011
+
+### F011：story/mine 两侧登记家族摘要与指纹逐位相同，本版本差异在静态家族层不可见
+目标 9150300 与基线 9150200 在 story/mine 四条登记路径上计数与指纹完全相同：story_native 2958/44/1380（E009）、story_kotlin 0/0/0 空指纹（E009）、mine_native 324/7/95（E010）、mine_account_model 132/0/54（E010），四族 fingerprint 逐字一致。样本级 resource_change_counts 仅 changed=1、added=removed=0，未见类增删，但该条目细分归属未确认落在 story/mine 相关资源上。这只说明本取样口径下登记家族未见结构变化，既不能确认适配通过，也不能排除服务端 A/B 下发样式与混淆参数调整未落到结构层；注意调用边数与方法定义数不是同一单位，本轮未做任何覆盖率推导。
+反例与替代解释：若后续拿到该版本变更说明、渠道包差异或可用的运行期 A/B 分流配置，可推翻“本区间无结构变化”的推断；若深挖发现模块依赖的类被改名但被计入同一指纹集合，也可推翻静态无变化的读法。
+建议：把本单元结论限定为“story/mine 登记家族静态层面未观测到变化”，不进入适配通过判定；后续版本对比优先按资源条目与模块解析点变化触发，而非仅靠家族指纹是否变化触发。
+证据：E009, E010, E013
+
+### F012：story_kotlin 为 absent 且 story/mine 协议区为空，MOSS 消费面未登记
+story_kotlin 预取 evidence 逐字为 absent（0 类/0 Compose 方法/0 调用边/空指纹），仅说明该族在当前取样口径下未被观察到（E009），不能推导该族样式或功能消失，改名并入 story_native 或 DEX 重排仍未排除。同时目标与基线两侧 story.protocols 与 mine.protocols 均为空字典（E009/E010），而上下文列出 StoryMoss、KMineMoss、MineMoss、AccountInterfaceV1Moss、KOpusMoss 等未登记协议，说明这两页的协议消费面尚未登记，而非确认无 MOSS 消费。其它页家族的类样本不能作为本页协议面的证据，其 file_id 归属不同，未被证明由 story/mine 消费。
+反例与替代解释：若 protocol_evidence 能证明 StoryMoss 或 KMineMoss 的调用边来自 story/mine 家族自身类，则当前“未登记缺口”可升级为已确认消费面；反之若确认调用边均来自其它家族，则本页协议面确为空而非漏登记。
+建议：先补登记 story/mine 侧 MOSS 协议清单并确认实际调用边归属路径，再决定是否把 Kotlin MOSS 通道纳入覆盖范围；在确认调用边归属前不新增针对 absent 族的 Hook 目标。
+证据：E009, E010, E011, E012, E013
+
+## 重点项独立复核
+
+同一模型以独立上下文复核；不代表人工审查或真机验收。
+
+### 复核页面：comment
+复核以 fresh_refresh 重新读取评论页证据（E015）。E015 显示 comment_legacy_v2（581类/734边）、comment_native_legacy（156类/177边）、comment_native_next（45类/46边）、comment_native_exp3（60类/59边）、comment_compose（2417类/274 compose方法/918边）五条路径在目标与基线两侧的类数、compose_methods、外部调用边、fingerprint 逐字一致，evidence 均为 static_invoke_observed，runtime_enabled=unknown、module_coverage=requires_installer_review；协议 comment_java_moss（50定义/50边）、comment_kotlin_moss（130定义/26边）仅静态观测，定义数与边数单位不同，不得相除推导覆盖率。本轮另独立复读 comment_compose 双侧（E017 目标 / E018 基线）：total_classes 均 2417，5 个抽样类的类名、method_bodies_sha256、方法签名与 fields 逐字一致，未检出结构差异。但抽样仅每家族 2 类上限，读到的类是 kntr/common/comment 下 service/store/imageviewer 小类（多为 0-2 方法、无 Compose 签名），不能代表 2417 类整体，CommentComposeCopyBridge / CommentComposePurifyBridge / CommentComposeViewAccess 实际命中类名与调用点仍未确认。5 条 path_reviews 的 status 逐字沿用 static_invoke_observed。
+证据：E015, E017, E018, E011
+
+### 复核页面：dynamic
+复核以 fresh_refresh 重新读取动态页证据（E016）。E016 显示 dynamic_legacy（3227类/105 compose/2193边）、dynamic_compose（956类/112 compose/170边）、dynamic_opus（1341类/92 compose/190边）三条路径的同类计数与 fingerprint 与基线逐字一致，evidence 均为 static_invoke_observed，runtime_enabled=unknown、module_coverage=requires_installer_review；协议 dynamic_java_moss（134定义/134边）、dynamic_kotlin_moss（382定义/26边）亦仅静态观测，定义数与边数单位不同，禁止相除推导覆盖率。E012 抽样显示 dynamic_opus 目标侧同时出现纯数据类（api/k、api/C、api/H）与带 Compose 签名的方法（api/r.a(Modifier,Composer,int)V、api/i.d(Composer,int)V），但样本仅 5 类且被截断，不能外推到 1341 个类，也不能断言哪条栈在真机启用。OpusMoss/KOpusMoss 处于 unregistered_protocols，跨家族消费者与兜底未确认。本轮额外尝试对 dynamic_opus 双侧按名重读时只读额度耗尽，未取得独立复读，记为缺口。3 条 path_reviews 的 status 逐字沿用 static_invoke_observed。
+证据：E016, E012
+
+### 复核页面：home
+复核指派页 home。E003 预取两侧对 home_legacy(1004 类/128 compose 方法/236 外部调用边/指纹 aa99feb8…f4a9)与 home_new_frame(196 类/33 compose 方法/46 外部调用边/指纹 e3ea6856…a3d4)给出逐字相同的摘要，两 APK 尺寸同为 220423137、证书一致，changes 为空，仅 resource_change_counts.changed=1 未细化路径——这只能支持“本区间静态结构零变化”，不支持样式穷尽或适配通过。预取 limits 明确 class samples per family 仅两份，草稿引用的 khome.widget.bubble 族与 khome.vm.HomeFrameViewModel$dispatchAction$1 确实出自 E013 深挖样本($action:LLo1/b、this$0:HomeFrameViewModel、create/invoke/invokeSuspend)，但该样本在基线侧同指纹同方法体哈希，属既有实现。草稿把 khome.widget.bubble/khome.vm 描述为“类样本落在…”尚可，而“由 ViewModel 协程派发动作驱动”是对字段/方法签名的合理语义推断而非直读行为，报告中已按推断层级表述。home 登记的两条路径均保持逐字的 static_invoke_observed，未被改写为通过；module_coverage=requires_installer_review、runtime_enabled=unknown 与 complete_coverage=false 与静态矩阵一致。遗漏项：宽屏/平板分支与服务端开关无静态判据；未映射候选 HookEntry/VersionAdapter/HostBottomBar* 对 home 两家族的实际绑定未读，故不能推断 Hook 覆盖。
+证据：E003, E013, E000
+
+### 复核页面：search
+复核指派页 search。E004 两侧对 search_native(1674 类/2 compose 方法/2789 外部调用边)与 search_compose(3149 类/556 compose 方法/616 外部调用边)给出逐字相同的指纹与计数，search_java_moss(24 定义/22 边)与 search_kotlin_moss(52 定义/18 边)两侧亦同，runtime_enabled 全为 unknown，因此静态层面同样无法支撑新样式出现或适配通过。E014 深挖确认 search_kotlin_moss 的 18 条实际调用边全部来自 search_compose 家族，调用者 Lkntr/app/search/aggregate/repository/b;、Lkntr/app/search/comic/repository/b;、Lkntr/app/search/repository/o;，绑定 <init>(KCallOptions) 与 searchOGV 等 KSearchMoss 成员——这是调用边可见性，不等价于真机调用或模块 Hook 命中。E004 的 caller_samples 采样上限为四条，草稿断言“全部来自 compose”依据 E014 的 18/18 而非抽样推断，可接受；但 search_java_moss 的 22 条边调用者家族未被读取，草稿正确标注为未知。search 页两条路径 status 与静态矩阵逐字一致。遗漏项：SearchHomeRecommendLocator/SearchPurifyFeatureInstaller 与 KotlinMossChannel/KotlinMossReplyBridge 的实际挂载点未读，“compose 渲染切换时可能漏净化”仅为待验证假设。
+证据：E004, E014, E000
+
+### 复核页面：detail
+复核确认：E005 是本轮重新取证的 detail 页面证据（target 与 baseline 两侧），三个登记路径的汇总值逐字一致——detail_legacy 两侧均为 classes=0/compose=0/edges=0，指纹 4f53cda1…（空集哈希），evidence=absent；detail_theseus_ugc 两侧 1953/25/515，指纹 c36f2a42…；detail_theseus_united 两侧 4602/98/4163，指纹 83e1f0b1…；协议 detail_java_moss 32/35、detail_kotlin_moss 76/10 亦两侧一致。故草稿“结构零变化、无新样式证据”的断言成立，且其保留 absent 语义（不等于页面功能消失）、拒绝相除推导覆盖率、未凭指纹不变宣称适配通过，措辞合规。可改进之处：草稿在 detail_legacy 的 impact 中写“模块中针对 legacy 详情页的 Hook…将无目标可挂”，倾向性偏强；absent 只说明静态抽取视野内无该类样本，若 legacy 视图由服务端下发或抽取口径未覆盖前缀，则模块侧仍可能存在注解式绑定，应降级为“静态锚点缺失、需运行期确认”。另草稿对 detail_java_moss 35 条与 detail_kotlin_moss 10 条调用边的宿主路径归属未列为本页的显式缺口，而这直接决定协议级 Hook 落在 ugc 还是 united，应在剩余缺口中补上。模块侧 Detail*Installer/Policy 与 HostDetailSurfaces 的类名绑定本轮未读取，源码快照 working_tree_dirty=true，故 module_coverage 维持 requires_installer_review。静态审查完成，非适配验收。
+证据：E005, E000
+
+### 复核页面：pgc
+复核确认：E006 为本轮重新取证的 PGC 页面证据，两侧逐字一致——pgc_legacy 353 类/0 compose/401 边，指纹 58516e1d…；pgc_theseus 2249 类/131 compose/742 边，指纹 e02d9f27…；协议 pgc_player_moss 12 定义/3 调用边、pgc_view_moss 14 定义/7 调用边亦两侧相同。草稿保留 static_invoke_observed、把两路径表述为并存栈候选而非新样式、并明确“定义数与调用边数不同单位不可相除”，均与证据相符。需收紧的两点：(1) 草稿用 pgc_legacy 的 compose_methods=0 推断“仍为旧原生(View/Activity)实现”，这属于从计数到实现范式的推断，混淆重排或 Compose 调用被内联/改写都可能造成计数为 0，应表述为“未见 Compose 方法计数，家族构成待类样本确认”；(2) 草稿称 PgcAutoActivityPopupLocator 的定位目标与路径对应关系未展开——正确，但应把它落为明确缺口：该定位器是本页唯一被点名的模块侧组件，其匹配条件决定弹窗 Hook 命中 legacy 还是 theseus。合并两栈时模块是否同时注册两套安装器与兜底分支均未读到，module_coverage 维持 requires_installer_review，runtime_enabled 维持 unknown；服务端 A/B 视觉变体在无结构变化时静态不可见，不得宣称样式已穷尽。
+证据：E006, E000
+
+### 复核页面：player
+复核后维持：player 页两条登记路径 player_java / player_kotlin 的证据级别均为 static_invoke_observed，且 E007 目标侧与基线侧 summary 逐字一致（player_java 953 类 / 0 compose / 3225 外部调用边 / 指纹 4102698f…4403bc；player_kotlin 7 类 / 0 compose / 100 边 / 指纹 b275709b…d7edc），changes 为空数组。该证据只支持“本版本窗口内无结构性变化”，不支持任何适配通过结论。协议侧 player_java_moss 18 定义 / 2 实调用、player_kotlin_moss 34 定义 / 3 实调用，定义数与调用边数单位不同，不可相除推覆盖率；实调用边少也可能来自接口分发、反射或混淆后调用点未解析，不等于功能缺失。player_kotlin 仅 7 类属极小样本，不能代表整套 Kotlin 播放器实现，须声明抽样限制。模块侧源码快照含 PlayerBufferLocator/PlayerSpeedLocator/SponsorPlayerLocator/PlayerPopupPromotionLocator 与对应 FeatureInstaller/Policy，形态如定位器+安装器+策略，但本次复核未读取其匹配条件与方法签名绑定，故 hook 目标是否命中 9150300 的类集合仍属未知，module_coverage 维持 requires_installer_review。路径条目状态逐字沿用矩阵 evidence 值，未改写为通过。
+证据：E000, E007
+
+### 复核页面：danmaku
+复核后维持：danmaku_legacy 在目标与基线双侧均 absent（0 类 / 0 边，指纹 4f53cda1…2b945 为空集常量哈希），danmaku_kotlin 双侧 static_invoke_observed（56 类 / 1 compose 方法 / 9 外部调用边 / 指纹 f55e24e0…1cb）。因两侧一致，这属既有格局而非 9150300 引入的家族替换，不能解读为旧原生家族被删除导致功能消失；absent 也不等于弹幕页功能消失，且不排除抽取口径未覆盖该家族。协议侧 danmaku_java_moss 22 定义 / 20 实调用与 danmaku_kotlin_moss 46 定义 / 4 实调用不对称，提示调用密度差异，但协议标识不是登记路径，不能把 20 条调用边换算为 danmaku_kotlin 的覆盖证据；1 个 compose 方法亦不足以断言 Compose 化程度。模块侧 DanmakuPurifyFeatureInstaller / DanmakuPurifyPolicy 存在，但复核未读到其目标家族、兜底分支与运行条件（源码快照 source_dirty=true 且存在 HookEntry、VersionAdapter、KotlinMossChannel 等未映射候选），故挂载点仍为未知，维持 requires_installer_review。路径状态逐字沿用矩阵 evidence 值。
+证据：E000, E008
+
+### 复核页面：story
+复核确认：本单元仅覆盖 story 登记两路径。目标 9150300 与基线 9150200 在 story_native（2958 类/44 Compose 方法/1380 外部调用边/指纹 6b74bce4…83e99）与 story_kotlin（0/0/0/空指纹 4f53cda1…）上逐项一致，两侧 protocols 均为空字典，evidence 逐字为 static_invoke_observed 与 absent（E009）。预取边界为每族两个类样本、每协议四个调用者样本、运行时未知，因此该类样本不能代表整套 story 实现，摘要一致也不能排除服务端 A/B 视觉变体（无结构变化时静态不可见）。story_kotlin 的 absent 仅表示本取样口径下未观察到该族，混淆改名、DEX 重排或迁移入 story_native 均未排除，不等于页面 Kotlin 样式消失。froot 侧 F011/F012 的处置见 findings。
+证据：E009, E011, E012, E013
+
+### 复核页面：mine
+复核确认：mine_native（324 类/7 Compose 方法/95 外部调用边/指纹 cf69dfa7…8ae35d）与 mine_account_model（132/0/54/指纹 d5370d6e…a011996）在目标与基线两侧逐项一致，evidence 均为 static_invoke_observed，runtime_enabled=unknown、module_coverage=requires_installer_review（E010）。两侧 mine.protocols 为空，而上下文登记了 KMineMoss、MineMoss、AccountInterfaceV1Moss 等未登记协议，说明协议消费面尚未登记而非确认无消费。E011/E012/E013 的类样本 file_id 为 21/19/24，属 comment/dynamic/home 家族，未被证明由 mine 路径消费，不得登记为 mine 的已确认样式。模块侧仅由 source_files 列出 MineComponentFilterFeatureInstaller、MineComponentSnapshot、MineVipFeatureInstaller、MineComponentSnapshotStore/QueryClient/QueryContract/HostBridge、HostMineReadingCard 等文件，本回复核未读取其内容，且快照 working_tree_dirty=true，故不能推断这些 Hook 的解析字段与本版本 mine 类结构对齐，也不宣称生效。froot 侧 F011/F012 的处置见 findings。
+证据：E010, E011, E012, E013
+
+- F001 / revised：断言方向正确且证据支持：E015（评论）与 E016（动态）两侧八条路径的计数与 fingerprint 逐字一致，changes 为空，resource_change_counts 仅 changed=1，确实不能推出适配通过；本轮新增独立取证 E017/E018 在 comment_compose 抽样类级 method_bodies_sha256 与签名上亦逐字一致。原分析将 comment 与 dynamic 合并陈述且未说明抽样限制，属可精化而非错误；修订明确逐页归属与抽样约束，level 保持 static_evidence。（E015, E016, E017, E018）
+- F002 / retained：断言与证据一致且表述克制：四条协议（comment_java_moss 50/50、comment_kotlin_moss 130/26、dynamic_java_moss 134/134、dynamic_kotlin_moss 382/26）runtime_enabled 均为 unknown，module_coverage 均为 requires_installer_review；分析已正确指出定义数与调用边数单位不同、禁止相除推导覆盖率，未把定义多边少误读为协议已消费。E015、E016 及本轮 E017/E018 均不含安装器注册日志，故“需安装器评审”结论成立，保留原样。（E015, E016, E017）
+- F003 / revised：核心断言成立：E012 抽样确证 dynamic_opus 目标侧同时出现纯数据类（api/k、api/C、api/H）与带 Compose 签名的方法（api/r.a(Modifier,Composer,int)V、api/i.d(Composer,int)V），且 OpusMoss/KOpusMoss 处于 unregistered_protocols。但原分析将“两条渲染栈并存”说得偏实，而抽样仅 5 类且截断、方法体未读，实际只能确证静态层面同时存在两类形态；本轮对 dynamic_opus 双侧按名重读时额度耗尽，未取得独立复读，应显式记为缺口。修订把并存栈表述收窄为候选观察，level 保持 candidate。（E012, E016）
+- F004 / revised：证据核对：E014 摘要中 definitions=52、actual_invoke_edges=18，caller_samples 上限 4 条、可见者全为 search_compose，且带 total_callers=18 与逐条 caller_samples，草稿“18/18 来自 compose 三仓库类”有据，可保留。但草稿表述“全部来自”源自被截断结果的可见样本，宜改写为“在已返回的 18 条调用边记录中均为 compose 家族”，并在 alternatives 中明确若接口分发/动态代理未解析，native 侧仍可能有未解析消费者。另 level 应为 static_evidence(调用边静态可见，真机启用未知)，原文正确，仅补充限定语。（E014, E004）
+- F005 / revised：E013 确实给出 home_new_frame 的 5 个类样本，含 HomeFrameViewModel$dispatchAction$1，字段 $action:LLo1/b、this$0:HomeFrameViewModel，方法 create/invoke/invokeSuspend，草稿对字段/方法签名的转述准确。但“由 ViewModel 协程派发 action 驱动界面”是把字段与方法签名的语义外推，属推断而非直读实现；且该样本在基线侧同指纹，不构成新增样式。更关键的是，草稿断言“定位器兜底未验证”成立，但未读 HomeFrameTabLocator/HomeFrameListHook 就推测“定位串写死在旧类名上”，应降为待验证假设并明确未读源码范围(预取仅 2 个类样本/家族，且未映射候选 HookEntry/VersionAdapter 未读)。level 保持 needs_runtime 恰当，修订措辞。（E013, E003）
+- F006 / revised：E003/E004 两侧、E000 种子均已核对：四个登记家族计数与指纹逐字相同，changes=[]，两 APK 尺寸同为 220423137、证书同哈希，resource_change_counts 仅 1 处 changed 但未给出路径与类型，草稿对证据的引用准确无误。但本条属泛化方法论提醒，与 F004/F005 的具体路径分析不同层级，且草稿未把“changed=1 路径未知”写进具体补证任务的前置条件。修订为更聚焦的版本：明确 1 处 changed 资源路径未知、预取两侧样本上限、以及不得据指纹不变反推服务端样式穷尽；level 保持 candidate。（E003, E004, E000）
+- F007 / revised：证据支持核心断言：E005 中 detail_legacy（absent，空集指纹 4f53cda1…）、detail_theseus_ugc（c36f2a42…）、detail_theseus_united（83e1f0b1…）在 target 与 baseline 两侧逐字一致，changes 为空，resource_change_counts 仅 1 项 changed，故“无新样式引入”与“源码 dirty 导致覆盖结论不可下”成立，level=candidate 恰当。但原文两处需收紧：(1) 把指纹一致直接说成“指向同构构建或混淆重排未改变家族归类”过强，指纹不变只能说明本抽取口径下归类稳定，混淆改名/DEX 重排在两侧同样稳定时会给出相同指纹，不能反向证明无改名；(2) 缺少对协议调用边宿主路径的交代，而 detail_java_moss 35 边/detail_kotlin_moss 10 边究竟落在 ugc 还是 united 直接决定协议级 Hook 的挂载面。修订后保留原 finding_id 与证据。（E005, E000）
+- F008 / revised：E006 支持核心事实：pgc_player_moss 12 定义/3 调用边、pgc_view_moss 14 定义/7 调用边，runtime_enabled=unknown，两条 PGC 路径均 static_invoke_observed，故“调用边少于定义数、消费者路径归属未确认”成立，needs_runtime 恰当，且草稿正确声明两口径不可相除。但原文分析将低调用边主要归因于“新增定义尚未被调用/调用方在未读取类中”，遗漏了第三类同样重要的替代解释：定义侧包含 <init>、$default、序列化桩等桥接方法（参见同形态的 search_kotlin_moss 签名列表 E014），定义数本身包含大量非业务入口，调用边低可能只是口径构成差异而非消费缺失；同时原文未点出 PgcAutoActivityPopupLocator 是本页唯一被点名的模块侧定位组件，应作为独立待验证对象。另 E006 的 caller_samples 本轮未见，调用方家族无法从该证据得出，须在补证任务中明说。修订后保留原 finding_id。（E006, E014）
+- F009 / retained：E007 目标与基线两侧 summary 逐字一致，changes=[]，证据确实支持“player 两条路径在本版本窗口内无可观测家族级变化”这一静态断言；analysis 已正确声明结构无变化不代表运行期适配，且指出服务端视觉 A/B 静态不可见，未出现“适配通过”措辞。recommendation 中的真机定位器日志、Kotlin Moss 调用边宿主回溯、类数偏离排查均可复核执行。保留，仅补一条精确引用证据编号（E007 即 player 页预取目标/基线双侧证据）。（E000, E007）
+- F010 / revised：核心事实（danmaku_legacy 双侧 absent、danmaku_kotlin 双侧 static_invoke_observed 且指纹一致、两侧格局一致非本版本变化、定义数与调用边数单位不同不可相除、净化 Hook 目标家族未读到）均被 E008 支持。但原 analysis 引用 E011 是 comment_compose 家族证据（2417 类 / 274 compose / 918 边），与 danmaku 页无直接关系，属跨页错引；且原文对 Java/Kotlin Moss 调用密度差的因果表述（“暗示 Java 侧 Moss 才是实际被消费的通道”）超出静态证据可支撑范围。修订为仅用 E000/E008 支撑，将调用密度差异降级为待验证线索，并明确 delta 处 1 个 compose 方法不足以断言 Compose 化程度。（E000, E008）
+- F011 / revised：核心断言成立且证据充分：E009 显示 story_native/story_kotlin 两侧摘要与指纹逐字相同、story_kotlin 为 absent；E010 显示 mine_native/mine_account_model 两侧摘要与指纹逐字相同，均支持“目标与基线在本单元登记家族层面无结构性差异，指纹不变不能推导适配通过”的结论。但草稿 analysis/recommendation 中夹带了超出 story/mine 证据的表述：草稿在 analysis 中未引用但 next_steps 里混入了 comment/dynamic/home/search 的计数，本单元不应把其它单元家族计数当作 story/mine 的证据；此外 E013 是 home_new_frame 家族证据，与 story/mine 两页无消费关系，作为 F011 的支撑证据不成立，应从 evidence_ids 中删除。修订补丁限定页面范围、删除无关证据引用，其余断言保留，等级维持 static_evidence。（E009, E010）
+- F012 / revised：断言方向正确：story_kotlin 的 absent（E009）不能推导功能消失，story/mine 两侧 protocols 为空而上下文登记 StoryMoss/KMineMoss/MineMoss/AccountInterfaceV1Moss 等未登记协议，E010 亦确认 mine 侧无协议登记，支持“协议消费面未登记/未确认”而非“无消费”的结论。但草稿有两处越界：一是把 comment_compose（E011）、dynamic_opus（E012）、home_new_frame（E013）当作 story/mine 的候选样式证据，这三族 file_id 为 21/19/24，未被证明由 story/mine 路径消费，逻辑上不构成本页待选 MOSS 面；二是草稿列出 KotlinMossChannel.kt/KotlinMossReplyBridge.kt 等未映射文件并暗示其可能服务 story/mine，这些仅来自 source_files 清单，本回复核未读取内容，属未验证推断。修订补丁删除其它页家族引用与未读源码推断，保留“未登记协议即缺口、需先补登记再决定覆盖范围”的主张，等级由 needs_runtime 改为 candidate，因当前仅有“协议区为空”这一静态缺口，尚未定位 story/mine 自身协议消费点。（E009, E010）
+
+### 尚未解决的证据缺口
+
+- [1] 动态侧独立复读未完成：对 dynamic_opus 双侧按名重读时只读额度耗尽（Read-only tool budget exhausted），dynamic_compose / dynamic_legacy 亦未逐家族复读；动态三路径结论主要依据 E016（fresh_refresh）与 E012，建议下轮以 family_evidence 对 dynamic_opus 双侧重读。
+[2] comment_compose 抽样仅覆盖每家族 2 类上限中的 5 个小类（kntr/common/comment service/store/imageviewer），无 Compose 签名样本；CommentComposeCopyBridge / CommentComposePurifyBridge / CommentComposeViewAccess 的真实解析点仍未验证，需对桥接类做 decompile_class 定向复核。
+- [3] 五条评论路径与三条动态路径的安装器注册与 fallback 均未读到，module_coverage 仍为 requires_installer_review；HookEntry / VersionAdapter / VersionAdapterContract 等未映射候选是否承担多路径分发未确认。
+[4] comment_native_exp3、comment_native_next、dynamic_compose、dynamic_opus 的服务端开关/实验分桶条件未读取，无法判断这些家族当前是否启用；无结构变化时服务端 A/B 视觉变体静态不可见，不能宣称样式已穷尽。
+- [5] 动态页 OpusMoss / KOpusMoss 及评论侧共同协议是否被跨家族消费者使用未确认，缺少调用边到家族的标注与兜底路径说明。
+[6] 未评估宽屏/平板布局对评论与动态页路径选择的影响（未读到运行条件，记为未知）。
+- [7] source_dirty=true 的工作树改动未按文件哈希追溯，无法判断被修改文件是否涉及评论/动态 Hook 解析逻辑；追溯时应只读比对，不清工作树。
+[8] home 与 search 的宽屏/平板分支、服务端开关与 A/B 分桶均无静态判据，runtime_enabled=unknown，需真机验证后补证。
+- [9] search_java_moss 的 22 条实际调用边调用者家族未展开，是否存在 search_native 侧消费者仍未知。
+[10] 多路径页面服务端开关导致的视觉差异在无结构变化时静态不可见，不可宣称样式已穷尽。
+- [11] HomeFrameTabLocator.kt/HomeFrameListHook.kt 与 SearchHomeRecommendLocator.kt/SearchPurifyFeatureInstaller.kt 的实际匹配条件未读取，模块绑定深度仍属 requires_installer_review。
+[12] resource_change_counts 中 changed=1 的具体资源路径与类型未获取，无法判断是否与首页/搜索相关。
+- [13] 未映射候选 HookEntry.kt、VersionAdapter.kt、VersionAdapterContract.kt、KotlinMossChannel.kt、KotlinMossReplyBridge.kt 对 home/search 家族的注册与兜底顺序未读。
+[14] source_snapshot 为 working_tree_dirty=true 的冻结工作树快照，未按文件哈希追溯改动是否触及 home/search Hook 逻辑。
+- [15] detail_java_moss（32 定义/35 调用边）与 detail_kotlin_moss（76 定义/10 调用边）的调用方宿主类未取到，无法判断协议消费者属于 detail_theseus_ugc、detail_theseus_united 还是未归类家族；需用 protocol_evidence 重读并逐条标注路径。
+[16] detail_legacy 的 absent 未区分“抽取口径未覆盖类名前缀”与“实现确实不存在”；需用已知 legacy 类名在 9150300 的 base.apk 做定向检索，并在真机记录进入 UGC/联合投稿详情时加载的 Activity/Fragment。
+- [17] 模块侧 Detail*Installer/Policy、DetailUnitedModulePurify*、HostDetailSurfaces、PgcAutoActivityPopupLocator 的类名/方法签名绑定未读取，三路径的 module_coverage 仍为 requires_installer_review。
+[18] 源码快照 working_tree_dirty=true、source_tree_sha256=37745f8f…，未提交改动是否落在 detail/pgc 的 Hook 解析逻辑上未确认；须按文件哈希逐文件追溯，不清理工作树。
+- [19] pgc_player_moss 与 pgc_view_moss 的 caller_samples 本轮未见，调用方家族归属未知；需重读协议证据并区分业务入口与 <init>/$default/序列化桩等桥接方法。
+[20] PgcAutoActivityPopupLocator 的匹配条件未读取，无法判断弹窗 Hook 命中 pgc_legacy 还是 pgc_theseus，也未确认模块是否同时注册两套安装器及缺一时的兜底行为。
+- [21] pgc_legacy 的 compose_methods=0 只能说明未见 Compose 方法计数，不足以断言“旧原生 View/Activity 实现”；需类样本或反编译佐证后再表述实现范式。
+[22] detail/pgc 相关路径在平板/宽屏布局与服务端开关下的分支未读取，运行条件未知；服务端 A/B 视觉变体在无结构变化时静态不可见，不得宣称样式已穷尽。
+- [23] resource_change_counts 中那 1 项 changed 资源的路径与类型未确认，尚不能判断是否落在 detail/pgc 相关资源。
+[24] 未映射多路径候选（HookEntry.kt、VersionAdapter.kt、VersionAdapterContract.kt、HostThreadGuard.kt 等）是否承担 detail/pgc 的版本门控与路径分发未核对，可能影响 module_coverage 判定。
+- [25] danmaku_kotlin 的 56 类清单与 DanmakuPurifyFeatureInstaller / DanmakuPurifyPolicy 的 hook 目标集合尚未做逐项比对，命中率与绑定签名未知（F010 依赖的前置补证）。
+[26] danmaku_legacy 双侧 absent 尚未用同一抽取规则做类名前缀定向检索排除，无法区分“真无家族”与“抽取口径缺失”。
+- [27] danmaku_java_moss 的 20 条实调用边宿主类未回溯，无法判断其是否落在 danmaku_kotlin 家族或存在未归类调用者。
+[28] player 侧 PlayerBufferLocator/PlayerSpeedLocator/SponsorPlayerLocator/PlayerPopupPromotionLocator 的匹配条件（类名、方法签名、版本门控与兜底分支）未读取，hook 目标与 9150300 实际类集合的命中情况属未知。
+- [29] player_kotlin_moss 的 3 条实调用边宿主类未回溯，无法确认是否落在模块 KotlinMossChannel/KotlinMossReplyBridge 的解析范围内。
+[30] 未映射多路径候选 HookEntry.kt、VersionAdapter.kt、VersionAdapterContract.kt、KotlinMossChannel.kt、KotlinMossReplyBridge.kt 是否承担 player/danmaku 的安装分发与兜底，本轮未读取，module_coverage 无法收口。
+- [31] 源码快照 source_dirty=true（source_tree_sha256=37745f8f…），上述 Hook 文件的实际注入版本是否与快照一致未按文件哈希追溯。
+[32] player/danmaku 在宽屏/平板与服务端开关下的并存路径与切换条件未读到运行条件，保持未知。
+- [33] resource_change_counts 中那 1 处 changed 资源路径与类型未核对，无法判断是否落在播放器/弹幕相关资源。
+[34] story/mine 两侧 protocols 均为空，StoryMoss、KMineMoss、MineMoss、AccountInterfaceV1Moss 等未登记协议尚未确认实际调用者家族归属，无法判断是真无消费还是漏登记（E009/E010）。
+- [35] story_kotlin 的 absent 属取样口径未观察，未用 family_evidence 补取可能被改名的 kntr/story、kotlin 通道等候选族名，改名并入 story_native 的可能性尚未排除。
+[36] 模块侧 MineComponentFilterFeatureInstaller.kt、MineComponentSnapshot.kt、MineVipFeatureInstaller.kt、MineComponentSnapshotQueryContract.kt 等仅出现在 source_files 清单，本回复核未读取其匹配的类名/字段名/方法签名，无法核对是否与 mine_native/mine_account_model 结构对齐；且快照 working_tree_dirty=true，需按文件哈希追溯。
+- [37] HookEntry.kt、VersionAdapter.kt、VersionAdapterContract.kt、KotlinMossChannel.kt、KotlinMossReplyBridge.kt 等未映射多路径候选文件是否承担 story/mine 的多路径分发与兜底，尚未读取确认。
+[38] resource_change_counts 中 changed=1 的资源条目类型与路径未细化，无法判断是否落在 story/mine 相关资源；服务端 A/B 无结构变化时静态不可见，本轮未穷尽样式。
+- [39] 真机验证缺失：runtime_enabled 全为 unknown，未在已安装模块上采集 story 与 mine 家族的类加载、Hook 回调与快照查询/宿主桥调用日志，模块 Hook 是否命中不得推断。
+
+## 下一步
+
+- [1] 真机在 9150300 上分别进入经典评论区、native legacy/next/exp3 家族评论区与 Compose 评论区，采集 Hook 安装与调用日志。
+[2] 核 HookEntry、VersionAdapter、VersionAdapterContract 的安装分支与 fallback，确认五条评论路径与三条动态路径是否被同一安装器注册。
+[3] 对 comment_compose 中桥接相关类用 decompile_class 复核 compose 签名，确认 CommentComposeCopyBridge/PurifyBridge/ViewAccess 的实际解析点。
+[4] 对 E012 的 Lkntr/app/following/opusDetail/api/r 与 api/i 读完整方法体，确认 Opus 内 Compose 调用点与调用者。
+[5] 抓取服务端开关/实验分桶配置，确认 comment_native_exp3、dynamic_compose、dynamic_opus 当前是否启用。
+- [6] 以文件哈希追溯 source_dirty 工作树中被修改文件，确认改动是否涉及上述 Hook 解析逻辑，不要清理工作树。
+[7] 核对未映射候选（HookEntry、RoamingCompatHook、KotlinMossChannel、KotlinMossReplyBridge）是否承担评论/动态的多路径分发，避免漏算覆盖。
+[8] 用 module_source 读取 KotlinMossChannel.kt 与 KotlinMossReplyBridge.kt，确认 Kotlin Moss 挂载点是否覆盖 kntr/app/search/repository/o 等三类调用者，识别未采样消费者。
+[9] 用 module_source 读取 HomeFrameTabLocator.kt 与 HomeFrameListHook.kt，核对定位条件是否绑定 khome.vm.HomeFrameViewModel 或 khome.widget.bubble 族，并记录兜底分支。
+[10] 用 decompile_class 或 module_source 复核 SearchHomeRecommendLocator.kt 与 SearchPurifyFeatureInstaller.kt，确认其在 compose 与 native 两种渲染下的挂载差异。
+- [11] 读取 BottomBarFeatureInstaller.kt 与 HostBottomBarFxController.kt，确认底栏功能在 home 新旧框架下的安装条件与适配器选择逻辑。
+[12] 读取 VersionAdapter.kt 与 VersionAdapterContract.kt，确认其对 9150300 的适配分支是否存在且是否被安装器调用。
+[13] 在真机上分别以 compose 与 native 渲染打开搜索页，抓取同一关键词返回结构与净化前后差异，验证 Moss 消费路径。
+[14] 在真机上触发首页新旧框架切换，dump 视图树与类加载日志，核对四个登记家族的实际加载情况。
+[15] 核对 resource_change_counts 中那 1 处 changed 资源的路径与类型，判断是否落在首页/搜索相关资源。
+- [16] 检查 search_java_moss 的 22 条实际调用边调用者家族，确认 Java Moss 是否存在 native 侧消费者。
+[17] 确认安装器对 home/search 相关 Hook 的启用条件(版本码、开关、进程)，补充 module_coverage 证据。
+[18] 在宽屏/平板配置下复测 home 与 search，确认是否存在未登记的宽屏分支或服务端开关样式。
+[19] 保留复核额度用于重新读取 E011/E012 之外的 comment/dynamic 家族证据，确认本单元末被抽样的调用者是否跨越 home/search 边界。
+[20] 在真机上确认 detail_legacy 是否真的不存在：记录进入 UGC/联合投稿详情时加载的 Activity/Fragment 与类列表。
+- [21] 用 protocol_evidence 重读 detail_java_moss、detail_kotlin_moss 的完整调用方，标注所属路径与家族。
+[22] 用 protocol_evidence 重读 pgc_player_moss、pgc_view_moss 的完整调用方，区分 legacy 与 theseus 消费者。
+[23] 用 module_source 打开 HostDetailSurfaces 与 DetailUnitedModulePurify* 系列，记录类名/方法签名绑定与兜底分支。
+[24] 用 module_source 打开 PgcAutoActivityPopupLocator，核对其匹配条件针对 legacy 还是 theseus。
+[25] 按文件哈希记录全部 Detail*/Pgc* 源码文件，标注 working_tree_dirty 影响范围，不清理工作树。
+- [26] 在真机上分别用 UGC、联合投稿、番剧详情四种入口做模块开启/关闭对照，记录命中路径。
+[27] 检查模块是否存在宽屏/平板与服务端开关分支，未读到运行条件前保持未知。
+[28] 复查首页与动态页的 Comment/Opus 家族是否同时被 detail/pgc 路径消费，避免把同一未知重复登记。
+[29] 确认 ab/ab 服务端视觉变体：若结构无变化则静态不可见，标注为运行期验证项而非已穷尽。
+[30] 复核阶段用另一份未提交修改的文件哈希抽样核对源码快照与运行期注入版本差异。
+- [31] 对所有 status 保持逐字沿用静态矩阵 evidence 值，不因真机表现临时改写为通过。
+[32] 真机安装模块，采集 Player*Locator（Buffer/Speed/Sponsor/PopupPromotion）解析日志，记录命中类名与方法签名，确认与 953 类集合的交集。
+[33] 回溯 player_kotlin_moss 的 3 条实调用边宿主类，核对是否落在模块 KotlinMossChannel/KotlinMossReplyBridge 解析范围。
+[34] 用同一抽取规则对 danmaku_legacy 已知类名前缀在目标 APK 做定向检索，区分真 absent 与抽取口径缺失。
+[35] 将 danmaku_kotlin 56 类清单与 DanmakuPurifyFeatureInstaller 的 hook 目标做集合比对，输出命中/缺失清单。
+- [36] 回溯 danmaku_java_moss 20 条实调用边的宿主类，判断其归属家族，确认是否存在未归类调用者。
+[37] 真机弹幕页开关净化做 A/B，记录 DanmakuPurifyPolicy 分支命中与未命中兜底日志。
+[38] 对 player_java 3225 条外部调用边抽样，检查是否存在模块未覆盖的播放器广告/推荐相关调用者。
+[39] 核对 module_source 中 VersionAdapter/VersionAdapterContract 是否对 9150300 有显式分支，确认版本门控条件。
+[40] 在真机上验证平板/宽屏布局下的 player 与 danmaku 页面是否走同一路径，记录布局切换条件。
+- [41] 确认评论区和动态页已登记家族（旧/新原生、Compose、Opus）是否有跨家族 Moss 消费者，识别是否影响本单元 player/danmaku 的共享协议。
+[42] 检查服务端开关导致的视觉差异：对比同一账号在 9150200 与 9150300 上的播放器/弹幕 UI，排查静态不可见的 A/B。
+[43] 若额度允许，读取 module_source 中 HookEntry.kt 的安装总入口，确认 player 与 danmaku 特性安装器的注册与兜底顺序。
+[44] 用 module_source 读取 MineComponentFilterFeatureInstaller.kt 与 MineComponentSnapshot.kt，提取其匹配的类名、字段名、方法签名清单。
+[45] 用 module_source 读取 MineVipFeatureInstaller.kt 与 MineComponentSnapshotQueryContract.kt，标出 mine_account_model 族被引用的具体解析点。
+- [46] 对 story 侧补取候选族名（含可能被改名的 kntr story 通道），确认 story_kotlin absent 是否属改名并入 story_native。
+[47] 复核候选源码虽为 dirty 快照（source_tree_sha256=37745f8f…），但按文件哈希追溯即可，无需清理工作树，也不得据未提交状态改写结论。
+[48] 真机验证：在已安装模块上抓取 mine 快照查询与宿主桥调用日志，确认查询返回与过滤命中情况（当前 runtime_enabled=unknown）。
+[49] 真机验证：对 story 原生家族确认实际加载与 Hook 回调是否触发，区分静态调用面与运行期启用。
+[50] 补登记 story/mine 相关 MOSS 协议（含 StoryMoss、KMineMoss、MineMoss），并标注每条协议的实际调用者家族。
+- [51] 追踪 13 个未映射多路径候选文件（HookEntry.kt、VersionAdapter.kt、KotlinMossChannel.kt、KotlinMossReplyBridge.kt、ReplyTopologyComposeMenu.kt 等）被哪些登记路径消费。
+[52] 检查 services/ 中是否有 Story 相关条目（本轮跨配置词命中，未做结构校验），确认后决定是否单列运行期族。
+[53] 对 story 与 mine 分别记录是否受服务端 A/B 或宽屏/平板布局影响，凡未读到运行条件一律记未知。
+[54] 对 comment_compose、dynamic_opus、home_new_frame 三个深挖家族注明其 file_id 归属，避免被误登记为 story/mine 的已确认样式。
+[55] 复核阶段重点核对：四条路径 status 是否逐字沿用 evidence 值，以及是否存在把静态调用或指纹不变表述为适配通过的措辞。
