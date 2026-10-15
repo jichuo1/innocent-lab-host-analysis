@@ -55,11 +55,12 @@ def argument(raw):
         value = {"static_run": int(raw)}
     else:
         value = json.loads(raw)
-    if (not isinstance(value, dict) or set(value) - {"static_run", "checkpoint_run", "resume_unknown"}
+    if (not isinstance(value, dict) or set(value) - {"static_run", "checkpoint_run", "resume_unknown", "recovery_policy"}
             or type(value.get("static_run")) is not int or not 1 <= value["static_run"] < 10**20
             or "checkpoint_run" in value and (type(value["checkpoint_run"]) is not int or not 1 <= value["checkpoint_run"] < 10**20)
-            or type(value.get("resume_unknown", False)) is not bool):
-        raise RuntimeError("Expected static_run, optional checkpoint_run and boolean resume_unknown")
+            or type(value.get("resume_unknown", False)) is not bool
+            or "recovery_policy" in value and (value["recovery_policy"] != "extended-v1" or "checkpoint_run" not in value)):
+        raise RuntimeError("Expected static_run, optional checkpoint_run, boolean resume_unknown and explicit recovery_policy")
     return {**value, "resume_unknown": value.get("resume_unknown", False)}
 
 
@@ -181,6 +182,18 @@ def main():
     run, downloaded = verified_artifact(source_run)
     data, target, job, paths, manifest = frozen_inputs(run, downloaded, int(os.environ["HOSTLAB_VERSION"]))
     original_matrix = source_snapshot.serialize(data["page_path_matrix"])
+    raw_manifest = source_snapshot.serialize(manifest)
+    manifest_hash = hashlib.sha256(raw_manifest).hexdigest()
+    checkpoint = checkpoint_summary = checkpoint_source = None
+    if options.get("checkpoint_run"):
+        _, checkpoint = verified_artifact(options["checkpoint_run"])
+        checkpoint_manifest = one_file(checkpoint, "static-manifest.json")
+        checkpoint_summary = json.loads(one_file(checkpoint, "priority-summary.json").read_text(encoding="utf-8"))
+        if hostlab.digest(checkpoint_manifest) != manifest_hash or checkpoint_summary.get("static_manifest_sha256") != manifest_hash:
+            raise RuntimeError("Checkpoint static manifest differs; start a new generation explicitly")
+        checkpoint_source = checkpoint_summary.get("source_snapshot") or {}
+        if not isinstance(checkpoint_source.get("binding"), dict) or not checkpoint_source["binding"]:
+            raise RuntimeError("Checkpoint verified source binding is missing")
     previous = {"source_run": manifest["source_run"], "analysis_status": data.get("analysis_status"),
         "review_reasons": data.get("review_reasons"), "ai_status": data.get("ai_status"),
         "static_job_performance": {key: job[key] for key in
@@ -188,32 +201,53 @@ def main():
         "source_snapshot": {key: val for key, val in (data.get("source_snapshot") or {}).items()
                             if key in {"schema", "binding", "repository_head", "source_tree_sha256", "captured_at", "freshness"}}}
     explicit = os.environ.get("HOSTLAB_MODULE_SOURCE", "")
-    module_source = review_source(data, explicit)
+    selection = "explicit" if explicit else "historical"
+    selected_source = explicit
+    if checkpoint is not None and not explicit:
+        selected_source = json.dumps(checkpoint_source["binding"], separators=(",", ":"))
+        selection = "checkpoint"
+    module_source = review_source(data, selected_source)
+    if checkpoint is not None:
+        if module_source.get("binding") != checkpoint_source["binding"]:
+            raise RuntimeError("Checkpoint source binding differs; start a new generation explicitly")
+        for key in ("schema", "selection_version", "repository_head", "source_tree_sha256", "captured_at",
+                    "working_tree_dirty", "source_records"):
+            if checkpoint_source.get(key) != module_source.get(key):
+                raise RuntimeError("Checkpoint source metadata differs from its verified pinned payload")
+        # Preserve the ancestor tool receipts' complete public metadata exactly.
+        # This invocation's checkpoint_resume freshness belongs to summary/job.
+        module_source = json.loads(json.dumps(checkpoint_source))
+        previous["checkpoint_run"] = options["checkpoint_run"]
+        previous["checkpoint_source_snapshot"] = {key: value for key, value in checkpoint_source.items()
+            if key in {"schema", "binding", "repository_head", "source_tree_sha256", "captured_at", "freshness"}}
     import priority_analysis
     outcome = priority_analysis.verdict(data["changes"], target, module_source, data.get("resource_changes"), bool(data.get("baseline")))
     data.pop("ai_review", None)
     original_static_run = data.get("static_evidence_run")
     data.update(ai_status="pending", regenerated_from_run=source_run,
         static_evidence_run=original_static_run if type(original_static_run) is int and original_static_run > 0 else source_run,
-        source_rebound_for_review=bool(explicit), source_snapshot=module_source, previous_provenance=previous,
+        source_rebound_for_review=bool(selected_source), source_snapshot=module_source, source_selection=selection,
+        previous_provenance=previous,
         ai_no_apk_access=True, ai_resume_unknown=options["resume_unknown"],
         analysis_status=outcome["status"], review_reasons=outcome["reasons"])
+    if checkpoint is not None:
+        data["freshness"] = "checkpoint_resume"
+    # A policy must be authorized by this invocation; never inherit it from a report.
+    data.pop("ai_recovery_policy", None)
+    data.pop("ai_recovery_inputs", None)
+    if options.get("recovery_policy"):
+        data["ai_recovery_policy"] = options["recovery_policy"]
     destination = hostlab.STATE / "remote-output"
     destination.mkdir(parents=True, exist_ok=True)
-    raw_manifest = source_snapshot.serialize(manifest)
-    manifest_hash = hashlib.sha256(raw_manifest).hexdigest()
     data["static_manifest_sha256"] = manifest_hash
     data["static_artifact_cache"] = {key: downloaded[key] for key in ("root", "cache_hit", "integrity") if key in downloaded}
-    if options.get("checkpoint_run"):
-        _, checkpoint = verified_artifact(options["checkpoint_run"])
-        checkpoint_manifest = one_file(checkpoint, "static-manifest.json")
-        checkpoint_summary = json.loads(one_file(checkpoint, "priority-summary.json").read_text(encoding="utf-8"))
-        if (hostlab.digest(checkpoint_manifest) != manifest_hash
-                or checkpoint_summary.get("static_manifest_sha256") != manifest_hash
-                or (checkpoint_summary.get("source_snapshot") or {}).get("binding") != module_source.get("binding")):
-            raise RuntimeError("Checkpoint static/source binding differs; start a new generation explicitly")
-        import ai_checkpoint
-        ai_checkpoint.restore_checkpoint(destination, checkpoint["files"])
+    if checkpoint is not None:
+        if options.get("recovery_policy"):
+            import ai_recovery
+            data["ai_recovery_inputs"] = ai_recovery.restore_inputs(destination, checkpoint["files"], options["checkpoint_run"])
+        else:
+            import ai_checkpoint
+            ai_checkpoint.restore_checkpoint(destination, checkpoint["files"])
         data["checkpoint_from_run"] = options["checkpoint_run"]
     for record in manifest["immutable_restored_files"]:
         copy_verified(paths[record["path"]], destination / record["path"])
@@ -225,10 +259,13 @@ def main():
     job.update(regenerated_from_run=source_run, static_evidence_run=data["static_evidence_run"], operation="regenerate_ai",
         scope="verified_static_restore_and_ai_only", exit_code=0, apk_analysis_rerun=False,
         runner_revision=os.environ.get("HOSTLAB_RUNNER_REVISION") or os.environ.get("GITHUB_SHA"),
-        source_snapshot=module_source, source_rebound_for_review=bool(explicit), static_manifest_sha256=manifest_hash,
+        source_snapshot=module_source, source_rebound_for_review=bool(selected_source), source_selection=selection,
+        static_manifest_sha256=manifest_hash,
         previous_provenance=previous, ai_no_apk_access=True,
         regeneration_tools={name: hostlab.digest(Path(__file__).with_name(name)) for name in (
             "regenerate_report.py", "snapshot_transport.py", "source_snapshot.py", "priority_analysis.py")})
+    if checkpoint is not None:
+        job["freshness"] = "checkpoint_resume"
     for record in manifest["immutable_restored_files"]:
         path = destination / record["path"]
         if path.stat().st_size != record["bytes"] or hostlab.digest(path) != record["sha256"]:

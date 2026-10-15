@@ -58,11 +58,26 @@ class TransportTest(unittest.TestCase):
         self.assertTrue(usage["_transport"]["usage_received"])
         self.assertFalse(usage["_usage_unknown"])
         self.assertNotIn("private reasoning", json.dumps(message))
-        self.assertEqual(request.get_header("X-opencode-session"), "hostlab-test")
+        self.assertIsNone(request.get_header("X-opencode-session"))
         payload = json.loads(request.data)
         self.assertTrue(payload["stream"])
         self.assertEqual(payload["max_tokens"], 8192)
         self.assertEqual(request.get_header("User-agent"), "HostLab-AIReview/2")
+
+    def test_session_header_is_preserved_only_for_exact_opencode_host(self):
+        for base, expected in (
+                ("https://opencode.ai/zen/go/v1", "hostlab-test"),
+                ("https://OPENCODE.AI/zen/go/v1", "hostlab-test"),
+                ("https://api.river.ai/v1", None),
+                ("https://api.experientiallabs.ai/v1", None),
+                ("https://api.opencode.ai/v1", None),
+                ("https://opencode.ai.example.test/v1", None)):
+            with self.subTest(base=base), patch.dict(os.environ, dict(ENV, AI_PRIMARY_BASE_URL=base)), patch.object(transport.urllib.request, "build_opener") as build:
+                build.return_value.open.return_value = Response(delta({"content": "ok"}, "stop") + event(b"[DONE]"))
+                transport._call_api("primary", [{"role": "user", "content": "synthetic"}], [], session_id="hostlab-test")
+                request = build.return_value.open.call_args.args[0]
+                self.assertEqual(request.get_header("X-opencode-session"), expected)
+                self.assertEqual(build.return_value.open.call_count, 1)
 
     def test_missing_usage_is_unknown_not_zero(self):
         (message, usage, _), _ = self.request(delta({"content": "complete"}, "stop") + event(b"[DONE]"))
@@ -80,6 +95,27 @@ class TransportTest(unittest.TestCase):
         with self.assertRaises(transport.ApiError) as caught:
             self.request(delta({"content": "ok"}, "transport-test-secret") + event(b"[DONE]"))
         self.assertNotIn("secret", str(caught.exception))
+
+    def test_truncated_reply_keeps_reported_usage_without_accepting_partial_content(self):
+        raw = delta({"content": "partial"}, "length", usage={"prompt_tokens": 12, "completion_tokens": 8}) + event(b"[DONE]")
+        with self.assertRaises(transport.ApiError) as caught:
+            self.request(raw)
+        self.assertFalse(caught.exception.billing_unknown)
+        self.assertEqual(caught.exception.usage["completion_tokens"], 8)
+        self.assertEqual(caught.exception.metrics["finish_reason"], "length")
+
+    def test_content_filter_is_not_automatically_retried(self):
+        with self.assertRaises(transport.ApiError) as caught:
+            self.request(delta({}, "content_filter") + event(b"[DONE]"))
+        self.assertFalse(caught.exception.retryable)
+
+    def test_extended_output_scales_raw_stream_limit_but_remains_bounded(self):
+        raw = b": " + b" "*90 + b"\n\n" + delta({"content": "ok"}, "stop") + event(b"[DONE]")
+        with patch.object(transport, "MAX_RESPONSE_BYTES", 180):
+            with self.assertRaises(transport.ApiError):
+                self.request(raw)
+            (message, _, _), _ = self.request(raw, max_output=16384)
+        self.assertEqual(message["content"], "ok")
 
     def test_worker_wall_deadline_terminates_and_reaps_once(self):
         with patch.object(transport.subprocess, "Popen") as popen:

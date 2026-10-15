@@ -11,6 +11,7 @@ import ai_pipeline
 import ai_checkpoint
 import ai_transport
 import ai_review
+import ai_recovery
 import test_ai_review as fixtures
 
 report, response = fixtures.report, fixtures.response
@@ -206,6 +207,169 @@ class PipelineTest(unittest.TestCase):
                 for original in originals:
                     self.assertEqual("\n".join(merged).count(original), 1)
                 self.assertEqual((merged, count), ai_pipeline.merge_items(originals, limit))
+
+    def test_schemas_bound_values_to_the_assigned_matrix_without_oneof(self):
+        matrix = {"home": {"paths": {"home_new": {"evidence": "static_invoke_observed"}}},
+                  "search": {"paths": {"search_native": {"evidence": "absent"}}}}
+        schema = ai_pipeline.draft_tool(3, matrix)["function"]["parameters"]
+        page = schema["properties"]["pages"]["items"]["properties"]
+        paths = page["path_reviews"]["items"]["properties"]
+        finding = schema["properties"]["findings"]["items"]["properties"]
+        self.assertEqual(page["page"]["enum"], ["home", "search"])
+        self.assertEqual(paths["path"]["enum"], ["home_new", "search_native"])
+        self.assertEqual(paths["status"]["enum"], ["static_invoke_observed", "absent"])
+        self.assertNotIn("search_kotlin_moss", paths["path"]["enum"])
+        self.assertEqual(set(finding["level"]["enum"]), ai_review.CLAIM_LEVELS)
+        self.assertNotIn("info", finding["level"]["enum"])
+        review = ai_pipeline.review_tool({"pages": ["search"], "findings": ["F003"]})["function"]["parameters"]
+        item = review["properties"]["findings"]["items"]["properties"]
+        self.assertEqual(item["finding_id"]["enum"], ["F003"])
+        self.assertEqual(set(item["disposition"]["enum"]), {"retained", "revised", "rejected", "needs_more_evidence"})
+        self.assertEqual(set(item["revision"]["properties"]["level"]["enum"]), ai_review.CLAIM_LEVELS)
+        self.assertNotIn("oneOf", json.dumps([schema, review]))
+
+    def extended_fixture(self, *, invalid_import=False):
+        """A real public ledger shape: nine billed/unknown calls, four reads, two units."""
+        origin = self.root / "origin"; origin.mkdir()
+        for name in ("priority-summary.json", "priority-target.json", "priority-baseline.json", "priority-report.md"):
+            (origin/name).write_bytes((self.root/name).read_bytes())
+        summary = json.loads((origin/"priority-summary.json").read_text())
+        counts = {"comment": 5, "dynamic": 3, "home": 2, "search": 2, "player": 2,
+                  "follow": 2, "space": 2, "setting": 2, "download": 2, "other": 3}
+        summary["page_path_matrix"] = {page: {"paths": {page+"_"+str(index):
+            {"evidence": "static_invoke_observed"} for index in range(count)}, "protocols": {}}
+            for page, count in counts.items()}
+        (origin/"static-manifest.json").write_text("{}", encoding="utf-8")
+        summary["static_manifest_sha256"] = ai_pipeline.hostlab.digest(origin/"static-manifest.json")
+        (origin/"priority-summary.json").write_text(json.dumps(summary), encoding="utf-8")
+        evidence = ai_review.Evidence(origin, summary)
+        ai_review.prefetch_evidence(evidence, summary)
+        for name, args in [("family_evidence", {"family": "comment_0", "side": "target"}),
+                ("protocol_evidence", {"protocol": "comment_java_moss", "side": "target"}),
+                ("family_evidence", {"family": "search_0", "side": "target"}),
+                ("protocol_evidence", {"protocol": "search_kotlin_moss", "side": "target"})]:
+            evidence.run_tool(name, args)
+        units = ai_pipeline.draft_units(summary["page_path_matrix"])
+        binding = ai_pipeline.build_binding(origin, summary, units)
+        ledger = ai_checkpoint.Checkpoint(origin, binding)
+        ids = fixtures.page_evidence_ids(origin)
+        for index in range(9):
+            unit = "d0" if index < 3 else "d1" if index < 8 else "d2"
+            token = ledger.claim("draft", unit, f"{index+1:064x}", "primary" if index == 0 else "backup",
+                                 "old-session", transport_retry=index in (1, 5))
+            if index in (0, 4, 8):
+                ledger.failed(token, ai_transport.ApiError("API timeout", "timeout", True, True))
+            else:
+                clean = ai_pipeline.public_reply(response("finish_report", {"overview": "old public receipt"})[0])
+                ledger.received(token, f"{index+1:064x}", clean, {"total_tokens": 20}, "test-model")
+        for index, pages in enumerate(units[:2]):
+            value = self.matrix_report(summary, pages, ids, count=3, deep="E011" if index == 0 else None)
+            if invalid_import and index == 1:
+                value["pages"][0]["path_reviews"] = value["pages"][0]["path_reviews"][:1]
+            ledger.save_unit("d"+str(index), value)
+        ledger.value["elapsed_seconds"] = 485.0
+        ai_checkpoint.atomic(ledger.path, ledger.value)
+        ledger.close()
+        (origin/"ai-evidence.json").write_text(json.dumps({"E000": ai_pipeline.seed_for(summary),
+            "tools": evidence.public_journal()}), encoding="utf-8")
+        target = self.root / "recovery"; target.mkdir()
+        for name in ("priority-summary.json", "priority-target.json", "priority-baseline.json", "priority-report.md", "static-manifest.json"):
+            (target/name).write_bytes((origin/name).read_bytes())
+        inputs = ai_recovery.restore_inputs(target, [str(origin/"ai-checkpoint.json"), str(origin/"ai-evidence.json")], 123)
+        summary.update(ai_recovery_policy="extended-v1", ai_recovery_inputs=inputs, checkpoint_from_run=123)
+        (target/"priority-summary.json").write_text(json.dumps(summary), encoding="utf-8")
+        return target, summary, json.loads((origin/"ai-checkpoint.json").read_text())
+
+    @staticmethod
+    def matrix_report(summary, pages, ids, *, count=1, deep=None):
+        value = {"overview": "static only; runtime unknown", "pages": [], "findings": [], "next_steps": ["verify actual entry"]}
+        for page in pages:
+            value["pages"].append({"page": page, "assessment": "static comparison only", "evidence_ids": [ids[page]],
+                "path_reviews": [{"path": path, "status": row["evidence"], "change": "unknown", "impact": "unknown",
+                    "verification": "verify actual entry", "evidence_ids": [ids[page]]}
+                    for path, row in summary["page_path_matrix"][page]["paths"].items()]})
+        value["findings"] = [{"title": pages[0]+str(index), "page": pages[0], "level": "needs_runtime",
+            "analysis": "runtime condition unknown", "alternatives": "disabled branch", "recommendation": "verify actual entry",
+            "evidence_ids": [deep or ids[pages[0]]]} for index in range(count)]
+        return value
+
+    def test_extended_recovery_preserves_nine_calls_and_completes_eight_units_then_replays_without_posts(self):
+        target, summary, original = self.extended_fixture()
+        seen = []
+        def api(profile, messages, tools, force_tool=None, session_id=None, **options):
+            seen.append(copy.deepcopy(messages))
+            self.assertEqual(profile, "backup")
+            self.assertEqual(options["max_output"], 16384)
+            self.assertLessEqual(options["total_timeout"], 240)
+            data = json.loads(messages[1]["content"])
+            if len(seen) == 1:
+                current = json.loads((target/"ai-checkpoint.json").read_text())
+                self.assertEqual(current["transport_retries"], 3)
+                self.assertTrue(current["attempts"][-1]["transport_retry"])
+                self.assertEqual(current["attempts"][-1]["unit"], "d2")
+            ids = {row["page"]: row["evidence_id"] for row in data["prefetch"]}
+            if "assigned_findings" in data:
+                fresh = data["fresh_refresh"]
+                return response("finish_review", {"pages": [{"page": page, "assessment": "independent static review",
+                    "evidence_ids": [fresh.get(page, ids[page])]} for page in data["assigned_pages"]],
+                    "findings": [{"finding_id": row["finding_id"], "disposition": "retained", "reason": "runtime unknown",
+                        "evidence_ids": row["evidence_ids"]} for row in data["draft"]["findings"]], "remaining_gaps": ["verify runtime"]})
+            self.assertNotIn("comment", data["assigned_pages"])
+            self.assertNotIn("home", data["assigned_pages"])
+            return response("finish_report", self.matrix_report(summary, data["assigned_pages"], ids))
+        with patch.object(ai_review, "call_api", side_effect=api):
+            ai_review.run(target)
+            first = json.loads((target/"ai-analysis.json").read_text())
+            ai_review.run(target)
+        self.assertEqual(len(seen), 8)
+        self.assertEqual(first["new_model_requests"], 8)
+        self.assertEqual(first["limits"]["hard_cap"], 24)
+        self.assertEqual(first["limits"]["transport_retry_allowance"], 4)
+        self.assertEqual(first["limits"]["review_logical_units"], 5)
+        self.assertEqual(first["reused_units"], 2)
+        self.assertEqual(first["imported_units"], 2)
+        self.assertEqual(first["read_tool_calls"], 4)
+        self.assertEqual(len(first["report"]["pages"]), 10)
+        self.assertEqual(sum(len(page["path_reviews"]) for page in first["report"]["pages"]), 25)
+        final = json.loads((target/"ai-analysis.json").read_text())
+        self.assertEqual(final["status"], "completed")
+        self.assertEqual(final["new_model_requests"], 0)
+        self.assertEqual(final["cached_responses_reused"], 8)
+        saved = json.loads((target/"ai-checkpoint.json").read_text())
+        self.assertEqual(saved["attempts"][:9], original["attempts"])
+        self.assertEqual(saved["units"]["d0"], original["units"]["d0"])
+        self.assertEqual(saved["units"]["d1"], original["units"]["d1"])
+        self.assertEqual(len(saved["attempts"]), 17)
+        self.assertEqual(saved["transport_retries"], 3)
+        self.assertGreaterEqual(saved["elapsed_seconds"], 485)
+        self.assertTrue(final["usage_unknown"])
+        review_messages = [json.loads(rows[1]["content"]) for rows in seen if "assigned_findings" in json.loads(rows[1]["content"])]
+        self.assertEqual(len(review_messages), 5)
+        self.assertEqual(set(review_messages[0]["fresh_refresh"]), {"comment", "dynamic"})
+
+    def test_invalid_imported_unit_fails_before_any_new_request(self):
+        target, _, original = self.extended_fixture(invalid_import=True)
+        origin_bytes = (target/"ai-resume-checkpoint.json").read_bytes()
+        with patch.object(ai_review, "call_api") as api:
+            with self.assertRaises(RuntimeError):
+                ai_review.run(target)
+        api.assert_not_called()
+        self.assertEqual((target/"ai-resume-checkpoint.json").read_bytes(), origin_bytes)
+        saved = json.loads((target/"ai-checkpoint.json").read_text())
+        self.assertEqual(saved["attempts"], original["attempts"])
+        self.assertEqual(saved["transport_retries"], 2)
+        self.assertTrue(saved["recovery"]["resume_transport_retry_pending"])
+
+    def test_extended_policy_needs_verified_checkpoint_and_unknown_policy_is_rejected(self):
+        for policy in ("extended-v1", "extended-v2"):
+            with self.subTest(policy=policy):
+                summary = json.loads((self.root/"priority-summary.json").read_text())
+                summary["ai_recovery_policy"] = policy
+                (self.root/"priority-summary.json").write_text(json.dumps(summary), encoding="utf-8")
+                with patch.object(ai_review, "call_api") as api:
+                    with self.assertRaises(RuntimeError):
+                        ai_review.run(self.root)
+                api.assert_not_called()
 
 
 if __name__ == "__main__": unittest.main()

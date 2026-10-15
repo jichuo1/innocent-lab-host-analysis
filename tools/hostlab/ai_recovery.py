@@ -1,0 +1,256 @@
+"""Explicit, bounded migration of verified public AI receipts; never replay a POST."""
+from __future__ import annotations
+
+import copy
+import hashlib
+import json
+import os
+from pathlib import Path
+import stat
+import time
+import uuid
+
+import ai_checkpoint as checkpoint
+import hostlab
+import remote_schedule
+
+POLICY = "extended-v1"
+FILES = {"ai-checkpoint.json": "ai-resume-checkpoint.json", "ai-evidence.json": "ai-resume-evidence.json"}
+MUTABLE_CODE = {"ai_pipeline.py", "ai_checkpoint.py", "ai_transport.py"}
+BOUND_CODE = MUTABLE_CODE | {"ai_prompts.py", "ai_review.py"}
+
+
+def _read(path):
+    checkpoint.regular(path)
+    raw = path.read_bytes()
+    try:
+        return raw, json.loads(raw)
+    except (ValueError, UnicodeError):
+        raise checkpoint.CheckpointError("invalid recovery JSON") from None
+
+
+def _atomic_bytes(path, raw):
+    checkpoint.regular(path, missing=True)
+    if path.exists():
+        if path.read_bytes() != raw:
+            raise checkpoint.CheckpointError("refusing to replace different recovery history")
+        return
+    stage = path.with_name(".ai-recovery-"+uuid.uuid4().hex+".tmp")
+    try:
+        with stage.open("xb") as stream:
+            stream.write(raw); stream.flush(); os.fsync(stream.fileno())
+        os.replace(stage, path)
+    finally:
+        stage.unlink(missing_ok=True)
+
+
+def _public_evidence(value):
+    if (not isinstance(value, dict) or set(value) != {"E000", "tools"}
+            or not isinstance(value["E000"], dict) or not isinstance(value["tools"], list)
+            or not 1 <= len(value["tools"]) <= 32):
+        raise checkpoint.CheckpointError("invalid public recovery evidence")
+    def public(item, parent=""):
+        if isinstance(item, dict):
+            for key, child in item.items():
+                if key == "messages" or key == "source" and parent not in {"sample", "baseline"}:
+                    raise checkpoint.CheckpointError("private body is not a public recovery receipt")
+                public(child, key)
+        elif isinstance(item, list):
+            for child in item:
+                public(child, parent)
+    public(value)
+    for index, row in enumerate(value["tools"], 1):
+        if (not isinstance(row, dict) or set(row) != {"id", "tool", "args", "result"}
+                or row["id"] != "E"+str(index).zfill(3) or not isinstance(row["args"], dict)
+                or not isinstance(row["result"], dict) or row["result"].get("evidence_id") != row["id"]):
+            raise checkpoint.CheckpointError("invalid recovery tool receipt identity")
+        schemas = {"page_evidence": {"page"}, "family_evidence": {"family", "side"},
+                   "protocol_evidence": {"protocol", "side"}, "module_source": {"path"}}
+        if (row["tool"] not in schemas or set(row["args"])-schemas[row["tool"]]
+                or not all(isinstance(value, str) and 0 < len(value) <= 1024 for value in row["args"].values())
+                or "side" in row["args"] and row["args"]["side"] not in {"target", "baseline"}
+                or row["tool"] == "module_source" and {"source", "excerpt"} & set(row["result"])):
+            raise checkpoint.CheckpointError("unapproved or private recovery tool receipt")
+        required = schemas[row["tool"]]-{"side"}
+        if not required <= set(row["args"]):
+            raise checkpoint.CheckpointError("missing recovery tool arguments")
+    return value
+
+
+def restore_inputs(root, verifiedfiles, parent_run):
+    """Accept only the two public files in the caller's verified artifact inventory."""
+    if type(parent_run) is not int or parent_run <= 0:
+        raise checkpoint.CheckpointError("invalid recovery parent run")
+    root = Path(root); root.mkdir(parents=True, exist_ok=True)
+    def selected(name):
+        selected = [Path(path) for path in verifiedfiles if Path(path).name == name]
+        if len(selected) != 1:
+            raise checkpoint.CheckpointError("missing or ambiguous public recovery file: "+name)
+        return _read(selected[0])
+    active_raw, active = selected("ai-checkpoint.json")
+    checkpoint.validate(active)
+    extended = active["binding"].get("policy", {}).get("recovery_policy") == POLICY
+    metadata = {"parent_run": parent_run}
+    for name, target in FILES.items():
+        raw, value = selected(target if extended else name)
+        checkpoint.validate(value) if name == "ai-checkpoint.json" else _public_evidence(value)
+        _atomic_bytes(root/target, raw)
+        metadata["checkpoint_sha256" if name == "ai-checkpoint.json" else "evidence_sha256"] = hashlib.sha256(raw).hexdigest()
+    if extended:
+        _, original = _read(root/FILES["ai-checkpoint.json"])
+        _history(active, original, metadata)
+        _atomic_bytes(root/"ai-checkpoint.json", active_raw)
+    return metadata
+
+
+def _history(value, original, inputs):
+    recovery = value.get("recovery", {})
+    count = recovery.get("adopted_attempt_count")
+    if (recovery.get("origin_checkpoint_sha256") != inputs["checkpoint_sha256"]
+            or recovery.get("evidence_sha256") != inputs["evidence_sha256"]
+            or recovery.get("original_binding") != original["binding"]
+            or count != len(original["attempts"]) or recovery.get("adopted_units") != _draft_prefix(original)
+            or value["attempts"][:count] != original["attempts"]
+            or any(value["units"].get(name) != saved for name, saved in original["units"].items())
+            or any(value["responses"].get(name) != saved for name, saved in original["responses"].items())
+            or value["transport_retries"] < original["transport_retries"]
+            or value["elapsed_seconds"] < original["elapsed_seconds"]):
+        raise checkpoint.CheckpointError("extended recovery changed its immutable origin history")
+    if recovery["resume_transport_retry_pending"]:
+        if (len(value["attempts"]) != count or value["transport_retries"] != original["transport_retries"]
+                or recovery["next_retry_unit"] != original["attempts"][-1]["unit"]):
+            raise checkpoint.CheckpointError("recovery compensation reservation changed")
+    elif (len(value["attempts"]) <= count or not value["attempts"][count].get("transport_retry")
+            or value["attempts"][count]["unit"] != original["attempts"][-1]["unit"]):
+        raise checkpoint.CheckpointError("recovery compensation receipt is missing")
+
+
+def _binding(old, new):
+    checkpoint.policy_limits(old); new_limits = checkpoint.policy_limits(new)
+    if old.get("policy", {}).get("recovery_policy") == POLICY:
+        if old != new:
+            raise checkpoint.CheckpointError("extended recovery binding changed")
+        return
+    if new_limits["max_requests"] != 24 or new.get("policy", {}).get("recovery_policy") != POLICY:
+        raise checkpoint.CheckpointError("explicit extended recovery policy required")
+    if (set(old) != set(new) or set(old.get("code", {})) != BOUND_CODE or set(new.get("code", {})) != BOUND_CODE
+            or any(old[key] != new[key] for key in old if key not in {"code", "policy"})
+            or any(old["code"][key] != new["code"][key] for key in BOUND_CODE-MUTABLE_CODE)):
+        raise checkpoint.CheckpointError("recovery source/static/prompt/acceptance/provider/plan binding changed")
+    expected_policy = {**old["policy"], "max_requests": 24, "transport_retries": 4,
+                       "max_output": 16384, "recovery_policy": POLICY}
+    if new["policy"] != expected_policy:
+        raise checkpoint.CheckpointError("recovery changed an unapproved policy field")
+    for value in (*old["code"].values(), *new["code"].values()):
+        if not isinstance(value, str) or not checkpoint.HEX.fullmatch(value):
+            raise checkpoint.CheckpointError("invalid recovery code digest")
+
+
+def _static(root, binding):
+    names = {"priority-target.json", "static-manifest.json"}
+    if binding.get("baseline"):
+        names.add("priority-baseline.json")
+    if set(binding.get("static_files", {})) != names:
+        raise checkpoint.CheckpointError("invalid recovery static file paths")
+    for name, digest in binding["static_files"].items():
+        path = root/name
+        info = path.lstat()
+        if (not stat.S_ISREG(info.st_mode) or stat.S_ISLNK(info.st_mode)
+                or getattr(info, "st_file_attributes", 0) & 0x400 or info.st_nlink != 1
+                or hostlab.digest(path) != digest):
+            raise checkpoint.CheckpointError("recovery frozen static bytes changed")
+    if binding["static_files"]["static-manifest.json"] != binding.get("static_manifest_sha256"):
+        raise checkpoint.CheckpointError("recovery static manifest identity changed")
+
+
+def _draft_prefix(value):
+    names = sorted((name for name in value["units"] if name.startswith("d")), key=lambda name: int(name[1:]))
+    if names != ["d"+str(index) for index in range(len(names))] or len(names) > len(value["binding"].get("draft_units", [])):
+        raise checkpoint.CheckpointError("recovery draft units are not a contiguous plan prefix")
+    for index, name in enumerate(names):
+        result = value["units"][name]["result"]
+        if [row.get("page") for row in result.get("pages", [])] != value["binding"]["draft_units"][index]:
+            raise checkpoint.CheckpointError("recovery accepted draft page assignment changed")
+    return names
+
+
+def _rebuild(evidence, document):
+    rows = document["tools"]
+    current = evidence.public_journal()
+    pages = list(evidence.summary["page_path_matrix"])
+    if (not current or current != rows[:len(current)]
+            or [row.get("args", {}).get("page") for row in current] != pages
+            or any(row["tool"] != "page_evidence" for row in current)):
+        raise checkpoint.CheckpointError("recovery prefetched page receipts differ")
+    prior = copy.deepcopy((evidence.journal, evidence.ids, evidence.calls, evidence.limit))
+    try:
+        for row in rows[len(current):]:
+            if row["tool"] == "page_evidence":
+                evidence.server_read(row["tool"], row["args"])
+            else:
+                evidence.run_tool(row["tool"], row["args"])
+        if evidence.public_journal() != rows:
+            raise checkpoint.CheckpointError("recovery public tool replay differs from its verified receipts")
+    except BaseException:
+        evidence.journal, evidence.ids, evidence.calls, evidence.limit = prior
+        raise
+
+
+def prepare_recovery(root, summary, new_binding, evidence):
+    """Rebuild read-only evidence, then atomically adopt a bounded ledger migration."""
+    policy = summary.get("ai_recovery_policy")
+    if policy is None:
+        return {"migrated": False, "imported_units": []}
+    if policy != POLICY:
+        raise checkpoint.CheckpointError("unknown AI recovery policy")
+    inputs = summary.get("ai_recovery_inputs")
+    if (not isinstance(inputs, dict) or set(inputs) != {"parent_run", "checkpoint_sha256", "evidence_sha256"}
+            or type(inputs["parent_run"]) is not int or inputs["parent_run"] <= 0
+            or summary.get("checkpoint_from_run") != inputs["parent_run"]):
+        raise checkpoint.CheckpointError("explicit recovery needs verified parent-run inputs")
+    root = Path(root)
+    raw, original = _read(root/FILES["ai-checkpoint.json"])
+    evidence_raw, document = _read(root/FILES["ai-evidence.json"])
+    if (hashlib.sha256(raw).hexdigest() != inputs["checkpoint_sha256"]
+            or hashlib.sha256(evidence_raw).hexdigest() != inputs["evidence_sha256"]):
+        raise checkpoint.CheckpointError("verified recovery input bytes changed")
+    checkpoint.validate(original); _public_evidence(document)
+    _binding(original["binding"], new_binding); _static(root, new_binding)
+    imported = _draft_prefix(original)
+    if original["binding"].get("policy", {}).get("recovery_policy") != POLICY and any(name.startswith("r") for name in original["units"]):
+        raise checkpoint.CheckpointError("initial extended recovery cannot import accepted review units")
+    if not original["attempts"] or original["attempts"][-1].get("status") != "failed" or not original["attempts"][-1].get("retryable"):
+        raise checkpoint.CheckpointError("extended recovery needs an original retryable failed request")
+    _rebuild(evidence, document)
+    path = root/"ai-checkpoint.json"
+    checkpoint.regular(root/"ai-checkpoint.lock", missing=True)
+    lock = remote_schedule.admission_lock(root/"ai-checkpoint.lock")
+    if lock is None:
+        raise checkpoint.CheckpointError("AI recovery checkpoint is already in use")
+    try:
+        if path.exists():
+            _, existing = _read(path); checkpoint.validate(existing)
+            if (existing["binding"] != new_binding or existing.get("recovery", {}).get("origin_checkpoint_sha256") !=
+                    original.get("recovery", {}).get("origin_checkpoint_sha256", inputs["checkpoint_sha256"])):
+                raise checkpoint.CheckpointError("refusing to overwrite a different active recovery ledger")
+            value = existing
+            _history(value, original, inputs)
+            imported = value["recovery"]["adopted_units"]
+        else:
+            value = copy.deepcopy(original)
+            value["binding"] = copy.deepcopy(new_binding)
+            value["binding_sha256"] = checkpoint.digest(new_binding)
+            value["recovery"] = {"schema": 1, "policy": POLICY, "parent_run": inputs["parent_run"],
+                "origin_checkpoint_sha256": inputs["checkpoint_sha256"], "evidence_sha256": inputs["evidence_sha256"],
+                "original_binding": copy.deepcopy(original["binding"]), "original_binding_sha256": original["binding_sha256"],
+                "old_limits": checkpoint.policy_limits(original["binding"]), "new_limits": checkpoint.policy_limits(new_binding),
+                "resume_transport_retry_pending": True, "next_retry_unit": original["attempts"][-1]["unit"],
+                "adopted_units": imported, "adopted_attempt_count": len(original["attempts"]), "migrated_at": time.time(),
+                "migration_tool_sha256": hostlab.digest(Path(__file__))}
+            checkpoint.validate(value)
+            checkpoint.atomic(path, value)
+    finally:
+        lock.close()
+    return {"migrated": True, "imported_units": imported, "recovery": copy.deepcopy(value["recovery"]),
+            "adopted_attempt_count": value["recovery"]["adopted_attempt_count"],
+            "restored_tool_rows": len(evidence.journal), "restored_model_tool_calls": evidence.calls}
