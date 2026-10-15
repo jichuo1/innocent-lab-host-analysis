@@ -76,3 +76,8 @@ Call `submit_job(version_code=1, operation="inventory")`, then use `job_status` 
 每版完整 SHA 与分析后源校验保留，部分失败仍收回其它成员。组附件只下载一次并逐次复验。
 `recover_version_matrix(matrix_id)` 显式重试已确认失败/未开始成员，保留原工具提交且不重跑成功成员；未知派发不自动重试。
 详细状态与恢复键规则见 [DEXSQL.md](DEXSQL.md)。
+
+可选 `execution_policy="adaptive"` 会按验证过的成本记录平衡分组，并让runner在1–2路间有界调整预取。
+原生组最多12版、SQLite/auto最多4版，物理runner总预算仍为4；不要同时指定固定runner_batch_size。
+默认fixed保留原路径。纯规划不读网络或性能缓存；提交时才固定工具提交、成本快照和分组，之后不改写已派发组。
+两种模式都记录相同的有界资源观测；`job_result(sample_index=0..11)` 可读取自适应组中的独立成员。

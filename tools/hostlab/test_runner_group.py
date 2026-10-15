@@ -35,11 +35,16 @@ class GroupTest(unittest.TestCase):
                     dict(value, samples=[{"version_code": 1}]), dict(value, extra=True)):
             with self.subTest(bad=bad), self.assertRaises(ValueError): runner_group.validate(bad)
 
-    def prepare(self, root, statuses):
-        value = runner_group.validate(payload(len(statuses)))
+    def prepare(self, root, statuses, adaptive=False):
+        spec = payload(len(statuses))
+        if adaptive:
+            spec.update(schema=2, execution={"mode": "adaptive-v1", "prefetch_max": 2})
+        value = runner_group.validate(spec)
         receipt = {"schema": 1, "runner_revision": "a" * 40,
                    "request_sha256": analysis_plan.fingerprint(value["request"]), "samples": []}
         files = []
+        if adaptive:
+            receipt["execution"] = value["execution"]
         for index, (sample, status) in enumerate(zip(value["samples"], statuses)):
             receipt["samples"].append({"index": index, "sample": sample, "status": status})
             if status == "not_started": continue
@@ -48,12 +53,39 @@ class GroupTest(unittest.TestCase):
                         "sample_revision": sample["sample_revision"], "runner_revision": "a" * 40,
                         "request_sha256": receipt["request_sha256"], "group_index": index,
                         "complete": status == "complete", "exit_code": 0 if status == "complete" else 2}
+            if adaptive:
+                metadata["execution_sha256"] = runner_group.execution_fingerprint(value)
             result = {"complete": status == "complete", "source_unchanged": status == "complete",
                       "sample": {"sha256": sample["apk_sha256"], "version_code": sample["version_code"], "revision": sample["sample_revision"]}}
             for name, data in (("job.json", metadata), ("result.txt", result)):
                 p = output / name; p.write_text(json.dumps(data), encoding="utf-8"); files.append(str(p))
         p = root / "group.json"; p.write_text(json.dumps(receipt), encoding="utf-8"); files.append(str(p))
         return value, {"files": files}
+
+    def test_adaptive_wire_is_bounded_and_does_not_expand_legacy_groups(self):
+        with self.assertRaises(ValueError): runner_group.validate(payload(5))
+        spec = {**payload(12), "schema": 2, "execution": {"mode": "adaptive-v1", "prefetch_max": 2}}
+        self.assertEqual(len(runner_group.validate(spec)["samples"]), 12)
+        for execution in ({"mode": "adaptive-v1", "prefetch_max": 3},
+                          {"mode": "adaptive-v1", "prefetch_max": True},
+                          {"mode": "adaptive-v2", "prefetch_max": 2}):
+            with self.assertRaises(ValueError): runner_group.validate({**spec, "execution": execution})
+        with self.assertRaises(ValueError): runner_group.validate({**spec, "samples": payload(13)["samples"]})
+
+    def test_adaptive_policy_is_verified_in_receipt_and_every_member(self):
+        with tempfile.TemporaryDirectory() as temp:
+            value, downloaded = self.prepare(Path(temp), ["complete"]*12, adaptive=True)
+            self.assertTrue(runner_group.collect(value, downloaded, "a"*40)["complete"])
+            p = Path(temp)/"samples/11/job.json"
+            metadata = json.loads(p.read_text(encoding="utf-8")); metadata["execution_sha256"] = "0"*64
+            p.write_text(json.dumps(metadata), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "execution policy"):
+                runner_group.collect(value, downloaded, "a"*40)
+            p.write_text(json.dumps({**metadata, "execution_sha256":runner_group.execution_fingerprint(value)}), encoding="utf-8")
+            p = Path(temp)/"group.json"; receipt = json.loads(p.read_text(encoding="utf-8")); receipt["execution"]["prefetch_max"] = 1
+            p.write_text(json.dumps(receipt), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "execution policy"):
+                runner_group.collect(value, downloaded, "a"*40)
 
     def test_partial_runner_failure_preserves_members_and_interrupted_pending(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import threading
 import time
+from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, patch
 
@@ -17,6 +18,7 @@ import plan_ci
 import remote_job
 import runner_group
 import runner_worker
+import runner_resources
 
 
 class RunnerWorkerTest(unittest.TestCase):
@@ -326,6 +328,118 @@ class RunnerWorkerTest(unittest.TestCase):
         self.gate.assert_not_called()
         self.fetch.assert_not_called()
         self.assertFalse(hostlab.STATE.exists())
+
+    def adaptive_payload(self):
+        return {**self.payload, "schema": 2, "execution": {"mode": "adaptive-v1", "prefetch_max": 2}}
+
+    def test_adaptive_twelve_members_keep_exact_proofs_and_execution_identity(self):
+        for index in range(4, 12):
+            code = 100+index
+            path = self.root / f"sample-{index}.apk"
+            path.write_bytes(f"exact sample {index}".encode())
+            sha = hostlab.digest(path)
+            self.paths[code] = path
+            self.rows.append({"version_code": code, "sha256": sha, "size": path.stat().st_size,
+                "path": f"apks/tv.danmaku.bili/{code}/{sha}/base.apk"})
+            self.samples.append({"version_code": code, "apk_sha256": sha, "sample_revision": "b"*40})
+        payload = self.adaptive_payload()
+        self.assertEqual(runner_worker.run(payload), 0)
+        self.assertEqual(self.execute.await_count, 12)
+        self.assertEqual(self.group()["execution"], payload["execution"])
+        self.assertLessEqual((hostlab.STATE / "remote-output/group.json").stat().st_size, 65536)
+        for index in range(12):
+            self.assertEqual(self.job(index)["execution_sha256"], runner_group.execution_fingerprint(payload))
+            self.assertIn("group_analysis_started_ms", self.job(index)["phases"])
+            self.assertIn("group_analysis_finished_ms", self.job(index)["phases"])
+        files = {"files": [str(path) for path in (hostlab.STATE / "remote-output").rglob("*") if path.is_file()]}
+        self.assertTrue(runner_group.collect(payload, files, "c"*40)["complete"])
+
+    def test_both_policies_write_bounded_same_sampler_artifacts(self):
+        self.assertEqual(runner_worker.run(self.payload), 0)
+        raw = (hostlab.STATE / "remote-output/resources.json").read_bytes()
+        artifact = json.loads(raw)
+        self.assertEqual(artifact["schema"], 1)
+        self.assertEqual(artifact["summary"]["interval_seconds"], 0.5)
+        self.assertLessEqual(len(raw), 1024**2)
+        self.assertLessEqual(len(artifact["samples"]), 7200)
+        self.assertIn("sampled_tree_rss_peak_bytes", self.group()["resources"])
+
+    def test_no_disk_capacity_leaves_members_unstarted_with_reason(self):
+        with patch.object(runner_worker.shutil, "disk_usage", return_value=SimpleNamespace(free=1)):
+            self.assertEqual(runner_worker.run(self.adaptive_payload()), 2)
+        self.fetch.assert_not_called()
+        self.execute.assert_not_awaited()
+        self.assertFalse(self.group()["deadline_exhausted"])
+        self.assertEqual([row["status"] for row in self.group()["samples"]], ["not_started"]*4)
+        self.assertTrue(all(row["reason"] == "disk_capacity" for row in self.group()["samples"]))
+
+    def test_fresh_disk_check_reserves_inflight_inputs_before_second_admission(self):
+        mutex = threading.Lock()
+        active = peak = 0
+
+        def fetch(row, repo, revision, *, timings):
+            nonlocal active, peak
+            with mutex:
+                active += 1; peak = max(peak, active)
+            try:
+                time.sleep(0.01)
+                return self.fetch_fixture(row, repo, revision, timings=timings)
+            finally:
+                with mutex:
+                    active -= 1
+
+        self.fetch.side_effect = fetch
+        size = self.rows[0]["size"]
+        free = 512*1024**2+3*size
+        with patch.object(runner_worker.shutil, "disk_usage", return_value=SimpleNamespace(free=free)) as disk:
+            self.assertEqual(runner_worker.run(self.payload), 0)
+        self.assertEqual(peak, 1)
+        self.assertGreaterEqual(disk.call_count, 4)
+        self.assertTrue(all("reason" not in row for row in self.group()["samples"]))
+        self.assertTrue(any(event["inputs"]["reserved_download_bytes"] > 0 for event in self.group()["prefetch_decisions"]))
+
+    def test_resource_failures_do_not_change_member_results_or_leave_threads(self):
+        for method in ("start", "set_phase", "snapshot", "summary", "stop"):
+            with self.subTest(method=method), patch.object(runner_resources.Sampler, method,
+                    side_effect=RuntimeError("fixture-sensitive-resource-path")):
+                self.assertEqual(runner_worker.run(self.adaptive_payload()), 0)
+                self.assertIn("RuntimeError", self.group()["resources"]["telemetry_errors"])
+                self.assertNotIn("fixture-sensitive-resource-path", json.dumps(self.group()))
+                self.assertFalse(any(thread.name == "hostlab-resources" and thread.is_alive()
+                                     for thread in threading.enumerate()))
+
+    def test_partial_sampler_start_failure_still_stops_real_monitor(self):
+        original = runner_resources.Sampler.start
+
+        def partial_start(sampler):
+            original(sampler)
+            raise RuntimeError("failure after monitor started")
+
+        with patch.object(runner_resources.Sampler, "start", partial_start):
+            self.assertEqual(runner_worker.run(self.payload), 0)
+        self.assertFalse(any(thread.name == "hostlab-resources" and thread.is_alive()
+                             for thread in threading.enumerate()))
+
+    def test_unexpected_group_interrupt_still_stops_sampler(self):
+        self.gate.side_effect = KeyboardInterrupt()
+        with self.assertRaises(KeyboardInterrupt):
+            runner_worker.run(self.payload)
+        self.assertFalse(any(thread.name == "hostlab-resources" and thread.is_alive()
+                             for thread in threading.enumerate()))
+
+    def test_maximum_receipt_decisions_remain_below_collector_budget(self):
+        sample = {"ts_ms": 1234, "cpu_usage_fraction": 0.99,
+            "memory_available_bytes": 1000000000, "memory_limit_bytes": 8000000000,
+            "disk_free_bytes": 10000000000, "psi_io_some_fraction": 0.15}
+        decision = runner_resources.AdaptivePrefetch().decide(sample, phase="processing", next_size=1024**3, inflight=2)
+        state = {"samples": [{"sample": self.samples[index % 4], "index": index, "status": "complete"} for index in range(12)],
+            "sample_timings": [{"index": index, **{f"metric_{i}": 123456.789 for i in range(18)}} for index in range(12)],
+            "resources": runner_resources.Sampler().summary(), "prefetch_decisions_omitted": 0,
+            "prefetch_decisions": [{"index": index % 12, **deepcopy(decision)} for index in range(48)]}
+        runner_worker.bound_decisions(state)
+        self.assertLessEqual(len(json.dumps(state, ensure_ascii=False, indent=2).encode())+1, 65536)
+        self.assertLessEqual(len(state["prefetch_decisions"]), 48)
+        self.assertGreater(state["prefetch_decisions_omitted"], 0)
 
 
 class GroupDispatcherTest(unittest.TestCase):

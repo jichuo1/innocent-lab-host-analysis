@@ -80,16 +80,18 @@ def submit(version_code, request, gh, lookup, runs, *, repository, workflow,
 
 
 def submit_group(samples, request, gh, lookup, runs, *, repository, workflow,
-                 idempotency_key="", runner_revision=None, reuse_completed=True):
+                 idempotency_key="", runner_revision=None, reuse_completed=True, execution=None):
     import runner_group
-    payload = runner_group.validate({"schema": 1, "samples": samples, "request": request})
+    payload = runner_group.validate({"schema": 2 if execution is not None else 1, "samples": samples, "request": request,
+                                    **({"execution": execution} if execution is not None else {})})
     head = runner_revision or json.loads(gh(["api", f"repos/{repository}/git/ref/heads/main"]))["object"]["sha"]
     if not re.fullmatch(r"[0-9a-f]{40}", head):
         raise ValueError("invalid runner source revision")
     if idempotency_key and not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", idempotency_key):
         raise ValueError("invalid idempotency key")
     identity = {"operation": "batch_group", "samples": payload["samples"], "request": payload["request"],
-                "runner_revision": head, "key": idempotency_key}
+                "runner_revision": head, "key": idempotency_key,
+                **({"execution": execution} if execution is not None else {})}
     inputs = {"version_code": str(payload["samples"][0]["version_code"]), "operation": "batch_group",
               "argument": json.dumps(payload, separators=(",", ":"), ensure_ascii=False)}
     return _submit(identity, inputs, {**describe(payload["request"]), "runner_batch_size": len(samples)},

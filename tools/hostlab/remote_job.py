@@ -15,13 +15,22 @@ import snapshot_transport
 def batch_tool_hashes():
     here = Path(__file__).resolve().parent
     names = ("analysis_plan.py", "analysis_batch.py", "install_dexsql.py", "analyze.py", "hostlab.py",
-             "remote_job.py", "prepare_runtime.py", "runner_group.py", "runner_worker.py",
+             "remote_job.py", "prepare_runtime.py", "runner_group.py", "runner_worker.py", "runner_resources.py", "adaptive_schedule.py",
              "dexq/server.py", "dexq/dexq_workers.py")
     return {name: hostlab.digest(here / name) for name in names}
 
 
+def resource_snapshot(sampler):
+    """Optional telemetry must not change the result of APK analysis."""
+    try:
+        return sampler.snapshot()
+    except Exception as exc:
+        return {"probe_error": type(exc).__name__}
+
+
 def run_batch(request, row, repo, revision, *, context_timings=None, output=None,
-              prepared_input=None, group_index=None):
+              prepared_input=None, group_index=None, resource_sampler=None, group_origin=None,
+              execution_sha256=None):
     import_started = time.monotonic()
     import asyncio
     import analysis_batch
@@ -43,9 +52,18 @@ def run_batch(request, row, repo, revision, *, context_timings=None, output=None
                 raise prepared_input["error"]
             apk = prepared_input["apk"]
         sample = {**row, "source": "huggingface", "repo": repo, "revision": revision}
+        if resource_sampler is not None:
+            phases["resource_before_analysis"] = resource_snapshot(resource_sampler)
         analysis_started=time.monotonic()
+        if group_origin is not None:
+            phases["group_analysis_started_ms"] = (analysis_started-group_origin)*1000
         report = asyncio.run(analysis_batch.execute(apk, request, roots=[apk.parent], sample=sample))
-        phases["analysis_ms"]=(time.monotonic()-analysis_started)*1000
+        analysis_finished=time.monotonic()
+        phases["analysis_ms"]=(analysis_finished-analysis_started)*1000
+        if group_origin is not None:
+            phases["group_analysis_finished_ms"] = (analysis_finished-group_origin)*1000
+        if resource_sampler is not None:
+            phases["resource_after_analysis"] = resource_snapshot(resource_sampler)
         rc = 0 if report["complete"] else 2
     except Exception as exc:
         fetch_ms = prepared_input["fetch_ms"] if prepared_input is not None else None
@@ -66,6 +84,8 @@ def run_batch(request, row, repo, revision, *, context_timings=None, output=None
            "total_ms": (time.monotonic() - started) * 1000}
     if group_index is not None:
         job["group_index"] = group_index
+    if execution_sha256 is not None:
+        job["execution_sha256"] = execution_sha256
     hostlab.write_json(output / "job.json", job)
     print(json.dumps({"operation": "batch", "complete": report["complete"], "exit_code": rc,
                       "tasks": [{"id": t["id"], "status": t["status"]} for t in report["tasks"]]}))

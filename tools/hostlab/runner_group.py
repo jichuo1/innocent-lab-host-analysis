@@ -2,24 +2,33 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 import re
 
 import analysis_plan
 
 MAX_SAMPLES = 4
+MAX_ADAPTIVE_SAMPLES = 12
 MAX_REQUEST_BYTES = 30000
 
 
 def validate(value):
     if len(json.dumps(value, ensure_ascii=False).encode("utf-8")) > MAX_REQUEST_BYTES:
         raise ValueError("runner group exceeds bounded input")
-    if (not isinstance(value, dict) or set(value) != {"schema", "request", "samples"}
-            or type(value["schema"]) is not int or value["schema"] != 1):
+    if not isinstance(value, dict) or type(value.get("schema")) is not int or value["schema"] not in {1, 2}:
         raise ValueError("invalid runner group schema")
+    adaptive = value["schema"] == 2
+    if set(value) != ({"schema", "request", "samples", "execution"} if adaptive else {"schema", "request", "samples"}):
+        raise ValueError("invalid runner group fields")
+    if adaptive and (not isinstance(value["execution"], dict) or set(value["execution"]) != {"mode", "prefetch_max"}
+                     or value["execution"].get("mode") != "adaptive-v1"
+                     or type(value["execution"].get("prefetch_max")) is not int or value["execution"]["prefetch_max"] != 2):
+        raise ValueError("invalid runner group execution policy")
     rows = value["samples"]
-    if not isinstance(rows, list) or not 1 <= len(rows) <= MAX_SAMPLES:
-        raise ValueError("runner group needs 1..4 pinned samples")
+    limit = MAX_ADAPTIVE_SAMPLES if adaptive else MAX_SAMPLES
+    if not isinstance(rows, list) or not 1 <= len(rows) <= limit:
+        raise ValueError("runner group needs 1.." + str(limit) + " pinned samples")
     samples = []
     for row in rows:
         if not isinstance(row, dict) or set(row) != {"version_code", "apk_sha256", "sample_revision"}:
@@ -31,7 +40,14 @@ def validate(value):
         if row in samples:
             raise ValueError("duplicate runner group sample")
         samples.append(dict(row))
-    return {"schema": 1, "request": analysis_plan.validate(value["request"]), "samples": samples}
+    return {"schema": value["schema"], "request": analysis_plan.validate(value["request"]), "samples": samples,
+            **({"execution": dict(value["execution"])} if adaptive else {})}
+
+
+def execution_fingerprint(payload):
+    if payload["schema"] == 1:
+        return None
+    return hashlib.sha256(json.dumps(payload["execution"], sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 def collect(payload, downloaded, runner_revision):
@@ -49,6 +65,9 @@ def collect(payload, downloaded, runner_revision):
             or receipt.get("request_sha256") != fingerprint or not isinstance(rows, list)
             or len(rows) != len(payload["samples"])):
         raise ValueError("runner group receipt identity mismatch")
+    execution_sha = execution_fingerprint(payload)
+    if execution_sha and receipt.get("execution") != payload["execution"]:
+        raise ValueError("runner group execution policy mismatch")
     members = []
     for index, (row, sample) in enumerate(zip(rows, payload["samples"])):
         if (not isinstance(row, dict) or type(row.get("index")) is not int or row["index"] != index or row.get("sample") != sample
@@ -73,6 +92,8 @@ def collect(payload, downloaded, runner_revision):
                     or metadata.get("request_sha256") != fingerprint
                     or type(metadata.get("group_index")) is not int or metadata["group_index"] != index):
                 raise ValueError("runner group member metadata mismatch")
+            if execution_sha and metadata.get("execution_sha256") != execution_sha:
+                raise ValueError("runner group member execution policy mismatch")
             complete = result.get("complete") is True and metadata.get("complete") is True and metadata.get("exit_code") == 0
             if complete:
                 observed = result.get("sample", {})
@@ -88,5 +109,7 @@ def collect(payload, downloaded, runner_revision):
             raise ValueError("runner group complete member files are missing")
         members.append({"index": index, "sample": sample, "status": status,
                         "files": sorted(str(p) for p in present),
-                        **({"reason": "runner_interrupted_before_member"} if status == "skipped" else {})})
+                        **({"reason": "disk_capacity" if row.get("reason") == "disk_capacity" else
+                            "group_admission_deadline" if receipt.get("deadline_exhausted") is True else
+                            "runner_interrupted_before_member"} if status == "skipped" else {})})
     return {"members": members, "complete": all(m["status"] == "complete" for m in members)}
