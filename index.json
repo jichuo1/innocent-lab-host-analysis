@@ -2,6 +2,46 @@
   "schema": 1,
   "reports": [
     {
+      "report_id": "38716769106-a1",
+      "version_code": 9150300,
+      "version_name": "9.15.0",
+      "apk_sha256": "c07cf0a3b838ecbc926d0a11c377e7fcb45c92b8aba7ee01d32cd2729b6a6110",
+      "status": "AI_ANALYSIS_FAILED",
+      "ai_status": "failed",
+      "complete": false,
+      "path": "samples/9150300/c07cf0a3b838ecbc926d0a11c377e7fcb45c92b8aba7ee01d32cd2729b6a6110/runs/38716769106-a1/report.md",
+      "created_at": "2026-10-15T10:18:27.818055+00:00",
+      "run_url": "https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/38716769106",
+      "release_url": null,
+      "source_snapshot": {
+        "schema": 2,
+        "selection_version": 1,
+        "captured_at": "2026-10-13T13:30:21.513701Z",
+        "repository_head": "340b064226a72d791989551a71163871629c74ee",
+        "working_tree_dirty": true,
+        "source_tree_sha256": "50f36995483e6b98d2ea3443cc7beae188c0e45bead70f749f608bc1fce498a7",
+        "binding": {
+          "schema": 1,
+          "repo": "innocent-lab-dev/bilibili-host-apks",
+          "revision": "3f5c5a379dcbf4033a526f8e95d70522ac03f984",
+          "path": "source-snapshots/c7430a97b36e1bb75d91b40f3b6ca102a96ba4b1e051cc064cf28b75bf822081/context.json",
+          "snapshot_sha256": "c7430a97b36e1bb75d91b40f3b6ca102a96ba4b1e051cc064cf28b75bf822081",
+          "source_tree_sha256": "50f36995483e6b98d2ea3443cc7beae188c0e45bead70f749f608bc1fce498a7",
+          "repository_head": "340b064226a72d791989551a71163871629c74ee",
+          "captured_at": "2026-10-13T13:30:21.513701Z",
+          "verified_at": "2026-10-13T13:30:54.680897+00:00",
+          "origin": "published",
+          "working_tree_dirty": true,
+          "file_count": 669,
+          "selection_version": 1
+        },
+        "freshness": "published_unverified_worktree"
+      },
+      "regenerated_from_run": null,
+      "static_evidence_run": null,
+      "request_id": "47e89d3644b73fff038cf4081522be18"
+    },
+    {
       "report_id": "38307385951-a1",
       "version_code": 9150200,
       "version_name": "9.15.0",
