@@ -207,3 +207,8 @@ fixed与adaptive均采用相同的stdlib资源采样器，默认0.5秒间隔、�
 客户端性能缓存位于 `runtime/hostlab/scheduling-profiles`，最多256条/1 MiB，OS锁下原子合并，只是可丢弃的性能提示。
 重复矩阵键优先恢复原计划，不因新观察记录或main变化而改写拓扑。基准测试可把校准记录复制为该目录的普通 `frozen-*.json`，通过本地环境变量 `HOSTLAB_SCHEDULING_PROFILE` 固定读取；快照路径只允许该专用目录，哈希写入规划，观察器不会覆盖冻结文件。
 多轮对照应固定同一快照和准确样本、请求及工具提交，交错试验顺序，保留失败分母，并分别报告完整交付墙钟、累计作业成本与资源观测。
+
+### 调度状态与运行身份
+
+workflow 派发显式请求 GitHub API `2026-03-10`，可返回运行 ID 时立即保存映射，减少提交后的发现往返；旧服务空响应继续兼容。POST 前先落稳定 request ID，网络异常或无法确认的响应返回 `dispatch_unknown` 与原 ID，不自动重发；后续 `job_status` 可由回执中的 run ID 恢复映射。
+同一 run、同一 attempt 的较旧 API 状态不会把已完成任务改回 pending，也不会继续占用空槽；明确增加的 run_attempt 会重新纳入并发预算。无法确认 attempt 或状态的冲突保守占位并返回 `status_unconfirmed`。全局四槽与串行派发边界保持生效。

@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import time
 import uuid
+from datetime import datetime
 
 import analysis_plan
 import hostlab
@@ -35,10 +36,51 @@ def admission_lock(path):
 
 
 def reconcile(receipt, run):
-    updated = {**receipt, "status": run["status"], "conclusion": run.get("conclusion")}
-    if run.get("id") is not None:
-        updated["run_id"] = run["id"]
+    """Within a proven run attempt, terminal and newer observations are monotonic."""
+    def positive(value):
+        return value if type(value) is int and value > 0 else None
+    def instant(value):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp() if isinstance(value, str) else None
+        except ValueError:
+            return None
+    old_id, new_id = positive(receipt.get("run_id")), positive(run.get("id"))
+    old_attempt, new_attempt = positive(receipt.get("run_attempt")), positive(run.get("run_attempt"))
+    old_at, new_at = instant(receipt.get("run_updated_at")), instant(run.get("updated_at"))
+    same_run = old_id is not None and old_id == new_id
+    higher = same_run and old_attempt is not None and new_attempt is not None and new_attempt > old_attempt
+    if same_run and old_attempt is not None and new_attempt is not None and new_attempt < old_attempt:
+        return {**receipt, "stale_observation_ignored": True}
+    if (same_run and old_attempt is not None and old_attempt == new_attempt
+            and old_at is not None and new_at is not None and new_at < old_at):
+        return {**receipt, "stale_observation_ignored": True}
+    if receipt.get("status") == "completed" and run.get("status") != "completed" and not higher:
+        # A same-attempt final state cannot regress. An unproven newer active
+        # observation may be a rerun not yet numbered; retain an occupied slot.
+        proved_old = same_run and old_attempt is not None and new_attempt == old_attempt and (
+            old_at is not None and new_at is not None and new_at <= old_at)
+        return {**receipt, "stale_observation_ignored": bool(proved_old), "state_uncertain": not proved_old}
+    if old_id is not None and new_id is not None and old_id != new_id:
+        return {**receipt, "state_uncertain": True, "observed_run_id": new_id}
+    updated = {**receipt, "status": run["status"], "conclusion": run.get("conclusion"),
+               "state_uncertain": False, "stale_observation_ignored": False}
+    if new_id is not None:
+        updated["run_id"] = new_id
+    if new_attempt is not None:
+        updated["run_attempt"] = new_attempt
+    if isinstance(run.get("updated_at"), str) and new_at is not None:
+        updated["run_updated_at"] = run["updated_at"]
+    if isinstance(run.get("created_at"), str):
+        updated["run_created_at"] = run["created_at"]
     return updated
+
+
+def active_receipt(receipt):
+    return receipt.get("state_uncertain") is True or receipt.get("status") != "completed"
+
+
+def public_status(receipt):
+    return "status_unconfirmed" if receipt.get("state_uncertain") else receipt.get("status", "dispatch_unknown")
 
 
 def describe(request):
@@ -120,11 +162,11 @@ def _submit(identity, inputs, plan, gh, lookup, runs, *, repository, workflow,
             if run is not None:
                 old = reconcile(old, run)
                 hostlab.write_json(record_path, old)
-            if run is None or run.get("status") != "completed":
+            if run is None or active_receipt(old):
                 return {**old, "reused": True, "dispatched": False,
-                        "status": run.get("status") if run else old["status"]}
-            if idempotency_key or reuse_completed and run.get("conclusion") == "success" and time.time() - old["created_at"] < 86400:
-                return {**old, "reused": True, "dispatched": False, "status": "completed", "conclusion": run.get("conclusion")}
+                        "status": public_status(old)}
+            if idempotency_key or reuse_completed and old.get("conclusion") == "success" and time.time() - old["created_at"] < 86400:
+                return {**old, "reused": True, "dispatched": False, "status": "completed"}
         recent = runs()
         observed = {r.get("display_title", "").removeprefix("hostlab-"):r for r in recent}
         active = {key for key,r in observed.items() if r.get("status") != "completed"}
@@ -134,7 +176,11 @@ def _submit(identity, inputs, plan, gh, lookup, runs, *, repository, workflow,
                 updated = reconcile(receipt, observed[receipt["request_id"]])
                 if updated != receipt:
                     hostlab.write_json(path, updated)
-            elif receipt["status"] in {"dispatch_unknown", "submitted", "queued", "in_progress", "waiting", "pending", "requested"}:
+                if active_receipt(updated):
+                    active.add(receipt["request_id"])
+                else:
+                    active.discard(receipt["request_id"])
+            elif active_receipt(receipt):
                 active.add(receipt["request_id"])
         if len(active) >= 4:
             return {"status": "capacity_full", "dispatched": False, "active_jobs": len(active), "limit": 4}
@@ -142,26 +188,19 @@ def _submit(identity, inputs, plan, gh, lookup, runs, *, repository, workflow,
         record = {"request_id": request_id, "request_sha256": payload_hash, "status": "dispatch_unknown",
                   "created_at": time.time(), "runner_revision": head, "plan": plan,
                   **{k: v for k, v in identity.items() if k not in {"request", "key", "runner_revision"}}}
+        record["queued_at"] = record["created_at"]
         # Write before the network request: a client/network crash must not cause automatic paid replay.
         hostlab.write_json(record_path, record)
         hostlab.write_json(hostlab.STATE / "remote-requests" / (request_id + ".json"), record)
         inputs = {**inputs, "request_id": request_id, "runner_revision": head}
-        try:
-            response = gh(["api", "--method", "POST", f"repos/{repository}/actions/workflows/{workflow}/dispatches", "--input", "-"],
-                          {"ref": "main", "inputs": inputs})
-        except Exception:
-            return {**record, "dispatched": None, "reused": False,
-                    "next_action": "job_status(request_id); dispatch outcome unknown, do not submit again"}
-        if response.strip():
-            try:
-                dispatched = json.loads(response)
-                if dispatched.get("workflow_run_id"):
-                    hostlab.write_json(hostlab.STATE / "remote-job-map" / (request_id + ".json"), {"run_id": dispatched["workflow_run_id"]})
-            except (ValueError, TypeError):
-                return {**record, "dispatched": None, "reused": False, "next_action": "job_status(request_id)"}
-        record["status"] = "submitted"
+        import remote_dispatch
+        dispatched = remote_dispatch.dispatch(repository, workflow, inputs, gh)
+        record.update({key: value for key, value in dispatched.items() if key not in {"dispatched", "next_action"}})
+        record["queued_at"] = record["created_at"]
         hostlab.write_json(record_path, record)
-        return {**record, "dispatched": True, "reused": False, "repository": repository}
+        hostlab.write_json(hostlab.STATE / "remote-requests" / (request_id + ".json"), record)
+        return {**record, "dispatched": dispatched["dispatched"], "reused": False, "repository": repository,
+                **({"next_action": dispatched["next_action"]} if "next_action" in dispatched else {})}
     finally:
         lock.close()
 
@@ -169,15 +208,22 @@ def _submit(identity, inputs, plan, gh, lookup, runs, *, repository, workflow,
 def observe(request_id, run):
     """Update only known receipts after an authenticated status read."""
     directory = hostlab.STATE / "analysis-schedule"
-    if not directory.is_dir():
-        return
+    directory.mkdir(parents=True, exist_ok=True)
     lock = admission_lock(directory / "admission.lock")
     if lock is None:
         return
     try:
+        selected = None
         for path in directory.glob("*.json"):
             receipt = json.loads(path.read_text(encoding="utf-8"))
             if receipt["request_id"] == request_id:
-                hostlab.write_json(path, reconcile(receipt, run))
+                selected = reconcile(receipt, run)
+                hostlab.write_json(path, selected)
+        journal = hostlab.STATE / "remote-requests" / (request_id + ".json")
+        if journal.exists():
+            old = json.loads(journal.read_text(encoding="utf-8"))
+            selected = reconcile({**old, **(selected or {})}, run)
+            hostlab.write_json(journal, selected)
+        return selected
     finally:
         lock.close()

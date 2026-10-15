@@ -162,8 +162,11 @@ class EvidenceSourceTest(unittest.TestCase):
             (root/"priority-report.md").write_text("static")
             with patch.object(snapshot_transport,"load_pinned",side_effect=ValueError("corrupt cache")), \
                  patch.object(ai_review,"call_api") as api:
-                with self.assertRaises(ValueError):ai_review.run(root)
+                with self.assertRaises(RuntimeError):ai_review.run(root)
                 api.assert_not_called()
+            outcome=json.loads((root/"ai-analysis.json").read_text(encoding="utf-8"))
+            self.assertEqual(outcome["status"],"failed")
+            self.assertIn("ValueError",outcome["error"])
 
     def test_mismatched_public_metadata_is_rejected(self):
         ctx,binding=frozen_source();data=summary(ctx,binding)
@@ -180,23 +183,25 @@ class EvidenceSourceTest(unittest.TestCase):
                 ai_review.Evidence(Path("."),data).module_context()
 
     def test_e000_and_saved_ai_outcome_keep_source_identity_without_body(self):
+        import ai_pipeline
         ctx,binding=frozen_source();data=summary(ctx,binding)
         data["page_path_matrix"]={}
         completed={"overview":"静态建议","pages":[],"findings":[],"next_steps":[],
                    "review":{"status":"completed","pages":[],"findings":[],"remaining_gaps":[]}}
         seed_seen=[]
-        def collect(messages,tools,evidence,summary,attempts,profile,request_limit,**kwargs):
-            if not kwargs.get("draft"):
+        def collect(coordinator,stage,unit,messages,tools,evidence,validate,**kwargs):
+            if stage=="draft":
                 seed_seen.append(json.loads(messages[1]["content"])["seed"])
                 evidence.run_tool("module_source",{"path":ctx["source_records"][0]["path"]})
-                return completed,profile
-            return {"pages":[],"findings":[],"remaining_gaps":[]},profile
+                return {key:completed[key] for key in ("overview","pages","findings","next_steps")}
+            return {"pages":[],"findings":[],"remaining_gaps":[]}
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder)
             (root/"priority-summary.json").write_text(json.dumps(data))
             (root/"priority-report.md").write_text("static")
             with patch.object(snapshot_transport,"load_pinned",return_value=ctx), \
-                 patch.object(ai_review,"collect_report",side_effect=collect), \
+                 patch.object(ai_pipeline,"draft_units",return_value=[[]]), \
+                 patch.object(ai_pipeline,"collect",side_effect=collect), \
                  patch.object(ai_review,"assemble_report",return_value=completed):
                 ai_review.run(root)
             outcome=json.loads((root/"ai-analysis.json").read_text())
@@ -243,13 +248,19 @@ class RegenerateSourceTest(unittest.TestCase):
     def run_regenerate(self,folder,data,explicit=None):
         state=Path(folder)
         source=state/"regenerate-input/987/remote-output";source.mkdir(parents=True)
-        for name,value in (("priority-summary.json",data),("priority-target.json",{"sample":data["sample"]}),
-                           ("job.json",{"sample_revision":"b"*40,"apk_sha256":"a"*64})):
+        target={"sample":data["sample"], "rule_sha256":"c"*64, "page_path_matrix":data["page_path_matrix"],
+                "unknown_families":[], "unregistered_protocols":[]}
+        for name,value in (("priority-summary.json",data),("priority-target.json",target),
+                           ("job.json",{"version_code":2,"operation":"multipath_audit","exit_code":0,
+                                        "sample_revision":"b"*40,"apk_sha256":"a"*64})):
             (source/name).write_text(json.dumps(value))
         (source/"priority-report.md").write_text("static\n# AI 适配分析\nold review")
         env={"HOSTLAB_ARGUMENT":"987","HOSTLAB_VERSION":"2","HOSTLAB_MODULE_SOURCE":explicit or ""}
+        run={"id":987,"run_attempt":1,"head_sha":"d"*40,"conclusion":"failure"}
+        downloaded={"root":str(source.parent), "files":[str(p) for p in source.iterdir()],
+                    "artifact":{"id":1,"digest":"sha256:"+"f"*64}, "cache_hit":True}
         with patch.object(hostlab,"STATE",state), patch.object(hostlab,"CONFIG",state/"config.json"), \
-             patch.dict(os.environ,env,clear=True), patch.object(regenerate_report.subprocess,"run"):
+             patch.dict(os.environ,env,clear=True), patch.object(regenerate_report,"verified_artifact",return_value=(run,downloaded)):
             regenerate_report.main()
         return json.loads((state/"remote-output/priority-summary.json").read_text())
 

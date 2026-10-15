@@ -1,0 +1,202 @@
+import io
+import json
+import os
+import subprocess
+import unittest
+import urllib.error
+from unittest.mock import patch
+
+import ai_transport as transport
+
+
+ENV = {"AI_API_KEY_PRIMARY": "transport-test-secret",
+       "AI_PRIMARY_BASE_URL": "https://example.test/v1", "AI_PRIMARY_MODEL": "test-model"}
+
+
+def event(value):
+    return b"data: " + (value if isinstance(value, bytes) else json.dumps(value, ensure_ascii=False).encode()) + b"\n\n"
+
+
+def delta(value, finish=None, **extra):
+    return event(dict(choices=[{"index": 0, "delta": value, "finish_reason": finish}], **extra))
+
+
+class Response(io.BytesIO):
+    def __init__(self, body, content_type="text/event-stream", chunk_size=7):
+        super().__init__(body)
+        self.headers = {"Content-Type": content_type}
+        self.chunk_size = chunk_size
+
+    def read1(self, bound):
+        return self.read(min(bound, self.chunk_size))
+
+
+class TransportTest(unittest.TestCase):
+    def request(self, body, content_type="text/event-stream", **kwargs):
+        response = Response(body, content_type)
+        with patch.dict(os.environ, ENV), patch.object(transport.urllib.request, "build_opener") as build:
+            build.return_value.open.return_value = response
+            result = transport._call_api("primary", [{"role": "user", "content": "代码"}], [],
+                                        session_id="hostlab-test", **kwargs)
+            request = build.return_value.open.call_args.args[0]
+        return result, request
+
+    def test_fragmented_tool_unicode_usage_and_hidden_reasoning(self):
+        raw = b": keepalive\n\n" + delta({"role": "assistant", "reasoning_content": "private reasoning"})
+        raw += delta({"tool_calls": [{"index": 0, "id": "call-1", "type": "function",
+                                     "function": {"name": "finish_report", "arguments": '{"text":"'}}]})
+        raw += delta({"tool_calls": [{"index": 0, "function": {"arguments": "中文"}}]})
+        raw += delta({"tool_calls": [{"index": 0, "function": {"arguments": '"}'}}]}, "tool_calls",
+                     model="actual-model")
+        raw += event({"choices": [], "usage": {"prompt_tokens": 20, "completion_tokens": 9,
+                                               "prompt_tokens_details": {"cached_tokens": 10}}})
+        raw += event(b"[DONE]")
+        (message, usage, model), request = self.request(raw)
+        self.assertEqual(json.loads(message["tool_calls"][0]["function"]["arguments"]), {"text": "中文"})
+        self.assertEqual(model, "actual-model")
+        self.assertEqual(usage["prompt_tokens_details"]["cached_tokens"], 10)
+        self.assertTrue(usage["_transport"]["usage_received"])
+        self.assertFalse(usage["_usage_unknown"])
+        self.assertNotIn("private reasoning", json.dumps(message))
+        self.assertEqual(request.get_header("X-opencode-session"), "hostlab-test")
+        payload = json.loads(request.data)
+        self.assertTrue(payload["stream"])
+        self.assertEqual(payload["max_tokens"], 8192)
+        self.assertEqual(request.get_header("User-agent"), "HostLab-AIReview/2")
+
+    def test_missing_usage_is_unknown_not_zero(self):
+        (message, usage, _), _ = self.request(delta({"content": "complete"}, "stop") + event(b"[DONE]"))
+        self.assertEqual(message["content"], "complete")
+        self.assertTrue(usage["_usage_unknown"])
+        self.assertNotIn("total_tokens", usage)
+
+    def test_zero_placeholder_usage_remains_unknown(self):
+        raw = delta({"content": "ok"}, "stop", usage={"total_tokens": 0, "prompt_tokens_details": {"cached_tokens": 0}}) + event(b"[DONE]")
+        (_, usage, _), _ = self.request(raw)
+        self.assertTrue(usage["_usage_unknown"])
+        self.assertFalse(usage["_transport"]["usage_received"])
+
+    def test_unknown_finish_reason_cannot_enter_error_receipts(self):
+        with self.assertRaises(transport.ApiError) as caught:
+            self.request(delta({"content": "ok"}, "transport-test-secret") + event(b"[DONE]"))
+        self.assertNotIn("secret", str(caught.exception))
+
+    def test_worker_wall_deadline_terminates_and_reaps_once(self):
+        with patch.object(transport.subprocess, "Popen") as popen:
+            worker = popen.return_value
+            worker.communicate.side_effect = [subprocess.TimeoutExpired("worker", 1), (b"", None)]
+            with self.assertRaises(transport.ApiError) as caught:
+                transport.call_api("primary", [], [], total_timeout=1, idle_timeout=1)
+        worker.kill.assert_called_once()
+        self.assertEqual(worker.communicate.call_count, 2)
+        self.assertTrue(caught.exception.billing_unknown)
+        self.assertTrue(caught.exception.metrics["worker_terminated"])
+        self.assertEqual(popen.call_count, 1)
+
+    def test_worker_complete_response_no_replay(self):
+        value = {"result": [{"role": "assistant", "content": "ok"}, {"_transport": {}}, "model"]}
+        with patch.object(transport.subprocess, "Popen") as popen:
+            popen.return_value.returncode = 0
+            popen.return_value.communicate.return_value = (json.dumps(value).encode(), None)
+            message, usage, model = transport.call_api("primary", [], [])
+        self.assertEqual(message["content"], "ok")
+        self.assertEqual(model, "model")
+        self.assertIn("wall_ms", usage["_transport"])
+        popen.return_value.kill.assert_not_called()
+
+    def test_worker_start_failure_is_known_without_post(self):
+        with patch.object(transport.subprocess, "Popen", side_effect=OSError("private path")):
+            with self.assertRaises(transport.ApiError) as caught:
+                transport.call_api("primary", [], [])
+        self.assertFalse(caught.exception.billing_unknown)
+        self.assertEqual(caught.exception.kind, "configuration")
+
+    def test_retry_after_http_date_is_bounded(self):
+        with patch.object(transport.time, "time", return_value=0):
+            self.assertEqual(transport._retry_after({"Retry-After": "Thu, 01 Jan 1970 00:00:10 GMT"}), 10)
+        self.assertIsNone(transport._retry_after({"Retry-After": "untrusted text"}))
+
+    def test_real_worker_config_failure_is_known_before_post(self):
+        with patch.dict(os.environ, dict(ENV, AI_PRIMARY_BASE_URL="http://invalid")):
+            with self.assertRaises(transport.ApiError) as caught:
+                transport.call_api("primary", [], [], total_timeout=5, idle_timeout=1)
+        self.assertFalse(caught.exception.billing_unknown)
+        self.assertEqual(caught.exception.kind, "configuration")
+
+    def test_json_gateway_fallback_is_validated(self):
+        raw = json.dumps({"choices": [{"message": {"content": "ok", "reasoning": "hidden"},
+                                       "finish_reason": "stop"}], "usage": {"total_tokens": 3}}).encode()
+        (message, usage, _), _ = self.request(raw, "application/json")
+        self.assertEqual(message, {"role": "assistant", "content": "ok"})
+        self.assertEqual(usage["total_tokens"], 3)
+        self.assertFalse(usage["_transport"]["streaming"])
+
+    def test_stream_requires_finish_and_done(self):
+        for raw, kind in ((delta({"content": "partial"}), "interrupted"),
+                          (delta({"content": "partial"}, "length") + event(b"[DONE]"), "incomplete"),
+                          (delta({"content": "partial"}) + event(b"[DONE]"), "incomplete")):
+            with self.subTest(kind=kind), self.assertRaises(transport.ApiError) as caught:
+                self.request(raw)
+            self.assertEqual(caught.exception.kind, kind)
+            self.assertTrue(caught.exception.billing_unknown)
+
+    def test_stream_rejects_malformed_duplicate_or_oversized_tools(self):
+        for value in ({"tool_calls": [{"index": 16}]}, {"tool_calls": "invalid"},
+                      {"content": 42}, {"tool_calls": [{"index": 0, "id": "x", "function": {"name": "f", "arguments": 42}}]}):
+            with self.subTest(value=value), self.assertRaises(transport.ApiError):
+                self.request(delta(value, "tool_calls") + event(b"[DONE]"))
+        with patch.object(transport, "MAX_EVENT_BYTES", 20), self.assertRaises(transport.ApiError):
+            self.request(b"data: " + b"x" * 30 + b"\n\n")
+
+    def test_response_bound(self):
+        with patch.object(transport, "MAX_RESPONSE_BYTES", 20), self.assertRaises(transport.ApiError) as caught:
+            self.request(delta({"content": "too long"}, "stop") + event(b"[DONE]"))
+        self.assertEqual(str(caught.exception), "API response exceeds bound")
+
+    def test_absolute_deadline_even_with_heartbeats(self):
+        ticks = iter([0, 0, 0, 0, 2, 2, 2, 2, 2])
+        with patch.object(transport.time, "monotonic", side_effect=lambda: next(ticks, 2)):
+            with self.assertRaises(transport.ApiError) as caught:
+                self.request(b": keepalive\n\n" * 10, total_timeout=1, idle_timeout=1)
+        self.assertEqual(caught.exception.kind, "timeout")
+
+    def test_bad_config_never_posts(self):
+        for base in ("http://example.test", "https://user:secret@example.test", "https://example.test/?key=x", "https:///missing"):
+            with patch.dict(os.environ, dict(ENV, AI_PRIMARY_BASE_URL=base)), patch.object(transport.urllib.request, "build_opener") as build:
+                with self.assertRaises(transport.ApiError) as caught:
+                    transport._call_api("primary", [], [])
+                self.assertFalse(caught.exception.billing_unknown)
+                build.assert_not_called()
+
+    def test_http_error_retry_after_and_no_secret_body(self):
+        error = urllib.error.HTTPError("https://example.test", 429, "transport-test-secret", {"Retry-After": "999"}, io.BytesIO(b"secret body"))
+        with patch.dict(os.environ, ENV), patch.object(transport.urllib.request, "build_opener") as build:
+            build.return_value.open.side_effect = error
+            with self.assertRaises(transport.ApiError) as caught:
+                transport._call_api("primary", [], [])
+        self.assertEqual(str(caught.exception), "API HTTP 429")
+        self.assertTrue(caught.exception.retryable)
+        self.assertTrue(caught.exception.billing_unknown)
+        self.assertEqual(caught.exception.retry_after, 60)
+        self.assertNotIn("secret", json.dumps(caught.exception.__dict__))
+        self.assertEqual(build.return_value.open.call_count, 1)
+
+    def test_timeout_never_retries_or_leaks_transport_error(self):
+        with patch.dict(os.environ, ENV), patch.object(transport.urllib.request, "build_opener") as build:
+            build.return_value.open.side_effect = TimeoutError("transport-test-secret")
+            with self.assertRaises(transport.ApiError) as caught:
+                transport._call_api("primary", [], [])
+        self.assertEqual(caught.exception.kind, "timeout")
+        self.assertEqual(str(caught.exception), "API timeout")
+        self.assertEqual(build.return_value.open.call_count, 1)
+
+    def test_redirect_denied(self):
+        self.assertIsNone(transport.NoRedirect().redirect_request(None, None, None, None, None, None))
+
+    def test_completed_secret_text_redacted(self):
+        (message, _, _), _ = self.request(delta({"content": "transport-test-secret"}, "stop") + event(b"[DONE]"))
+        self.assertEqual(message["content"], "[REDACTED]")
+
+
+if __name__ == "__main__":
+    unittest.main()

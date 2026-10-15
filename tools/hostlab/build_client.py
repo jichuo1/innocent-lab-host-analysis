@@ -17,6 +17,7 @@ files += [here / "version_matrix.py", here / "test_version_matrix.py"]
 files += [here / name for name in ("runner_group.py", "runner_worker.py", "test_runner_group.py", "test_runner_worker.py", "test_group_matrix.py")]
 files += [here / name for name in ("adaptive_schedule.py", "runner_resources.py", "test_adaptive_schedule.py", "test_runner_resources.py")]
 files += [here / "remote_artifacts.py", here / "test_remote_artifacts.py"]
+files += [here / "remote_dispatch.py", here / "test_remote_dispatch.py"]
 files += [here / "prepare_runtime.py", here / "test_prepare_runtime.py", here / "test_sample_fetch.py"]
 files += [here / "examples/comment-search-links.json"]
 files += [here / "requirements-remote.txt", here / "setup-remote.cmd", here / "REMOTE_README.md"]
@@ -24,6 +25,9 @@ files += [here / "surface_workers.py", here / "priority_analysis.py", here / "so
           here / "snapshot_context.py", here / "snapshot_transport.py",
           here / "bootstrap-samples.json", here / "auto_intake.py", here / "auto-intake.yml"]
 files += [here / "ai_review.py", here / "ai_prompts.py", here / "publish_report.py", here / "regenerate_report.py"]
+files += [here / name for name in ("ai_transport.py", "ai_checkpoint.py", "ai_pipeline.py",
+                                   "test_ai_transport.py", "test_ai_checkpoint.py", "test_ai_pipeline.py",
+                                   "test_ai_review.py", "test_source_runner.py", "test_regenerate_checkpoint.py")]
 files += sorted(p for p in (here / "analysis").iterdir() if p.suffix in {".py", ".java", ".md"})
 files += [here / "vendor/jadx-1.5.6-all.jar", here / "vendor/JADX-LICENSE"]
 files += [here / "dexq/server.py", here / "dexq/dexq_workers.py"]
@@ -39,7 +43,7 @@ print(str(output))
 print(f"Files: {len(files) + 1}; bytes: {output.stat().st_size}")
 remote = output.with_name("hostlab-remote-client.zip")
 with zipfile.ZipFile(remote, "w", zipfile.ZIP_DEFLATED) as archive:
-    for name in ("hostlab.py", "remote_mcp.py", "analysis_plan.py", "remote_schedule.py", "version_matrix.py", "runner_group.py", "adaptive_schedule.py", "remote_artifacts.py", "DEXSQL.md", "source_snapshot.py", "snapshot_transport.py",
+    for name in ("hostlab.py", "remote_mcp.py", "analysis_plan.py", "remote_schedule.py", "remote_dispatch.py", "version_matrix.py", "runner_group.py", "adaptive_schedule.py", "remote_artifacts.py", "DEXSQL.md", "source_snapshot.py", "snapshot_transport.py",
                  "requirements-remote.txt", "setup-remote.cmd", "REMOTE_README.md"):
         archive.write(here / name, "tools/hostlab/" + name)
     archive.write(here / "examples/comment-search-links.json", "tools/hostlab/examples/comment-search-links.json")

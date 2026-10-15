@@ -80,7 +80,7 @@ class DetailedReviewTest(unittest.TestCase):
                 response("protocol_evidence",{"protocol":"comment_java_moss","side":"target"}),
                 response("finish_report",report(ids,("comment","dynamic"),deep="E003")),
                 response("finish_review",review_record(fresh,("comment","dynamic")))])
-            def api(profile,messages,tools,force_tool=None,session_id=None):
+            def api(profile,messages,tools,force_tool=None,session_id=None,**options):
                 seen.append(copy.deepcopy(messages))
                 return next(replies)
             with patch.object(ai_review,"call_api",side_effect=api):
@@ -144,7 +144,7 @@ class DetailedReviewTest(unittest.TestCase):
                 RuntimeError("API HTTP 502"),
                 response("finish_review",bad),
                 response("finish_review",review_record(fresh,("comment","dynamic")))]
-            def api(profile,messages,tools,force_tool=None,session_id=None):
+            def api(profile,messages,tools,force_tool=None,session_id=None,**options):
                 if replies:
                     item=replies.pop(0)
                     if isinstance(item,Exception):raise item
@@ -168,19 +168,10 @@ class DetailedReviewTest(unittest.TestCase):
             self.assertEqual(outcome["limits"]["hard_cap"],ai_review.HARD_REQUEST_CAP)
 
     def test_session_header_is_sent_for_gateway_compatibility(self):
-        captured={}
-        class FakeResponse:
-            def read(self,n):return json.dumps({"choices":[{"message":{"content":"ok"}}],"usage":{}}).encode()
-            def __enter__(self):return self
-            def __exit__(self,*args):return False
-        class FakeOpener:
-            def open(self,request,timeout=None):
-                captured["headers"]=dict(request.headers)
-                return FakeResponse()
-        with patch.dict("os.environ",{"AI_API_KEY_PRIMARY":"k","AI_PRIMARY_BASE_URL":"https://example.com/v1","AI_PRIMARY_MODEL":"m"}), \
-             patch.object(ai_review.urllib.request,"build_opener",return_value=FakeOpener()):
-            ai_review.call_api("primary",[],[],session_id="sess-123")
-        self.assertEqual(captured["headers"].get("X-opencode-session"),"sess-123")
+        import ai_transport
+        with patch.object(ai_transport, "call_api", return_value=({"role":"assistant","content":None},{},"m")) as api:
+            ai_review.call_api("primary", [], [], session_id="sess-123", max_output=8192)
+        api.assert_called_once_with("primary", [], [], None, "sess-123", max_output=8192)
 
     def test_review_journal_is_bounded_but_keeps_locator_fields(self):
         journal=[{"id":"E001","tool":"page_evidence","args":{"page":"comment"},"result":{"blob":"x"*9000}},
@@ -268,7 +259,7 @@ class DetailedReviewTest(unittest.TestCase):
 
     def test_empty_completion_gets_targeted_instruction(self):
         seen=[]
-        def api(profile,messages,tools,force_tool=None,session_id=None):
+        def api(profile,messages,tools,force_tool=None,session_id=None,**options):
             seen.append(copy.deepcopy(messages))
             if len(seen)==1:
                 return ({"role":"assistant","content":None},{"completion_tokens":ai_review.MAX_OUTPUT},"m")
@@ -284,8 +275,7 @@ class DetailedReviewTest(unittest.TestCase):
     def test_deadline_breaks_loop_and_records_failed(self):
         with tempfile.TemporaryDirectory() as folder, patch.dict("os.environ",{"AI_DEFAULT_PROFILE":"backup"}):
             root=self.root(folder)
-            times=iter([10**9,10**9+ai_review.AI_DEADLINE_SECONDS+1])
-            with patch.object(ai_review.time,"monotonic",side_effect=lambda:next(times)), \
+            with patch.object(ai_review,"AI_DEADLINE_SECONDS",0), \
                  patch.object(ai_review,"call_api") as api, patch.object(ai_review.time,"sleep"):
                 with self.assertRaises(RuntimeError):ai_review.run(root)
             api.assert_not_called()

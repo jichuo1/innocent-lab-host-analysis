@@ -37,6 +37,7 @@ APK 的 `source_revision` 仍指 APK 数据集，不是模块源码 revision。
 来源元数据与文件哈希，缺失、损坏或未校验的快照不会回退到旧 `production-context.json`。
 普通 `query/info/decode/string_refs` 不捕获或上传源码。远程客户端使用 published 模式不需要 HF 凭据；
 本地 worktree 模式使用已登录的完整工具环境（既有 `huggingface_hub`），上传前执行明确的令牌/私钥门禁。
+相同源码 HEAD、选择规则、完整文件树和工作树状态可复用已验真的不可变源码快照；保留原捕获时间，每次仍重新捕获、执行秘密门禁、核 payload SHA 并再次核对源码。受限本地索引仅含元数据，OS 锁将同工作区并发准备合为一次，等待最多 120 秒；失配/损坏恢复到正常发布，锁忙不会绕过保护重复上传。
 
 可通过 `source_mode="worktree"` 要求存在本地源码，通过 `source_mode="published"` 指定最近发布的来源；
 默认 `auto` 自动选择。`regenerate_ai` 默认重用原报告历史源码，显式 source_mode 才使用新源码审查，
@@ -51,7 +52,9 @@ APK 的 `source_revision` 仍指 APK 数据集，不是模块源码 revision。
 operation: info / query / decode / string_refs / decompile / audit / multipath_audit / regenerate_ai。
 新 APK 自动报告与 multipath_audit 包含有界 AI 分析；AI 建议不能替代真机验收。
 全部登记页面证据由服务端预取（零 API 成本）；AI 先出详细逐路径草稿，再在同一模型的独立上下文中复核重点页面和全部草稿发现；评论与动态由服务端重新读取、复核记录引用其编号。
-两阶段最多 6 + 8 次 API 请求（连接中断类失败另可重试至多 2 次，硬上限 16）、模型只读 6 次，每次最多 65536 输出 token，AI 步骤内部限时 30 分钟。复核未完成不发布成功 Release。
+草稿按最多两个页面分片、最多六个单元，再用独立上下文逐片复核重点页面与全部发现。全流程最多 16 次 API 请求（含探索、修正、失败和最多两次传输补偿），跨恢复任务累计；每次最多 8192 输出 token、240 秒墙钟时限、45 秒读空闲时限，AI 累计限时 30 分钟。逐页面/路径校验与评论、动态新读取证据要求保持生效，复核未完成不发布成功 Release。
+`regenerate_ai` 支持旧数字 run ID，也支持 JSON `{"static_run":原始静态runID,"checkpoint_run":检查点runID,"resume_unknown":false}`。恢复保留目标、基线、规则、矩阵和原 run 身份；仅重新绑定明确指定的源码快照并执行 AI。它不准备 Java/JADX、不下载或扫描 APK，模型不提供 decompile_class。检查点中的成功响应复用，静态/源码/提示/工具/提供商配置漂移则拒绝复用；请求结果不明时默认禁止重放，显式授权仍保留未知计费和已用预算。
+每次请求先持久化账本，连续两次提供商失败熔断 60 秒。公开检查点只保存请求哈希、调用状态、用量和结构化结果，不包含源码正文或请求消息。未知用量不计作零。
 reports 分支保存可浏览结论，私有 Release 只保存完整成功分析的证据；失败只保留报告记录。MCP 取结果优先访问长期报告。
 不需要 HF Token、APK、JDK、JADX 或 Android SDK。只会下载报告和有界分析结果。
 计算在 GitHub Actions Runner；分析 job 最多 45 分钟，发布 job 最多 15 分钟。Actions 附件保留 14 天，仓库报告和 Release 不按这个期限清理。
