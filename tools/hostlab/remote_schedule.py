@@ -34,6 +34,13 @@ def admission_lock(path):
     return stream
 
 
+def reconcile(receipt, run):
+    updated = {**receipt, "status": run["status"], "conclusion": run.get("conclusion")}
+    if run.get("id") is not None:
+        updated["run_id"] = run["id"]
+    return updated
+
+
 def describe(request):
     request = analysis_plan.validate(request)
     result = analysis_plan.plan(request)
@@ -75,6 +82,9 @@ def submit(version_code, request, gh, lookup, runs, *, repository, workflow,
             if old["request_sha256"] != payload_hash:
                 raise ValueError("idempotency key is already bound to a different immutable request")
             run = lookup(old["request_id"])
+            if run is not None:
+                old = reconcile(old, run)
+                hostlab.write_json(record_path, old)
             if run is None or run.get("status") != "completed":
                 return {**old, "reused": True, "dispatched": False,
                         "status": run.get("status") if run else old["status"]}
@@ -86,7 +96,11 @@ def submit(version_code, request, gh, lookup, runs, *, repository, workflow,
         active = {key for key,r in observed.items() if r.get("status") != "completed"}
         for path in directory.glob("*.json"):
             receipt = json.loads(path.read_text(encoding="utf-8"))
-            if receipt["request_id"] not in observed and receipt["status"] in {"dispatch_unknown", "submitted"}:
+            if receipt["request_id"] in observed:
+                updated = reconcile(receipt, observed[receipt["request_id"]])
+                if updated != receipt:
+                    hostlab.write_json(path, updated)
+            elif receipt["status"] in {"dispatch_unknown", "submitted", "queued", "in_progress", "waiting", "pending", "requested"}:
                 active.add(receipt["request_id"])
         if len(active) >= 4:
             return {"status": "capacity_full", "dispatched": False, "active_jobs": len(active), "limit": 4}
@@ -134,7 +148,6 @@ def observe(request_id, run):
         for path in directory.glob("*.json"):
             receipt = json.loads(path.read_text(encoding="utf-8"))
             if receipt["request_id"] == request_id:
-                receipt.update(status=run["status"], conclusion=run.get("conclusion"), run_id=run["id"])
-                hostlab.write_json(path, receipt)
+                hostlab.write_json(path, reconcile(receipt, run))
     finally:
         lock.close()
