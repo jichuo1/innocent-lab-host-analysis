@@ -83,6 +83,8 @@ def build_binding(root, summary, units):
         "prompt_version": ai_prompts.PROMPT_VERSION, "code": code, "provider_config_sha256": config,
         "draft_units": units, "no_apk_access": summary.get("ai_no_apk_access") is True,
         "policy": {"max_requests": 16, "transport_retries": 2, "deadline_seconds": 1800,
+            "initial_profile": "backup" if os.environ.get("AI_DEFAULT_PROFILE", "primary").lower() == "backup" else "primary",
+            "allow_fallback": os.environ.get("AI_ALLOW_FALLBACK", "true").lower() == "true",
             "max_output": MAX_OUTPUT, "total_timeout": 240, "idle_timeout": 45, "stream": True}}
 
 
@@ -264,7 +266,11 @@ class Coordinator:
                     usage = public_usage(usage)
                     self.checkpoint.received(token, request_hash, clean, usage, model)
                     return clean
-            if not info.retryable:
+            fallback = self.profile == "primary" and os.environ.get("AI_ALLOW_FALLBACK", "true").lower() == "true"
+            # A rejected credential must never be retried on the same profile.
+            # The separately configured backup may still serve this request.
+            auth_fallback = fallback and info.http_status in {401, 403}
+            if not info.retryable and not auth_fallback:
                 raise RuntimeError("AI provider rejected the request")
             if self.checkpoint.value["transport_retries"] >= ai_checkpoint.MAX_TRANSPORT_RETRIES:
                 raise RuntimeError("AI transport compensation budget exhausted")
@@ -275,9 +281,11 @@ class Coordinator:
             if self.deadline-time.monotonic() <= delay:
                 raise RuntimeError("AI deadline leaves no room for bounded retry backoff")
             self.checkpoint.value["attempts"][-1]["retry_delay_seconds"] = delay
+            if auth_fallback:
+                self.checkpoint.value["attempts"][-1]["credential_fallback"] = "primary_to_backup"
             self.checkpoint.reserve_wait(delay)
             time.sleep(delay)
-            if self.profile == "primary" and os.environ.get("AI_ALLOW_FALLBACK", "true").lower() == "true":
+            if fallback:
                 self.profile = "backup"
             transport_retry = True
 
