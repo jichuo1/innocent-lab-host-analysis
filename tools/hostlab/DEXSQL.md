@@ -128,6 +128,11 @@ Map getter/URL schema getter 候选、调用/字段/类型消费者、Smali、Ma
 每个调用返回独立的比较快照；局部下载失败保留成功附件，`all_analysis_complete=false` 和 `collection_errors` 明确报告，重试同一页只恢复缺失/损坏内容。
 基准附件收集失败时不临时换另一个版本当基准。原 `job_result` 的 Unicode 分页与长期报告优先规则保持兼容。
 
+较大矩阵可在补满分析槽后调用 `version_matrix_result(..., prefetch_only=true)`，按 offset/next_offset 分页预取已完成条目的附件。
+它只下载和校验，不提交作业、不等待未完成条目、不输出候选比较；调用方可与后续 advance 重叠执行，最多保留一个预取调用即可。
+记录已预取 sample_id，只有新的完成条目或需要恢复失败时再预取对应页，避免高频轮询。
+最终仍需所有版本结束后用默认 prefetch_only=false 收齐每页和完整性结论，不能把预取成功当成矩阵完成。
+
 开发验收：
 
 ```powershell

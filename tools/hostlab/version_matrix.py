@@ -256,6 +256,50 @@ def compare(matrix_id, job_result, offset=0, limit=8, *, download_parallel=4, co
         COLLECTION_SLOTS.release()
 
 
+def collect_entries(sequence, job_result, collect, download_parallel):
+    def fetch(entry):
+        if entry["status"] != "complete":
+            return None, None
+        try:
+            value = collect(entry) if collect else job_result(entry["request_id"])
+            return json.loads(value), None
+        except Exception as exc:
+            import remote_artifacts
+            return None, str(exc) if isinstance(exc, remote_artifacts.ArtifactError) else type(exc).__name__
+    with ThreadPoolExecutor(max_workers=download_parallel, thread_name_prefix="hostlab-collect") as pool:
+        return list(pool.map(fetch, sequence))
+
+
+def prefetch(matrix_id, collect, offset=0, limit=8, *, download_parallel=4):
+    """Collect completed page entries while later versions run; never dispatch or compare."""
+    analysis_plan.integer(offset,0,MAX_SAMPLES,"offset")
+    analysis_plan.integer(limit,1,8,"limit")
+    analysis_plan.integer(download_parallel,1,4,"download_parallel")
+    if not COLLECTION_SLOTS.acquire(timeout=60):
+        raise ValueError("collection_busy_retry_same_matrix")
+    try:
+        matrix=load(matrix_id)
+        selected=matrix["entries"][offset:offset+limit]
+        fetched=collect_entries(selected,None,collect,download_parallel)
+        rows=[];errors=[]
+        for entry,(value,error) in zip(selected,fetched):
+            row={"sample_id":entry["sample_id"],"version_code":entry["sample"]["version_code"],"status":entry["status"],
+                 "collection_status":"pending" if entry["status"] not in TERMINAL else "skipped"}
+            if error:
+                row.update(collection_status="error",collection_error=error)
+                errors.append({"sample_id":entry["sample_id"],"error":error})
+            elif value is not None:
+                row.update(collection_status="complete",collection={key:value[key] for key in (
+                    "cache_hit","artifact","integrity","elapsed_ms","run_attempt") if key in value})
+            rows.append(row)
+        return {"matrix_id":matrix_id,"prefetch_only":True,"offset":offset,
+            "next_offset":offset+limit if offset+limit<len(matrix["entries"]) else None,
+            "matrix_finished":summary(matrix)["finished"],"entries":rows,"collection_errors":errors,
+            "scope":"verified_artifact_prefetch_only_no_candidate_comparison_or_dispatch"}
+    finally:
+        COLLECTION_SLOTS.release()
+
+
 def _compare(matrix_id, job_result, offset=0, limit=8, *, download_parallel=4, collect=None):
     """Download only completed bounded results and compare descriptors, not DEX positions."""
     matrix = load(matrix_id)
@@ -271,18 +315,7 @@ def _compare(matrix_id, job_result, offset=0, limit=8, *, download_parallel=4, c
     selected=matrix["entries"][offset:offset+limit]
     baseline_entry=next((e for e in matrix["entries"] if e["status"]=="complete"),None)
     sequence=([baseline_entry] if baseline_entry and baseline_entry not in selected else [])+selected
-    def fetch(entry):
-        if entry["status"] != "complete":
-            return None, None
-        try:
-            value = collect(entry) if collect else job_result(entry["request_id"])
-            return json.loads(value), None
-        except Exception as exc:
-            # Preserve successfully downloaded siblings for retry; never expose exception bodies.
-            import remote_artifacts
-            return None, str(exc) if isinstance(exc, remote_artifacts.ArtifactError) else type(exc).__name__
-    with ThreadPoolExecutor(max_workers=download_parallel, thread_name_prefix="hostlab-collect") as pool:
-        downloads = list(pool.map(fetch, sequence))
+    downloads = collect_entries(sequence,job_result,collect,download_parallel)
     collection_errors = []
     for entry, (downloaded, error) in zip(sequence, downloads):
         row = {"sample_id":entry["sample_id"], "sample":entry["sample"], "request_id":entry["request_id"],

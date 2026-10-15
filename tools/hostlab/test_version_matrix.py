@@ -250,5 +250,35 @@ class MatrixTest(unittest.TestCase):
         self.assertEqual([v["sample_id"] for v in report["versions"]],["s8","s9"])
         self.assertEqual(report["versions"][1]["tasks"]["feature"]["vs_first_version"]["added"],{})
 
+    def test_40_versions_drain_without_overfill_or_duplicate_dispatch(self):
+        created=self.create(count=40,max_parallel=4)
+        peak=0
+        while True:
+            state=self.advance(created["matrix_id"])
+            peak=max(peak,sum(j["status"]!="completed" for j in self.jobs.values()))
+            if state["finished"]: break
+            self.complete()
+        self.assertEqual(len(self.keys),40)
+        self.assertEqual(len(self.calls),40)
+        self.assertLessEqual(peak,4)
+        self.assertTrue(state["complete"])
+
+    def test_prefetch_only_collects_completed_entries_without_dispatch_or_rebinding_baseline(self):
+        created=self.create(count=10,max_parallel=2)
+        self.advance(created["matrix_id"]);self.complete();self.advance(created["matrix_id"])
+        calls_before=len(self.calls)
+        before=matrix.path(created["matrix_id"]).read_bytes()
+        seen=[]
+        def collect(entry): seen.append(entry["sample_id"]);return json.dumps({"cache_hit":False,"files":[]})
+        result=matrix.prefetch(created["matrix_id"],collect,offset=0,limit=8)
+        self.assertEqual(set(seen),{"s0","s1"})
+        self.assertEqual(len(self.calls),calls_before)
+        self.assertEqual(matrix.path(created["matrix_id"]).read_bytes(),before)
+        self.assertFalse(result["matrix_finished"])
+        self.assertEqual(result["next_offset"],8)
+        self.assertNotIn("baseline_sample",result)
+        self.assertNotIn("tasks",result["entries"][0])
+        with self.assertRaises(ValueError): matrix.compare(created["matrix_id"],None,collect=collect)
+
 
 if __name__=="__main__": unittest.main()
