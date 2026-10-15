@@ -328,7 +328,7 @@ class Coordinator:
             # The separately configured backup may still serve this request.
             auth_fallback = fallback and info.http_status in {401, 403}
             if not info.retryable and not auth_fallback:
-                raise RuntimeError("AI provider rejected the request")
+                raise RuntimeError("AI request stopped: "+review.redact(str(info.kind)+": "+str(info.reason)[:160]))
             if self.checkpoint.value["transport_retries"] >= self.limits["transport_retries"]:
                 raise RuntimeError("AI transport compensation budget exhausted")
             base = min(8, 2**self.checkpoint.value["transport_retries"])

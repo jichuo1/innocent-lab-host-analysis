@@ -14,6 +14,8 @@ import urllib.parse
 import urllib.request
 
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+MAX_STREAM_BYTES = 8 * 1024 * 1024
+MAX_STREAM_EVENTS = 65536
 MAX_EVENT_BYTES = 256 * 1024
 MAX_TOOL_CALLS = 16
 
@@ -116,7 +118,7 @@ def _retry_after(headers):
 def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
              max_output=8192, total_timeout=240, idle_timeout=45, stream=True):
     started = time.monotonic()
-    metrics = {"streaming": bool(stream), "response_bytes": 0, "events": 0,
+    metrics = {"streaming": bool(stream), "response_bytes": 0, "events": 0, "assembled_bytes": 0,
                "headers_ms": None, "first_event_ms": None, "first_visible_delta_ms": None}
 
     def elapsed():
@@ -156,7 +158,10 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
     request = urllib.request.Request(base + "/chat/completions", data=body, headers=headers)
     deadline = started + total_timeout
     usage = {}
-    raw_bound = min(8 * 1024 * 1024, MAX_RESPONSE_BYTES * max(1, (max_output+8191)//8192))
+    # SSE repeats envelope metadata for each fragment. Bound its wire overhead
+    # separately from decoded content and the existing worker stdout limit.
+    stream_bound = min(32 * 1024 * 1024, MAX_STREAM_BYTES * max(1, (max_output+8191)//8192))
+    json_bound = min(8 * 1024 * 1024, MAX_RESPONSE_BYTES * max(1, (max_output+8191)//8192))
     response_model = model
     finish_reason = None
     try:
@@ -172,6 +177,11 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
             calls = {}
             done = False
 
+            def account_text(value):
+                metrics["assembled_bytes"] += len(value.encode("utf-8"))
+                if metrics["assembled_bytes"] > MAX_RESPONSE_BYTES:
+                    fail("API assembled response exceeds bound")
+
             def handle_event():
                 nonlocal usage, response_model, finish_reason, done
                 if not event:
@@ -184,6 +194,8 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
                 if not isinstance(data, dict) or data.get("error"):
                     fail("API stream error", "provider", True)
                 metrics["events"] += 1
+                if metrics["events"] > MAX_STREAM_EVENTS:
+                    fail("API stream event count exceeds bound")
                 if metrics["first_event_ms"] is None:
                     metrics["first_event_ms"] = elapsed()
                 if isinstance(data.get("model"), str) and 0 < len(data["model"]) <= 256:
@@ -206,7 +218,9 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
                 if delta.get("content") is not None:
                     if not isinstance(delta["content"], str):
                         fail("API content delta malformed")
-                    content.append(delta["content"])
+                    account_text(delta["content"])
+                    if delta["content"]:
+                        content.append(delta["content"])
                 fragments = delta.get("tool_calls", [])
                 if not isinstance(fragments, list) or len(fragments) > MAX_TOOL_CALLS:
                     fail("API tool delta malformed")
@@ -228,6 +242,7 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
                         if value is not None:
                             if not isinstance(value, str):
                                 fail("API tool fragment must be text")
+                            account_text(value)
                             owner[field] += value
                             if len(owner[field]) > MAX_EVENT_BYTES:
                                 fail("API tool fragment exceeds bound")
@@ -243,7 +258,7 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
                 if not chunk:
                     break
                 metrics["response_bytes"] += len(chunk)
-                if metrics["response_bytes"] > raw_bound:
+                if metrics["response_bytes"] > (stream_bound if is_sse else json_bound):
                     fail("API response exceeds bound")
                 if not is_sse:
                     raw_json.extend(chunk)
@@ -292,6 +307,11 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
                 if isinstance(data.get("model"), str) and 0 < len(data["model"]) <= 256:
                     response_model = _redact(data["model"])
             clean = _clean_message(message)
+            if not is_sse:
+                account_text(clean.get("content") or "")
+                for call in clean.get("tool_calls", []):
+                    for value in (call["id"], call["function"]["name"], call["function"]["arguments"]):
+                        account_text(value)
             offered = {item.get("function", {}).get("name") for item in tools if isinstance(item, dict)}
             if offered and any(call["function"]["name"] not in offered for call in clean.get("tool_calls", [])):
                 fail("API returned an unavailable tool")

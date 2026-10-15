@@ -111,11 +111,59 @@ class TransportTest(unittest.TestCase):
 
     def test_extended_output_scales_raw_stream_limit_but_remains_bounded(self):
         raw = b": " + b" "*90 + b"\n\n" + delta({"content": "ok"}, "stop") + event(b"[DONE]")
-        with patch.object(transport, "MAX_RESPONSE_BYTES", 180):
+        with patch.object(transport, "MAX_STREAM_BYTES", 180):
             with self.assertRaises(transport.ApiError):
                 self.request(raw)
             (message, _, _), _ = self.request(raw, max_output=16384)
         self.assertEqual(message["content"], "ok")
+
+    def test_sse_envelope_overhead_does_not_count_as_assembled_content(self):
+        raw = delta({"content": "中"}, "stop", metadata="x"*1200) + event(b"[DONE]")
+        with patch.object(transport, "MAX_RESPONSE_BYTES", 100), patch.object(transport, "MAX_STREAM_BYTES", 4096):
+            (message, usage, _), _ = self.request(raw)
+        self.assertEqual(message["content"], "中")
+        self.assertGreater(usage["_transport"]["response_bytes"], 100)
+        self.assertEqual(usage["_transport"]["assembled_bytes"], 3)
+
+    def test_fine_grained_tool_stream_can_exceed_old_two_mib_wire_cap(self):
+        raw = delta({"tool_calls": [{"index": 0, "id": "call-1", "function": {"name": "finish_report", "arguments": '{"text":"'}}]})
+        raw += delta({"tool_calls": [{"index": 0, "function": {"arguments": "中"}}]}, metadata="x"*200)*7405
+        raw += delta({"tool_calls": [{"index": 0, "function": {"arguments": '"}'}}]}, "tool_calls")
+        raw += event({"choices": [], "usage": {"prompt_tokens": 20, "completion_tokens": 4063}})+event(b"[DONE]")
+        self.assertGreater(len(raw), 2*1024*1024)
+        response = Response(raw, chunk_size=8192)
+        with patch.dict(os.environ, ENV), patch.object(transport.urllib.request, "build_opener") as build:
+            build.return_value.open.return_value = response
+            message, usage, _ = transport._call_api("primary", [], [])
+        self.assertEqual(json.loads(message["tool_calls"][0]["function"]["arguments"]), {"text": "中"*7405})
+        self.assertEqual(usage["completion_tokens"], 4063)
+        self.assertLess(usage["_transport"]["assembled_bytes"], 32768)
+        self.assertEqual(build.return_value.open.call_count, 1)
+
+    def test_assembled_utf8_budget_counts_content_and_all_tool_fragments(self):
+        cases = [delta({"content": "中"})*4,
+            delta({"tool_calls": [{"index": 0, "function": {"arguments": "中中"}}]})
+            + delta({"tool_calls": [{"index": 1, "function": {"arguments": "中中"}}]})]
+        for raw in cases:
+            with self.subTest(raw=raw), patch.object(transport, "MAX_RESPONSE_BYTES", 10), self.assertRaisesRegex(transport.ApiError, "assembled"):
+                self.request(raw+event(b"[DONE]"))
+
+    def test_stream_event_count_remains_bounded_even_for_empty_deltas(self):
+        with patch.object(transport, "MAX_STREAM_EVENTS", 2), self.assertRaisesRegex(transport.ApiError, "event count"):
+            self.request(delta({})*3+event(b"[DONE]"))
+
+    def test_json_retains_its_original_scaled_wire_budget(self):
+        raw = json.dumps({"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}], "metadata": "x"*50}).encode()
+        with patch.object(transport, "MAX_RESPONSE_BYTES", 100), self.assertRaisesRegex(transport.ApiError, "API response exceeds bound"):
+            self.request(raw, "application/json")
+        with patch.object(transport, "MAX_RESPONSE_BYTES", 100):
+            (message, _, _), _ = self.request(raw, "application/json", max_output=16384)
+        self.assertEqual(message["content"], "ok")
+
+    def test_json_assembled_content_keeps_worker_sized_budget(self):
+        raw = json.dumps({"choices": [{"message": {"content": "x"*201}, "finish_reason": "stop"}]}).encode()
+        with patch.object(transport, "MAX_RESPONSE_BYTES", 200), self.assertRaisesRegex(transport.ApiError, "assembled"):
+            self.request(raw, "application/json", max_output=16384)
 
     def test_worker_wall_deadline_terminates_and_reaps_once(self):
         with patch.object(transport.subprocess, "Popen") as popen:
@@ -139,6 +187,16 @@ class TransportTest(unittest.TestCase):
         self.assertEqual(model, "model")
         self.assertIn("wall_ms", usage["_transport"])
         popen.return_value.kill.assert_not_called()
+
+    def test_larger_sse_wire_budget_does_not_expand_worker_output(self):
+        with patch.object(transport, "MAX_RESPONSE_BYTES", 100), patch.object(transport.subprocess, "Popen") as popen:
+            popen.return_value.returncode = 0
+            popen.return_value.communicate.return_value = (b"x"*101, None)
+            with self.assertRaises(transport.ApiError) as caught:
+                transport.call_api("primary", [], [], max_output=16384)
+        self.assertEqual(caught.exception.kind, "interrupted")
+        self.assertTrue(caught.exception.billing_unknown)
+        self.assertEqual(popen.call_count, 1)
 
     def test_worker_start_failure_is_known_without_post(self):
         with patch.object(transport.subprocess, "Popen", side_effect=OSError("private path")):
@@ -185,7 +243,7 @@ class TransportTest(unittest.TestCase):
             self.request(b"data: " + b"x" * 30 + b"\n\n")
 
     def test_response_bound(self):
-        with patch.object(transport, "MAX_RESPONSE_BYTES", 20), self.assertRaises(transport.ApiError) as caught:
+        with patch.object(transport, "MAX_STREAM_BYTES", 20), self.assertRaises(transport.ApiError) as caught:
             self.request(delta({"content": "too long"}, "stop") + event(b"[DONE]"))
         self.assertEqual(str(caught.exception), "API response exceeds bound")
 
