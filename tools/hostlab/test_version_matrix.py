@@ -1,5 +1,6 @@
 """Multi-version queue bounds, immutable bindings, crash recovery and comparisons."""
 import json
+import threading
 from pathlib import Path
 import tempfile
 import time
@@ -180,8 +181,20 @@ class MatrixTest(unittest.TestCase):
         self.assertNotEqual(matrix.attributes(original)[0],matrix.attributes(changed)[0])
 
     def test_comparison_uses_descriptors_not_dex_layout_and_checks_source_identity(self):
-        created=self.create(count=2)
-        self.advance(created["matrix_id"]);self.complete();self.advance(created["matrix_id"])
+        identifier,mapping,metadata,out=self.completed_evidence(2)
+        report=matrix.compare(identifier,mapping.__getitem__)
+        difference=report["versions"][1]["tasks"]["feature"]["vs_first_version"]
+        self.assertEqual(difference["added"],{})
+        self.assertEqual(difference["removed"],{})
+        metadata["apk_sha256"]="f"*64;hostlab.write_json(out/"job.json",metadata)
+        with self.assertRaises(ValueError): matrix.compare(identifier,mapping.__getitem__)
+
+    def completed_evidence(self,count):
+        created=self.create(count=count)
+        while True:
+            state=self.advance(created["matrix_id"])
+            if state["finished"]: break
+            self.complete()
         state=matrix.load(created["matrix_id"])
         mapping={}
         for i,entry in enumerate(state["entries"]):
@@ -193,12 +206,49 @@ class MatrixTest(unittest.TestCase):
                 "request_sha256":analysis_plan.fingerprint(state["definition"]["request"])}
             hostlab.write_json(out/"result.txt",output);hostlab.write_json(out/"job.json",metadata)
             mapping[entry["request_id"]]=json.dumps({"files":[str(out/"result.txt"),str(out/"job.json")]})
-        report=matrix.compare(created["matrix_id"],mapping.__getitem__)
-        difference=report["versions"][1]["tasks"]["feature"]["vs_first_version"]
-        self.assertEqual(difference["added"],{})
-        self.assertEqual(difference["removed"],{})
-        metadata["apk_sha256"]="f"*64;hostlab.write_json(out/"job.json",metadata)
-        with self.assertRaises(ValueError): matrix.compare(created["matrix_id"],mapping.__getitem__)
+        return created["matrix_id"],mapping,metadata,out
+
+    def test_parallel_collection_keeps_input_order_and_has_a_fixed_budget(self):
+        identifier,mapping,_,_=self.completed_evidence(8)
+        mutex=threading.Lock();active=0;peak=0
+        def collect(entry):
+            nonlocal active,peak
+            with mutex: active+=1;peak=max(peak,active)
+            try:
+                time.sleep(.01)
+                return mapping[entry["request_id"]]
+            finally:
+                with mutex: active-=1
+        result=matrix.compare(identifier,None,collect=collect,download_parallel=4)
+        self.assertEqual(peak,4)
+        self.assertEqual([v["sample_id"] for v in result["versions"]],["s"+str(i) for i in range(8)])
+        for budget in (0,5,True):
+            with self.assertRaises(ValueError): matrix.compare(identifier,None,collect=collect,download_parallel=budget)
+
+    def test_partial_collection_can_retry_and_never_substitutes_another_baseline(self):
+        import remote_artifacts
+        identifier,mapping,_,_=self.completed_evidence(3)
+        entries=matrix.load(identifier)["entries"]
+        def collect(entry):
+            if entry["sample_id"]=="s0": raise remote_artifacts.ArtifactError("artifact_download_failed")
+            return mapping[entry["request_id"]]
+        partial=matrix.compare(identifier,None,collect=collect)
+        self.assertFalse(partial["all_analysis_complete"])
+        self.assertFalse(partial["baseline_collection_complete"])
+        self.assertEqual(partial["versions"][0]["collection_status"],"error")
+        self.assertNotIn("vs_first_version",partial["versions"][2]["tasks"]["feature"])
+        recovered=matrix.compare(identifier,mapping.__getitem__)
+        self.assertTrue(recovered["all_analysis_complete"])
+        self.assertEqual(recovered["baseline_sample"],entries[0]["sample"])
+
+    def test_later_pages_use_the_same_successful_baseline_and_only_selected_results(self):
+        identifier,mapping,_,_=self.completed_evidence(10)
+        calls=[]
+        def fetch(rid): calls.append(rid);return mapping[rid]
+        report=matrix.compare(identifier,fetch,offset=8,limit=2)
+        self.assertEqual(len(calls),3)
+        self.assertEqual([v["sample_id"] for v in report["versions"]],["s8","s9"])
+        self.assertEqual(report["versions"][1]["tasks"]["feature"]["vs_first_version"]["added"],{})
 
 
 if __name__=="__main__": unittest.main()
