@@ -60,3 +60,8 @@ reports 分支保存可浏览结论，私有 Release 只保存完整成功分析
 # Read-only sample inventory
 
 Call `submit_job(version_code=1, operation="inventory")`, then use `job_status` and `job_result` as usual. The version code is a required placeholder and does not select an APK. The `inventory.json` artifact lists every registered sample at one immutable sample revision, exposing only version, SHA-256, size, and certificate metadata. No APK or DEX is downloaded for this operation.
+
+## 批量计划与可选 DexSQL
+
+更新并重新加载 MCP 后有六个工具；新增 `plan_analysis(request)` 与 `submit_analysis(version_code, request, ...)`。
+相关查询一批共用一次下载与后端会话，保留 SQLite 方言和 JADX 路径。完整请求示例、去重/未知提交行为与限额见 [DEXSQL.md](DEXSQL.md)。

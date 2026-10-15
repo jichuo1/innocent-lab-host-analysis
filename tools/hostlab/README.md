@@ -207,3 +207,8 @@ tools/hostlab/.venv/Scripts/python.exe tools/hostlab/upload_inventory.py
 每个样本和清单同次提交；中断后重跑跳过已登记哈希。
 三次失败后停止，状态写入 `runtime/hostlab/upload-state.json`。
 状态中的 completed 代表成功发布及清单回读，不代表重新下载全部文件。
+
+## 可选原生后端与调度
+
+DexSQL 可选后端、批量执行、计划原因、远端去重和兼容边界见 [DEXSQL.md](DEXSQL.md)。
+旧 SQLite/JADX 命令保持原有默认值；相关查询优先打包成一次 `plan_analysis` / `submit_analysis`，共用样本与准备成本。
