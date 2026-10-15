@@ -69,6 +69,38 @@ def submit(version_code, request, gh, lookup, runs, *, repository, workflow,
         raise ValueError("invalid runner source revision")
     identity = {"version_code": version_code, "request": request, "apk_sha256": apk_sha256,
                 "sample_revision": sample_revision, "runner_revision": head, "key": idempotency_key}
+    inputs = {"version_code": str(version_code), "operation": "batch",
+              "argument": json.dumps(request, separators=(",", ":"), ensure_ascii=False)}
+    if apk_sha256:
+        inputs.update(apk_sha256=apk_sha256, source_revision=sample_revision)
+    return _submit(identity, inputs, describe(request), gh, lookup, runs, repository=repository,
+                   workflow=workflow, idempotency_key=idempotency_key, head=head,
+                   reuse_completed=reuse_completed and bool(apk_sha256)
+                   and all(task["operation"] != "query" for task in request["tasks"]))
+
+
+def submit_group(samples, request, gh, lookup, runs, *, repository, workflow,
+                 idempotency_key="", runner_revision=None, reuse_completed=True):
+    import runner_group
+    payload = runner_group.validate({"schema": 1, "samples": samples, "request": request})
+    head = runner_revision or json.loads(gh(["api", f"repos/{repository}/git/ref/heads/main"]))["object"]["sha"]
+    if not re.fullmatch(r"[0-9a-f]{40}", head):
+        raise ValueError("invalid runner source revision")
+    if idempotency_key and not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", idempotency_key):
+        raise ValueError("invalid idempotency key")
+    identity = {"operation": "batch_group", "samples": payload["samples"], "request": payload["request"],
+                "runner_revision": head, "key": idempotency_key}
+    inputs = {"version_code": str(payload["samples"][0]["version_code"]), "operation": "batch_group",
+              "argument": json.dumps(payload, separators=(",", ":"), ensure_ascii=False)}
+    return _submit(identity, inputs, {**describe(payload["request"]), "runner_batch_size": len(samples)},
+                   gh, lookup, runs, repository=repository, workflow=workflow,
+                   idempotency_key=idempotency_key, head=head,
+                   reuse_completed=reuse_completed and all(t["operation"] != "query" for t in payload["request"]["tasks"]))
+
+
+def _submit(identity, inputs, plan, gh, lookup, runs, *, repository, workflow,
+            idempotency_key, head, reuse_completed):
+    """One durable admission protocol for single and grouped runner submissions."""
     payload_hash = hashlib.sha256(json.dumps(identity, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     key = hashlib.sha256(("idempotency:" + idempotency_key).encode()).hexdigest() if idempotency_key else payload_hash
     directory = hostlab.STATE / "analysis-schedule"
@@ -89,8 +121,7 @@ def submit(version_code, request, gh, lookup, runs, *, repository, workflow,
             if run is None or run.get("status") != "completed":
                 return {**old, "reused": True, "dispatched": False,
                         "status": run.get("status") if run else old["status"]}
-            deterministic = all(task["operation"] != "query" for task in request["tasks"])
-            if idempotency_key or reuse_completed and apk_sha256 and deterministic and run.get("conclusion") == "success" and time.time() - old["created_at"] < 86400:
+            if idempotency_key or reuse_completed and run.get("conclusion") == "success" and time.time() - old["created_at"] < 86400:
                 return {**old, "reused": True, "dispatched": False, "status": "completed", "conclusion": run.get("conclusion")}
         recent = runs()
         observed = {r.get("display_title", "").removeprefix("hostlab-"):r for r in recent}
@@ -107,16 +138,12 @@ def submit(version_code, request, gh, lookup, runs, *, repository, workflow,
             return {"status": "capacity_full", "dispatched": False, "active_jobs": len(active), "limit": 4}
         request_id = uuid.uuid4().hex
         record = {"request_id": request_id, "request_sha256": payload_hash, "status": "dispatch_unknown",
-                  "created_at": time.time(), "runner_revision": head, "version_code": version_code,
-                  "apk_sha256": apk_sha256, "sample_revision": sample_revision, "plan": describe(request)}
+                  "created_at": time.time(), "runner_revision": head, "plan": plan,
+                  **{k: v for k, v in identity.items() if k not in {"request", "key", "runner_revision"}}}
         # Write before the network request: a client/network crash must not cause automatic paid replay.
         hostlab.write_json(record_path, record)
         hostlab.write_json(hostlab.STATE / "remote-requests" / (request_id + ".json"), record)
-        inputs = {"request_id": request_id, "version_code": str(version_code), "operation": "batch",
-                  "argument": json.dumps(request, separators=(",", ":"), ensure_ascii=False),
-                  "runner_revision": head}
-        if apk_sha256:
-            inputs.update(apk_sha256=apk_sha256, source_revision=sample_revision)
+        inputs = {**inputs, "request_id": request_id, "runner_revision": head}
         try:
             response = gh(["api", "--method", "POST", f"repos/{repository}/actions/workflows/{workflow}/dispatches", "--input", "-"],
                           {"ref": "main", "inputs": inputs})

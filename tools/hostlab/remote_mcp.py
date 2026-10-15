@@ -85,11 +85,12 @@ def lookup(request_id):
 
 @mcp.tool()
 def plan_version_matrix(samples: list[dict], request: dict, max_parallel: int = 4,
-                        reuse_completed: bool = True, deadline_seconds: int = 1800) -> str:
-    """Plan the same feature investigation over 1..40 exact APKs. Each sample needs version_code, apk_sha256 and sample_revision from inventory.json. One immutable tool commit binds the whole matrix; max_parallel is 1..4. Set reuse_completed=false for a fresh load test. No Actions dispatch here."""
+                        reuse_completed: bool = True, deadline_seconds: int = 1800,
+                        runner_batch_size: int = 1) -> str:
+    """Plan 1..40 exact APKs, with 1..4 physical runners and optionally 1..4 sequential versions per runner. Each sample needs version_code/apk_sha256/sample_revision from inventory. One immutable tool commit binds the matrix. Default runner_batch_size=1 preserves individual jobs. Set reuse_completed=false for a fresh load test. No dispatch here."""
     import version_matrix
     try:
-        return json.dumps(version_matrix.plan(samples,request,max_parallel,reuse_completed,deadline_seconds),ensure_ascii=False)
+        return json.dumps(version_matrix.plan(samples,request,max_parallel,reuse_completed,deadline_seconds,runner_batch_size),ensure_ascii=False)
     except ValueError as exc:
         raise ToolError(str(exc)) from None
 
@@ -97,15 +98,17 @@ def plan_version_matrix(samples: list[dict], request: dict, max_parallel: int = 
 @mcp.tool()
 def submit_version_matrix(samples: list[dict], request: dict, max_parallel: int = 4,
                           reuse_completed: bool = True, deadline_seconds: int = 1800,
-                          idempotency_key: str = "") -> str:
-    """Create a durable multi-version queue and dispatch at most two initial batches. Inventory pins are mandatory. Use advance_version_matrix repeatedly to fill/replenish up to 4 slots; queued_local entries are retained under capacity pressure. No background execution occurs after the call. An explicit key resumes the same matrix. Unknown dispatches and paid failures are never replayed automatically."""
+                          idempotency_key: str = "", runner_batch_size: int = 1) -> str:
+    """Create a durable queue and dispatch at most two physical jobs. runner_batch_size=1..4 optionally shares preparation across sequential versions on each runner; default 1 keeps legacy behavior. Inventory pins are mandatory. Advance repeatedly to replenish up to 4 physical slots. Explicit keys resume the same matrix. Unknown dispatches and member failures never replay automatically."""
     import version_matrix
     try:
         created=version_matrix.create(samples,request,gh,repository=REPO,max_parallel=max_parallel,
-            reuse_completed=reuse_completed,deadline_seconds=deadline_seconds,idempotency_key=idempotency_key)
+            reuse_completed=reuse_completed,deadline_seconds=deadline_seconds,idempotency_key=idempotency_key,
+            runner_batch_size=runner_batch_size)
         if "matrix_id" not in created:
             return json.dumps(created)
-        return json.dumps(version_matrix.advance(created["matrix_id"],gh,lookup,runs,repository=REPO,workflow=WORKFLOW),ensure_ascii=False)
+        return json.dumps(version_matrix.advance(created["matrix_id"],gh,lookup,runs,repository=REPO,
+            workflow=WORKFLOW,collect_group=matrix_group_artifact),ensure_ascii=False)
     except ValueError as exc:
         raise ToolError(str(exc)) from None
 
@@ -115,7 +118,8 @@ def advance_version_matrix(matrix_id: str) -> str:
     """Refresh accepted jobs and dispatch at most two queued versions under the captured tool revision and 1..4-slot budget. Call only while you intend the matrix to progress. capacity_full leaves versions queued, never lost; a deadline stops new dispatches without cancelling accepted work."""
     import version_matrix
     try:
-        return json.dumps(version_matrix.advance(matrix_id,gh,lookup,runs,repository=REPO,workflow=WORKFLOW),ensure_ascii=False)
+        return json.dumps(version_matrix.advance(matrix_id,gh,lookup,runs,repository=REPO,
+            workflow=WORKFLOW,collect_group=matrix_group_artifact),ensure_ascii=False)
     except ValueError as exc:
         raise ToolError(str(exc)) from None
 
@@ -125,7 +129,8 @@ def version_matrix_status(matrix_id: str) -> str:
     """Refresh matrix job states without submitting additional work."""
     import version_matrix
     try:
-        return json.dumps(version_matrix.advance(matrix_id,gh,lookup,runs,repository=REPO,workflow=WORKFLOW,dispatch=False),ensure_ascii=False)
+        return json.dumps(version_matrix.advance(matrix_id,gh,lookup,runs,repository=REPO,
+            workflow=WORKFLOW,dispatch=False,collect_group=matrix_group_artifact),ensure_ascii=False)
     except ValueError as exc:
         raise ToolError(str(exc)) from None
 
@@ -145,6 +150,29 @@ def version_matrix_result(matrix_id: str, offset: int = 0, limit: int = 8, downl
         raise ToolError(str(exc)) from None
 
 
+@mcp.tool()
+def recover_version_matrix(matrix_id: str, idempotency_key: str = "", include_unverified_results: bool = False) -> str:
+    """Retry confirmed failed/skipped versions in a new queue under the original tool commit. Explicit include_unverified_results=true also authorizes repeated execution of members whose physical jobs completed but results remain unverified, potentially repeating earlier successful work. Running/unknown dispatches are always excluded. Repeating the same key/opt-in resumes its queue; a new key authorizes another attempt. Uses Actions minutes and dispatches at most two initial jobs."""
+    import version_matrix
+    try:
+        created = version_matrix.recover(matrix_id, gh, repository=REPO, idempotency_key=idempotency_key,
+                                         include_unverified_results=include_unverified_results)
+        if "matrix_id" not in created:
+            return json.dumps(created)
+        return json.dumps(version_matrix.advance(created["matrix_id"], gh, lookup, runs,
+            repository=REPO, workflow=WORKFLOW, collect_group=matrix_group_artifact), ensure_ascii=False)
+    except ValueError as exc:
+        raise ToolError(str(exc)) from None
+
+
+def matrix_group_artifact(group, payload, run):
+    """Collect a physical job once and verify the complete per-version receipt."""
+    import remote_artifacts
+    import runner_group
+    downloaded = remote_artifacts.get(REPO, group["request_id"], run, gh)
+    return runner_group.collect(payload, downloaded, group["runner_revision"])
+
+
 def matrix_artifact(entry):
     """Use the matrix's completed run snapshot; old matrices resolve it once per cache access."""
     import remote_artifacts
@@ -153,7 +181,18 @@ def matrix_artifact(entry):
         run = lookup(entry["request_id"])
     if run is None:
         raise remote_artifacts.ArtifactError("result_run_unavailable")
-    return json.dumps(remote_artifacts.get(REPO, entry["request_id"], run, gh), ensure_ascii=False)
+    downloaded = remote_artifacts.get(REPO, entry["request_id"], run, gh)
+    if "group_id" in entry:
+        import version_matrix
+        import runner_group
+        matrix = version_matrix.load(entry["matrix_id"])
+        group = next(g for g in matrix["groups"] if g["group_id"] == entry["group_id"])
+        collected = runner_group.collect(version_matrix.group_payload(matrix, group), downloaded, matrix["runner_revision"])
+        member = collected["members"][entry["group_index"]]
+        if member["sample"] != entry["sample"] or member["status"] != "complete":
+            raise remote_artifacts.ArtifactError("group_member_result_unavailable")
+        downloaded = {**downloaded, "files": member["files"]}
+    return json.dumps(downloaded, ensure_ascii=False)
 
 
 @mcp.tool()
@@ -239,18 +278,22 @@ def list_jobs() -> str:
 
 
 @mcp.tool()
-def job_result(request_id: str, result_offset: int = 0) -> str:
+def job_result(request_id: str, result_offset: int = 0, sample_index: int = -1) -> str:
     """Download result artifacts and return bounded text plus local file paths. No APK or DEX.
 
     result.txt is paged in 8000-character chunks (Unicode characters, zero-based offset).
     Pass result_page.next_offset back as result_offset until it is null. Reading pages
     reuses the downloaded artifact; it does not submit another Actions analysis job.
+    Grouped jobs return a bounded group receipt and all file paths by default.
+    Set sample_index=0..3 to inspect/page a specific member, including failed members.
     """
     if not 0 <= result_offset <= 2147483647:
         raise ToolError("result_offset must be 0..2147483647")
+    if type(sample_index) is not int or not -1 <= sample_index <= 3:
+        raise ToolError("sample_index must be -1..3")
     durable=repository_report(request_id)
     if durable:
-        if result_offset:
+        if result_offset or sample_index != -1:
             raise ToolError("result_offset applies only to result.txt; use the returned report files")
         return json.dumps(durable,ensure_ascii=False)
     run = lookup(request_id)
@@ -264,6 +307,24 @@ def job_result(request_id: str, result_offset: int = 0) -> str:
     files = sorted((Path(p) for p in collected["files"]),
                    key=lambda p: (p.name != "result.txt", str(p)))
     out = Path(collected["root"])
+    groups = [p for p in files if p.name == "group.json"]
+    if groups:
+        if len(groups) != 1:
+            raise ToolError("Ambiguous runner group receipt")
+        if sample_index == -1:
+            if result_offset:
+                raise ToolError("Select sample_index before paging a runner group member")
+            content = groups[0].read_text(encoding="utf-8")
+            return json.dumps({"run": run["html_url"], "files": [str(p) for p in files],
+                "text": content[:8000], "text_truncated": len(content) > 8000, "result_page": None,
+                "grouped": True, "next_action": "job_result(request_id, sample_index=0..3) or version_matrix_result",
+                "collection": {key:collected[key] for key in ("cache_hit", "artifact", "integrity", "elapsed_ms", "run_attempt")}}, ensure_ascii=False)
+        member = groups[0].parent / "samples" / str(sample_index)
+        files = [p for p in files if p.parent == member and p.name in {"job.json", "result.txt"}]
+        if not files:
+            raise ToolError("Runner group member has no saved output; inspect the group receipt")
+    elif sample_index != -1:
+        raise ToolError("sample_index applies only to grouped jobs")
     if sum(p.name == "result.txt" for p in files) > 1:
         raise ToolError("Multiple result.txt files; cannot choose an unambiguous page source")
     text = []

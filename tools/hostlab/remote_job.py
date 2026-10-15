@@ -12,45 +12,60 @@ import source_snapshot
 import snapshot_transport
 
 
-def run_batch(request, row, repo, revision, *, context_timings=None):
+def batch_tool_hashes():
+    here = Path(__file__).resolve().parent
+    names = ("analysis_plan.py", "analysis_batch.py", "install_dexsql.py", "analyze.py", "hostlab.py",
+             "remote_job.py", "prepare_runtime.py", "runner_group.py", "runner_worker.py",
+             "dexq/server.py", "dexq/dexq_workers.py")
+    return {name: hostlab.digest(here / name) for name in names}
+
+
+def run_batch(request, row, repo, revision, *, context_timings=None, output=None,
+              prepared_input=None, group_index=None):
     import_started = time.monotonic()
     import asyncio
     import analysis_batch
     import analysis_plan
     import install_dexsql
-    output = hostlab.STATE / "remote-output"
+    output = Path(output) if output is not None else hostlab.STATE / "remote-output"
     output.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
     phases={**(context_timings or {}),"batch_import_ms":(started-import_started)*1000}
     fetch_timings={}
     try:
-        apk = analyze.fetch_sample(row, repo, revision, timings=fetch_timings)
-        fetch_ms = (time.monotonic() - started) * 1000
+        if prepared_input is None:
+            apk = analyze.fetch_sample(row, repo, revision, timings=fetch_timings)
+            fetch_ms = (time.monotonic() - started) * 1000
+        else:
+            fetch_timings = dict(prepared_input["timings"])
+            fetch_ms = prepared_input["fetch_ms"]
+            if prepared_input.get("error") is not None:
+                raise prepared_input["error"]
+            apk = prepared_input["apk"]
         sample = {**row, "source": "huggingface", "repo": repo, "revision": revision}
         analysis_started=time.monotonic()
         report = asyncio.run(analysis_batch.execute(apk, request, roots=[apk.parent], sample=sample))
         phases["analysis_ms"]=(time.monotonic()-analysis_started)*1000
         rc = 0 if report["complete"] else 2
     except Exception as exc:
-        fetch_ms = None
+        fetch_ms = prepared_input["fetch_ms"] if prepared_input is not None else None
         rc = 1
         report = {"complete": False, "scope": "offline_static_only", "error": type(exc).__name__,
-                  "message": str(exc)[:1000], "tasks": []}
+                  "message": type(exc).__name__ if group_index is not None else str(exc)[:1000], "tasks": []}
     (output / "result.txt").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    here = Path(__file__).resolve().parent
-    names = ("analysis_plan.py", "analysis_batch.py", "install_dexsql.py", "analyze.py", "hostlab.py",
-             "remote_job.py", "prepare_runtime.py", "dexq/server.py", "dexq/dexq_workers.py")
     prepared=hostlab.STATE/"preparation.json"
     preparation=json.loads(prepared.read_text(encoding="utf-8")) if prepared.is_file() and prepared.stat().st_size<=65536 else None
     job = {"operation": "batch", "version_code": row["version_code"], "apk_sha256": row["sha256"],
            "sample_revision": revision, "scope": "offline_static_only", "exit_code": rc,
            "request_sha256": analysis_plan.fingerprint(request), "complete": report["complete"],
            "backend_versions": report.get("backend_versions"),
-           "tools": {name: hostlab.digest(here / name) for name in names},
+           "tools": batch_tool_hashes(),
            "runner_revision": os.environ.get("HOSTLAB_RUNNER_REVISION") or os.environ.get("GITHUB_SHA"),
            "workflow_revision": os.environ.get("GITHUB_SHA"), "fetch_ms": fetch_ms,
            "phases":{**phases,**fetch_timings},"preparation":preparation,
            "total_ms": (time.monotonic() - started) * 1000}
+    if group_index is not None:
+        job["group_index"] = group_index
     hostlab.write_json(output / "job.json", job)
     print(json.dumps({"operation": "batch", "complete": report["complete"], "exit_code": rc,
                       "tasks": [{"id": t["id"], "status": t["status"]} for t in report["tasks"]]}))
@@ -99,12 +114,18 @@ def main():
     code = os.environ["HOSTLAB_VERSION"]
     operation = os.environ["HOSTLAB_OPERATION"]
     argument = os.environ.get("HOSTLAB_ARGUMENT", "")
-    if not re.fullmatch(r"[1-9][0-9]{0,9}", code) or (len(argument.encode("utf-8")) > 30000 if operation == "batch" else len(argument) > 4096):
+    if not re.fullmatch(r"[1-9][0-9]{0,9}", code) or (len(argument.encode("utf-8")) > 30000 if operation in {"batch", "batch_group"} else len(argument) > 4096):
         raise RuntimeError("Invalid bounded input")
     batch_request = None
-    if operation == "batch":
+    if operation in {"batch", "batch_group"}:
         import analysis_plan
-        batch_request = analysis_plan.validate(json.loads(argument))
+        if operation == "batch":
+            batch_request = analysis_plan.validate(json.loads(argument))
+        else:
+            import runner_group
+            group_request = runner_group.validate(json.loads(argument))
+            if int(code) != group_request["samples"][0]["version_code"]:
+                raise RuntimeError("Group compatibility version does not match its first sample")
         runner_revision = os.environ.get("HOSTLAB_RUNNER_REVISION", "")
         if runner_revision:
             if not re.fullmatch(r"[0-9a-f]{40}", runner_revision):
@@ -136,6 +157,9 @@ def main():
             "snapshot_sha256": binding["snapshot_sha256"], "source_tree_sha256": context["source_tree_sha256"],
             "file_count": len(context["source_records"]), "origin": binding["origin"]}), encoding="utf-8")
         return 0
+    if operation == "batch_group":
+        import runner_worker
+        return runner_worker.run(group_request, entry_started=entry_started)
     module_source = None
     if operation == "multipath_audit":
         context, binding = snapshot_transport.load_for_analysis(os.environ.get("HOSTLAB_MODULE_SOURCE", ""))

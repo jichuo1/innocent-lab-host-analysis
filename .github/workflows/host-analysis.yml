@@ -12,7 +12,7 @@ on:
       operation:
         required: true
         type: choice
-        options: [inventory, info, query, decode, string_refs, decompile, audit, multipath_audit, regenerate_ai, source_check, batch, backend_validation]
+        options: [inventory, info, query, decode, string_refs, decompile, audit, multipath_audit, regenerate_ai, source_check, batch, batch_group, backend_validation]
       runner_revision:
         description: 'Immutable analysis tooling commit selected by the scheduler'
         required: false
@@ -41,7 +41,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: hostlab-${{ inputs.apk_sha256 || (inputs.operation == 'batch' && inputs.version_code) || inputs.request_id }}
+  group: hostlab-${{ (inputs.operation == 'batch_group' && inputs.request_id) || inputs.apk_sha256 || (inputs.operation == 'batch' && inputs.version_code) || inputs.request_id }}
   queue: max
   cancel-in-progress: false
 jobs:

@@ -6,8 +6,12 @@ import analysis_plan
 
 def requirements(operation, argument):
     native = optional = native_only = False
-    if operation == "batch":
-        request = analysis_plan.validate(json.loads(argument))
+    if operation in {"batch", "batch_group"}:
+        if operation == "batch_group":
+            import runner_group
+            request = runner_group.validate(json.loads(argument))["request"]
+        else:
+            request = analysis_plan.validate(json.loads(argument))
         plan = analysis_plan.plan(request)
         native = any(g["backend"] == "dexsql" for g in plan["groups"])
         optional = request["backend"] == "auto" and not any(

@@ -63,10 +63,16 @@ Call `submit_job(version_code=1, operation="inventory")`, then use `job_status` 
 
 ## 批量计划与可选 DexSQL
 
-更新并重新加载 MCP 后有十一项工具，包括单样本 plan/submit 和多版本 plan/submit/advance/status/result。
+更新并重新加载 MCP 后有十二项工具，包括单样本 plan/submit、多版本 plan/submit/advance/status/result 和显式恢复。
 相关查询一批共用一次下载与后端会话，保留 SQLite 方言和 JADX 路径。完整请求示例、去重/未知提交行为与限额见 [DEXSQL.md](DEXSQL.md)。
 
 `version_matrix_result` 默认四路附件收集，`download_parallel` 可设 1–4；多个调用也共享下载预算。
 已验证的附件复用本地文件，分页不重复下载；首次校验 GitHub ZIP SHA-256，复用前重新校验文件 SHA-256。
 `collection_errors` 表示局部收集未完成，可重试相同 matrix_id/offset；已成功文件保留，不创建新的 Actions 作业。
 较大矩阵可在分析槽补满后用 `prefetch_only=true` 分页预取已完成条目，与后续分析重叠；最终用默认参数收齐每页完整比较。
+
+多版本任务可选 `runner_batch_size=4`，让同一 runner 复用环境处理最多四版；默认 1 保持原调度路径。
+`max_parallel=4` 约束物理 runner；一个 runner 内最多两路取样预取、逐版串行分析，输出按固定输入索引隔离。
+每版完整 SHA 与分析后源校验保留，部分失败仍收回其它成员。组附件只下载一次并逐次复验。
+`recover_version_matrix(matrix_id)` 显式重试已确认失败/未开始成员，保留原工具提交且不重跑成功成员；未知派发不自动重试。
+详细状态与恢复键规则见 [DEXSQL.md](DEXSQL.md)。
