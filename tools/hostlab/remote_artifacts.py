@@ -29,6 +29,20 @@ class ArtifactError(ValueError):
     """Stable, bounded error codes; never expose download URLs or credentials."""
 
 
+def limits(profile="default"):
+    if profile not in {"default", "frozen-report-v1"}:
+        raise ArtifactError("unsupported_artifact_profile")
+    return {"profile": profile, "archive_bytes": MAX_ARCHIVE_BYTES, "files": MAX_FILES,
+            "file_bytes": MAX_FILE_BYTES,
+            "result_bytes": 384 * 1024 * 1024 if profile == "frozen-report-v1" else MAX_RESULT_BYTES,
+            "large_json_bytes": 128 * 1024 * 1024 if profile == "frozen-report-v1" else MAX_FILE_BYTES}
+
+
+def file_limit(name, policy):
+    return (policy["large_json_bytes"] if name in {
+        "remote-output/priority-target.json", "remote-output/priority-baseline.json"} else policy["file_bytes"])
+
+
 def relative_name(name):
     path = PurePosixPath(name)
     if (not name or path.is_absolute() or "\\" in name or ":" in name
@@ -79,24 +93,30 @@ def identity(repository, request_id, run):
             "run_attempt": run.get("run_attempt", 1), "head_sha": run["head_sha"]}
 
 
-def cached(root, expected):
+def cached(root, expected, *, profile="default"):
+    policy = limits(profile)
     try:
         receipt_path = regular_file(root, "receipt.json")
         if receipt_path.stat().st_size > 1024 * 1024:
             return None
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-        if receipt.get("schema") != 1 or receipt["identity"] != expected or not re.fullmatch(r"[0-9a-f]{32}", receipt["generation"]):
+        if not isinstance(receipt, dict) or receipt.get("schema") != 1 or receipt["identity"] != expected or not re.fullmatch(r"[0-9a-f]{32}", receipt["generation"]):
+            return None
+        if receipt.get("limits") != policy and not (profile == "default" and "limits" not in receipt):
             return None
         if not re.fullmatch(r"sha256:[0-9a-f]{64}", receipt["artifact"]["digest"]):
             return None
         rows = receipt["files"]
-        if not 1 <= len(rows) <= MAX_FILES or sum(r["bytes"] for r in rows) > MAX_RESULT_BYTES:
+        if (not isinstance(rows, list) or not 1 <= len(rows) <= policy["files"]
+                or any(not isinstance(row, dict) or not isinstance(row.get("path"), str)
+                       or type(row.get("bytes")) is not int for row in rows)
+                or sum(r["bytes"] for r in rows) > policy["result_bytes"]):
             return None
         data = root / ("data-" + receipt["generation"])
         files = []
         seen = set()
         for row in rows:
-            if row["path"].casefold() in seen or not 0 <= row["bytes"] <= MAX_FILE_BYTES:
+            if row["path"].casefold() in seen or not 0 <= row["bytes"] <= file_limit(row["path"], policy):
                 return None
             seen.add(row["path"].casefold())
             path = regular_file(data, row["path"])
@@ -104,7 +124,8 @@ def cached(root, expected):
                 return None
             files.append(str(path))
         return {"files": files, "root":str(data), "artifact": receipt["artifact"], "cache_hit": True,
-                "run_attempt": expected["run_attempt"], "integrity": "github_archive_sha256_and_local_file_sha256"}
+                "run_attempt": expected["run_attempt"], "integrity": "github_archive_sha256_and_local_file_sha256",
+                "profile": profile, "limits": policy}
     except (OSError, ValueError, KeyError, TypeError):
         return None
 
@@ -118,10 +139,11 @@ def download(endpoint, target):
         raise ArtifactError("artifact_download_failed")
 
 
-def unpack(archive_path, destination):
+def unpack(archive_path, destination, *, profile="default"):
+    policy = limits(profile)
     records = []; seen = set(); total = 0
     with zipfile.ZipFile(archive_path) as archive:
-        if len(archive.infolist()) > MAX_FILES:
+        if len(archive.infolist()) > policy["files"]:
             raise ArtifactError("artifact_entry_budget_exceeded")
         for info in archive.infolist():
             relative_name(info.orig_filename.rstrip("/") if info.is_dir() else info.orig_filename)
@@ -131,10 +153,10 @@ def unpack(archive_path, destination):
                 raise ArtifactError("unsupported_artifact_entry")
             if info.is_dir():
                 continue
-            if name.casefold() in seen or info.file_size > MAX_FILE_BYTES:
+            if name.casefold() in seen or info.file_size > file_limit(name, policy):
                 raise ArtifactError("ambiguous_or_oversized_artifact_entry")
             seen.add(name.casefold()); total += info.file_size
-            if total > MAX_RESULT_BYTES:
+            if total > policy["result_bytes"]:
                 raise ArtifactError("artifact_expansion_budget_exceeded")
             target = destination.joinpath(*PurePosixPath(name).parts)
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -148,13 +170,16 @@ def unpack(archive_path, destination):
     return records
 
 
-def get(repository, request_id, run, gh, *, downloader=None):
+def get(repository, request_id, run, gh, *, downloader=None, profile="default"):
+    policy = limits(profile)
     expected = identity(repository, request_id, run)
     scope = hashlib.sha256(repository.encode()).hexdigest()[:16]
     root = hostlab.STATE / "artifact-cache" / scope / str(run["id"]) / ("attempt-" + str(expected["run_attempt"]))
+    if profile != "default":
+        root = root / profile
     cache_directory(root)
     began = time.monotonic()
-    hit = cached(root, expected)
+    hit = cached(root, expected, profile=profile)
     if hit:
         return {**hit, "elapsed_ms": (time.monotonic() - began) * 1000}
     downloader = downloader or download
@@ -166,7 +191,7 @@ def get(repository, request_id, run, gh, *, downloader=None):
                 raise ArtifactError("artifact_download_busy")
             time.sleep(.05)
     try:
-        hit = cached(root, expected)
+        hit = cached(root, expected, profile=profile)
         if hit:
             return {**hit, "elapsed_ms": (time.monotonic() - began) * 1000}
         if not DOWNLOAD_SLOTS.acquire(timeout=60):
@@ -184,7 +209,7 @@ def get(repository, request_id, run, gh, *, downloader=None):
                     or not isinstance(artifact.get("digest"), str)
                     or not re.fullmatch(r"sha256:[0-9a-f]{64}", artifact["digest"])
                     or type(artifact.get("size_in_bytes")) is not int
-                    or not 0 < artifact["size_in_bytes"] <= MAX_ARCHIVE_BYTES):
+                    or not 0 < artifact["size_in_bytes"] <= policy["archive_bytes"]):
                 raise ArtifactError("artifact_identity_or_integrity_unavailable")
             if expected["run_attempt"] > 1 and (not run.get("run_started_at") or artifact.get("created_at", "") < run["run_started_at"]):
                 raise ArtifactError("artifact_from_an_older_attempt")
@@ -195,14 +220,15 @@ def get(repository, request_id, run, gh, *, downloader=None):
                 if (archive.stat().st_size != artifact["size_in_bytes"]
                         or "sha256:" + hostlab.digest(archive) != artifact["digest"]):
                     raise ArtifactError("artifact_archive_digest_mismatch")
-                records = unpack(archive, data)
+                records = unpack(archive, data, profile=profile)
                 generation = uuid.uuid4().hex
                 receipt = {"schema": 1, "identity": expected, "generation": generation,
-                    "artifact": {key: artifact[key] for key in ("id", "name", "digest", "size_in_bytes")}, "files": records}
+                    "artifact": {key: artifact[key] for key in ("id", "name", "digest", "size_in_bytes")},
+                    "files": records, "limits": policy}
                 data.rename(root / ("data-" + generation))
                 # The OS lock protects the stable temp name; publish only after every check succeeds.
                 hostlab.write_json(root / "receipt.json", receipt)
-            result = cached(root, expected)
+            result = cached(root, expected, profile=profile)
             if result is None:
                 raise ArtifactError("artifact_cache_publication_failed")
             return {**result, "cache_hit": False, "elapsed_ms": (time.monotonic() - began) * 1000}

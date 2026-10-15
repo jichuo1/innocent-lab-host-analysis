@@ -44,40 +44,10 @@ def redact(text):
     return text
 
 
-def call_api(profile, messages, tools, force_tool=None, session_id=None):
-    name = profile.upper()
-    key = os.environ.get("AI_API_KEY_" + name, "")
-    base = os.environ.get("AI_" + name + "_BASE_URL", "").rstrip("/")
-    model = os.environ.get("AI_" + name + "_MODEL", "")
-    parsed = urllib.parse.urlsplit(base)
-    if not key or not model or parsed.scheme != "https" or parsed.username or parsed.password or parsed.query or parsed.fragment:
-        raise RuntimeError("API configuration incomplete or invalid")
-    payload = {"model": model, "messages": messages, "tools": tools,
-               "tool_choice": {"type": "function", "function": {"name": force_tool}} if force_tool else "auto",
-               "max_tokens": MAX_OUTPUT, "stream": False}
-    headers = {"Authorization": "Bearer " + key, "Content-Type": "application/json",
-               "User-Agent": "HostLab-AIReview/1"}
-    if session_id:
-        # OpenCode-compatible gateways route and cache prompts per session ID.
-        headers["x-opencode-session"] = session_id
-    request = urllib.request.Request(base + "/chat/completions", data=json.dumps(payload).encode(),
-        headers=headers)
-    try:
-        with urllib.request.build_opener(NoRedirect()).open(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
-            raw = response.read(2 * 1024 * 1024 + 1)
-        if len(raw) > 2 * 1024 * 1024:
-            raise RuntimeError("API response exceeds bound")
-        data = json.loads(redact(raw.decode("utf-8")))
-        message = data["choices"][0]["message"]
-        # Do not persist hidden reasoning or vendor response metadata.
-        clean = {"role": "assistant", "content": message.get("content")}
-        if message.get("tool_calls"):
-            clean["tool_calls"] = message["tool_calls"]
-        return clean, data.get("usage", {}), model
-    except urllib.error.HTTPError as exc:
-        raise RuntimeError("API HTTP " + str(exc.code)) from None
-    except Exception as exc:
-        raise RuntimeError("API failure: " + type(exc).__name__) from None
+def call_api(profile, messages, tools, force_tool=None, session_id=None, **options):
+    """Retain the mockable public call boundary while transport owns streaming/timeouts."""
+    import ai_transport
+    return ai_transport.call_api(profile, messages, tools, force_tool, session_id, **options)
 
 
 def tool(name, description, properties, required):
@@ -316,6 +286,8 @@ class Evidence:
                       "source_snapshot": {k:v for k,v in metadata.items() if k != "source_records"},
                       "source_status": "verified_pinned" if metadata.get("binding") else "legacy_not_current"}
         elif name == "decompile_class":
+            if self.summary.get("ai_no_apk_access") is True:
+                raise RuntimeError("APK access is disabled for this frozen-evidence review")
             data = self.dataset(side)
             class_name = args["class_name"]
             descriptor = "L" + class_name.replace(".", "/") + ";"
@@ -700,6 +672,20 @@ def _run(root):
                    "server_read_tool_calls":max(0,len(evidence.journal)-evidence.calls),
                    "output_tokens_per_request":MAX_OUTPUT,"usd_cap_enforced":False},
                "report":completed,"review_status":"completed" if completed else "not_completed","review":completed.get("review") if completed else None,"read_tool_calls":evidence.calls}
+    return save_outcome(root, summary, evidence, seed, outcome)
+
+
+def save_outcome(root, summary, evidence, seed, outcome):
+    summary_path = root / "priority-summary.json"
+    completed = outcome.get("report")
+    profile, attempts = outcome.get("profile"), outcome.get("attempts", [])
+    report_path = root / "priority-report.md"
+    if report_path.is_file():
+        static = report_path.read_text(encoding="utf-8")
+        for marker in ("\n# AI 适配分析", "\n# AI 分析未完成"):
+            static = static.split(marker, 1)[0]
+        report_path.write_text(static, encoding="utf-8")
+    (root/"ai-review.json").write_text(redact(json.dumps((completed or {}).get("review", {"status":"not_completed"}), ensure_ascii=False, indent=2)), encoding="utf-8")
     (root/"ai-analysis.json").write_text(redact(json.dumps(outcome,ensure_ascii=False,indent=2)),encoding="utf-8")
     (root/"ai-evidence.json").write_text(redact(json.dumps({"E000":seed,"tools":evidence.public_journal()},ensure_ascii=False,indent=2)),encoding="utf-8")
     summary["ai_status"] = outcome["status"]
@@ -734,7 +720,8 @@ def _run(root):
 def run(root):
     """Failure perimeter: any unexpected crash still leaves a failed record on disk."""
     try:
-        _run(root)
+        import ai_pipeline
+        ai_pipeline.run(root, api=call_api)
     except Exception as exc:
         _record_crash(root, exc)
         raise

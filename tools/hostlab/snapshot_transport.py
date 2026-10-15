@@ -7,7 +7,9 @@ import re
 from pathlib import Path
 import subprocess
 import os
+import stat
 import tempfile
+import time
 
 import hostlab
 import source_snapshot
@@ -18,6 +20,8 @@ POINTER_BRANCH = "source-state"
 POINTER_PATH = ".hostlab/source-snapshot-latest.json"
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
+WORKTREE_INDEX_BYTES = 16384
+WORKTREE_LOCK_SECONDS = 120
 
 
 def _gh(args, payload=None):
@@ -87,16 +91,20 @@ def cache_snapshot(ctx, binding):
 def load_pinned(binding, *, force_remote=False):
     binding = checked_binding(binding)
     cached = hostlab.STATE / "source-snapshots" / binding["snapshot_sha256"] / "context.json"
+    damaged = False
     if cached.exists() and not force_remote:
-        ctx = json.loads(cached.read_text(encoding="utf-8"))
-        source_snapshot.validate(ctx, binding["snapshot_sha256"])
-        cache_snapshot(ctx, binding)
-        return ctx
+        try:
+            ctx = json.loads(cached.read_text(encoding="utf-8"))
+            source_snapshot.validate(ctx, binding["snapshot_sha256"])
+            cache_snapshot(ctx, binding)
+            return ctx
+        except (OSError, UnicodeError, ValueError, TypeError, RuntimeError):
+            damaged = True
     hostlab.api_private(SOURCE_REPO)
     from huggingface_hub import hf_hub_download
     try:
         fetched = hf_hub_download(repo_id=SOURCE_REPO, repo_type="dataset", filename=binding["path"],
-            revision=binding["revision"], token=True)
+            revision=binding["revision"], token=True, **({"force_download": True} if damaged or force_remote else {}))
         ctx = json.loads(Path(fetched).read_text(encoding="utf-8"))
     except Exception:
         raise RuntimeError("Pinned private source snapshot unavailable") from None
@@ -181,6 +189,88 @@ def publish(ctx, gh=None):
     return binding
 
 
+def _worktree_identity(ctx):
+    return {key: ctx[key] for key in ("schema", "selection_version", "source_tree_sha256", "repository_head", "working_tree_dirty")}
+
+
+def _worktree_path(name, *, create=False):
+    if name not in {"current-worktree-binding.json", "current-worktree.lock"}:
+        raise RuntimeError("Invalid worktree source cache name")
+    root = hostlab.STATE.absolute() / "source-snapshots"
+    for directory in reversed((root, *root.parents)):
+        try:
+            info = directory.lstat()
+        except FileNotFoundError:
+            continue
+        if not stat.S_ISDIR(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+            raise RuntimeError("Linked worktree source cache directory")
+    if create:
+        root.mkdir(parents=True, exist_ok=True)
+    path = root / name
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return path
+    if (not stat.S_ISREG(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400
+            or info.st_nlink != 1 or info.st_size > WORKTREE_INDEX_BYTES):
+        raise RuntimeError("Unsafe worktree source cache file")
+    return path
+
+
+def _remember_worktree(ctx, binding):
+    """Caller holds current-worktree.lock; index contains public metadata only."""
+    binding = checked_binding(binding)
+    source_snapshot.validate(ctx, binding["snapshot_sha256"])
+    if (binding["origin"] != "worktree" or ctx["source_tree_sha256"] != binding["source_tree_sha256"]
+            or ctx["repository_head"] != binding["repository_head"] or ctx["captured_at"] != binding["captured_at"]):
+        raise RuntimeError("Worktree source index binding differs from verified payload")
+    value = {"schema": 1, "identity": _worktree_identity(ctx), "binding": binding}
+    raw = source_snapshot.serialize(value)
+    if len(raw) > WORKTREE_INDEX_BYTES:
+        raise RuntimeError("Worktree source index exceeds its byte budget")
+    path = _worktree_path("current-worktree-binding.json", create=True)
+    with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".worktree-", suffix=".tmp", delete=False) as stream:
+        temporary = Path(stream.name)
+        stream.write(raw)
+    try:
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _reuse_worktree(ctx):
+    try:
+        path = _worktree_path("current-worktree-binding.json")
+        if not path.exists():
+            return None
+        value = json.loads(path.read_text(encoding="utf-8"))
+        if (not isinstance(value, dict) or set(value) != {"schema", "identity", "binding"}
+                or type(value["schema"]) is not int or value["schema"] != 1
+                or value["identity"] != _worktree_identity(ctx)):
+            return None
+        binding = checked_binding(value["binding"])
+        if binding["origin"] != "worktree":
+            return None
+        # A forged index cannot redirect a payload lookup through a local link.
+        folder = path.parent / binding["snapshot_sha256"]
+        for candidate in (folder, folder / "context.json"):
+            try:
+                info = candidate.lstat()
+            except FileNotFoundError:
+                continue
+            if (getattr(info, "st_file_attributes", 0) & 0x400 or stat.S_ISLNK(info.st_mode)
+                    or candidate == folder and not stat.S_ISDIR(info.st_mode)
+                    or candidate != folder and (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1)):
+                raise RuntimeError("Linked worktree source payload cache")
+        pinned = load_pinned(binding)
+        if (_worktree_identity(pinned) != _worktree_identity(ctx)
+                or pinned["source_records"] != ctx["source_records"]):
+            return None
+        return binding
+    except (OSError, UnicodeError, ValueError, TypeError, KeyError, RuntimeError):
+        return None
+
+
 def prepare(root, gh=None, mode="auto"):
     root = Path(root)
     if mode == "published":
@@ -189,10 +279,32 @@ def prepare(root, gh=None, mode="auto"):
         raise RuntimeError("Unsupported source mode")
     if (root / "Bilibili_Innocent_Lab/app/src/main/java").is_dir():
         ctx = source_snapshot.capture(root)
-        binding = publish(ctx, gh)
-        if source_snapshot.compare(source_snapshot.public_context(ctx), root)["status"] != "current":
-            raise RuntimeError("Working tree changed before analysis dispatch; capture again")
-        return binding
+        import remote_schedule
+        lock_path = _worktree_path("current-worktree.lock", create=True)
+        lock = None
+        deadline = time.monotonic() + WORKTREE_LOCK_SECONDS
+        while lock is None:
+            lock = remote_schedule.admission_lock(lock_path)
+            if lock is None:
+                if time.monotonic() >= deadline:
+                    raise RuntimeError("Source preparation busy; retry without bypassing the worktree lock")
+                time.sleep(.05)
+        try:
+            binding = _reuse_worktree(ctx)
+            reused = binding is not None
+            if not reused:
+                binding = publish(ctx, gh)
+            fresh = source_snapshot.capture(root)
+            if _worktree_identity(fresh) != _worktree_identity(ctx) or fresh["source_records"] != ctx["source_records"]:
+                raise RuntimeError("Working tree changed before analysis dispatch; capture again")
+            if not reused:
+                try:
+                    _remember_worktree(ctx, binding)
+                except (OSError, ValueError, RuntimeError):
+                    pass  # An optional metadata index never invalidates a verified publication.
+            return binding
+        finally:
+            lock.close()
     if mode == "worktree":
         raise RuntimeError("Production working tree unavailable")
     return resolve_published(gh)

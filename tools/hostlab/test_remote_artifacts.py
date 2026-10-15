@@ -162,6 +162,58 @@ class ArtifactTest(unittest.TestCase):
         self.assertEqual(first["result_page"]["file"], str(Path("remote-output/result.txt")))
         self.assertEqual(self.transfers, 1)
 
+    def test_frozen_report_profile_is_explicit_and_only_expands_two_exact_json_paths(self):
+        self.raw = archive_bytes([("remote-output/priority-target.json", "x" * 20)])
+        self.artifact.update(size_in_bytes=len(self.raw), digest="sha256:" + hashlib.sha256(self.raw).hexdigest())
+        with patch.object(artifacts, "MAX_FILE_BYTES", 10):
+            with self.assertRaises(artifacts.ArtifactError):
+                self.get()
+            first = self.get(profile="frozen-report-v1")
+            self.assertFalse(first["cache_hit"])
+            self.assertTrue(self.get(profile="frozen-report-v1")["cache_hit"])
+            with self.assertRaises(artifacts.ArtifactError):
+                self.get()
+        self.assertIn("frozen-report-v1", first["root"])
+        self.assertEqual(first["limits"]["archive_bytes"], artifacts.MAX_ARCHIVE_BYTES)
+
+    def test_frozen_report_profile_keeps_other_file_and_unsafe_payload_limits(self):
+        for name in ("remote-output/other.json", "other/priority-target.json", "remote-output/priority-target.apk", "../priority-target.json"):
+            self.raw = archive_bytes([(name, "x" * 20)])
+            self.artifact.update(size_in_bytes=len(self.raw), digest="sha256:" + hashlib.sha256(self.raw).hexdigest())
+            with self.subTest(name=name), patch.object(artifacts, "MAX_FILE_BYTES", 10), self.assertRaises(artifacts.ArtifactError):
+                self.get(profile="frozen-report-v1")
+        self.assertEqual(list(self.root.rglob("receipt.json")), [])
+
+    def test_frozen_report_total_expansion_and_receipt_limits_are_enforced(self):
+        self.raw = archive_bytes([("remote-output/priority-target.json", "x" * 20),
+                                  ("remote-output/priority-baseline.json", "x" * 20)])
+        self.artifact.update(size_in_bytes=len(self.raw), digest="sha256:" + hashlib.sha256(self.raw).hexdigest())
+        original = artifacts.limits
+        def limited(profile="default"):
+            return {**original(profile), "result_bytes": 30}
+        with patch.object(artifacts, "limits", side_effect=limited), self.assertRaisesRegex(artifacts.ArtifactError, "expansion"):
+            self.get(profile="frozen-report-v1")
+        first = self.get(profile="frozen-report-v1")
+        receipt_path = Path(first["root"]).parent / "receipt.json"
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["limits"]["large_json_bytes"] += 1
+        receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+        self.assertFalse(self.get(profile="frozen-report-v1")["cache_hit"])
+
+    def test_unknown_profile_never_reads_metadata_or_downloads(self):
+        with self.assertRaisesRegex(artifacts.ArtifactError, "profile"):
+            self.get(profile="unbounded")
+        self.assertEqual((self.transfers, self.api_reads), (0, 0))
+
+    def test_nonobject_cache_receipt_or_rows_are_misses_and_can_repair(self):
+        first = self.get(profile="frozen-report-v1")
+        receipt = Path(first["root"]).parent / "receipt.json"
+        for corrupt in ([], {"files": [[]]}, {"files": [{"path": 1, "bytes": 0}]}):
+            original = json.loads(receipt.read_text(encoding="utf-8"))
+            value = {**original, **corrupt} if isinstance(corrupt, dict) else corrupt
+            receipt.write_text(json.dumps(value), encoding="utf-8")
+            self.assertFalse(self.get(profile="frozen-report-v1")["cache_hit"])
+
 
 if __name__ == "__main__":
     unittest.main()

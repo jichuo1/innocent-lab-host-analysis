@@ -6,7 +6,10 @@ import json
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import hostlab
@@ -20,6 +23,8 @@ class TransportTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="snapshot-test-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        state = patch.object(hostlab, "STATE", self.root / "state")
+        state.start(); self.addCleanup(state.stop)
         subprocess.run(["git", "init", "-q", str(self.root)], check=True)
         subprocess.run(["git", "-C", str(self.root), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
                         "commit", "--allow-empty", "-qm", "fixture"], check=True)
@@ -131,6 +136,110 @@ class TransportTest(unittest.TestCase):
             self.file.write_text("class LaterProgress\n", encoding="utf-8")
             self.assertEqual(remote_mcp.source_freshness(report)["status"], "drift")
         self.assertEqual(report["source_snapshot"]["source_tree_sha256"], self.ctx["source_tree_sha256"])
+
+    def seed(self):
+        transport.cache_snapshot(self.ctx, self.binding)
+        transport._remember_worktree(self.ctx, self.binding)
+
+    def published(self, ctx, gh=None):
+        digest = hashlib.sha256(codec.serialize(ctx)).hexdigest()
+        result = {**self.binding, "snapshot_sha256": digest, "path": f"source-snapshots/{digest}/context.json",
+            "source_tree_sha256": ctx["source_tree_sha256"], "repository_head": ctx["repository_head"],
+            "captured_at": ctx["captured_at"]}
+        transport.cache_snapshot(ctx, result)
+        return result
+
+    def test_exact_worktree_index_hit_reuses_timestamp_and_needs_no_network(self):
+        self.seed()
+        with patch.object(transport, "publish", side_effect=AssertionError("upload")), \
+             patch.object(hostlab, "api_private", side_effect=AssertionError("network")), \
+             patch.object(transport, "resolve_published", side_effect=AssertionError("pointer")):
+            first = transport.prepare(self.root, mode="worktree")
+            second = transport.prepare(self.root)
+        self.assertEqual(first, self.binding)
+        self.assertEqual(second, self.binding)
+        self.assertEqual(first["captured_at"], self.ctx["captured_at"])
+        text = transport._worktree_path("current-worktree-binding.json").read_text(encoding="utf-8")
+        self.assertNotIn("class Example", text)
+        self.assertNotIn("source_records", text)
+        self.assertNotIn('"source":', text)
+
+    def test_source_or_head_change_publishes_a_new_binding(self):
+        self.seed()
+        self.file.write_text("class NewProgress\n", encoding="utf-8")
+        with patch.object(transport, "publish", side_effect=self.published) as publish:
+            first = transport.prepare(self.root)
+            subprocess.run(["git", "-C", str(self.root), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                            "commit", "--allow-empty", "-qm", "new head"], check=True)
+            second = transport.prepare(self.root)
+        self.assertEqual(publish.call_count, 2)
+        self.assertNotEqual(first["snapshot_sha256"], self.binding["snapshot_sha256"])
+        self.assertNotEqual(second["repository_head"], first["repository_head"])
+
+    def test_dirty_identity_or_corrupt_index_cannot_reuse_the_old_binding(self):
+        self.seed()
+        index = transport._worktree_path("current-worktree-binding.json")
+        value = json.loads(index.read_text(encoding="utf-8"))
+        value["identity"]["working_tree_dirty"] = not value["identity"]["working_tree_dirty"]
+        index.write_text(json.dumps(value), encoding="utf-8")
+        with patch.object(transport, "publish", side_effect=self.published) as publish:
+            transport.prepare(self.root)
+            index.write_text("{broken", encoding="utf-8")
+            transport.prepare(self.root)
+        self.assertEqual(publish.call_count, 2)
+
+    def test_corrupt_payload_is_repaired_only_at_the_exact_pinned_revision(self):
+        self.seed()
+        cached = hostlab.STATE / "source-snapshots" / self.binding["snapshot_sha256"] / "context.json"
+        cached.write_text("{}", encoding="utf-8")
+        remote = self.root / "verified-remote.json"
+        remote.write_bytes(codec.serialize(self.ctx))
+        with patch.object(transport, "publish", side_effect=AssertionError("upload")), \
+             patch.object(hostlab, "api_private", return_value=(None, "f" * 40)), \
+             patch("huggingface_hub.hf_hub_download", return_value=str(remote)) as download:
+            actual = transport.prepare(self.root)
+        self.assertEqual(actual, self.binding)
+        download.assert_called_once_with(repo_id=transport.SOURCE_REPO, repo_type="dataset", filename=self.binding["path"],
+            revision=self.binding["revision"], token=True, force_download=True)
+
+    def test_capture_secret_gate_cannot_be_bypassed_by_a_cached_binding(self):
+        self.seed()
+        self.file.write_text('val API_TOKEN = "hf_' + 'a' * 40 + '"\n', encoding="utf-8")
+        with patch.object(transport, "publish") as publish, self.assertRaisesRegex(ValueError, "secret gate"):
+            transport.prepare(self.root)
+        publish.assert_not_called()
+
+    def test_index_reparse_is_ignored_without_reading_or_overwriting_it(self):
+        self.seed()
+        index = transport._worktree_path("current-worktree-binding.json")
+        raw = index.read_bytes()
+        original = Path.lstat
+        def reparse(path):
+            info = original(path)
+            return SimpleNamespace(st_mode=info.st_mode, st_file_attributes=0x400,
+                st_nlink=1, st_size=info.st_size) if path == index else info
+        with patch.object(Path, "lstat", reparse), patch.object(transport, "load_pinned", side_effect=AssertionError("unsafe read")), \
+             patch.object(transport, "publish", side_effect=self.published) as publish:
+            transport.prepare(self.root)
+        self.assertEqual(publish.call_count, 1)
+        self.assertEqual(index.read_bytes(), raw)
+
+    def test_four_concurrent_misses_publish_the_same_tree_once(self):
+        def publish(ctx, gh=None):
+            time.sleep(.05)
+            return self.published(ctx)
+        with patch.object(transport, "publish", side_effect=publish) as posted:
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                bindings = list(pool.map(lambda _: transport.prepare(self.root), range(4)))
+        self.assertEqual(posted.call_count, 1)
+        self.assertEqual(len({row["snapshot_sha256"] for row in bindings}), 1)
+
+    def test_worktree_lock_wait_is_bounded_and_never_bypassed(self):
+        with patch("remote_schedule.admission_lock", return_value=None), \
+             patch.object(transport.time, "monotonic", side_effect=(0, 121)), \
+             patch.object(transport, "publish") as publish, self.assertRaisesRegex(RuntimeError, "busy"):
+            transport.prepare(self.root)
+        publish.assert_not_called()
 
 
 if __name__ == "__main__": unittest.main()

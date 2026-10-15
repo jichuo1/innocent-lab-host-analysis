@@ -5,7 +5,8 @@ import analysis_plan
 
 
 def requirements(operation, argument):
-    native = optional = native_only = False
+    native = optional = False
+    native_only = operation == "regenerate_ai"
     if operation in {"batch", "batch_group"}:
         if operation == "batch_group":
             import runner_group
@@ -20,7 +21,7 @@ def requirements(operation, argument):
     elif operation == "backend_validation":
         native = True
     return {"needs_dexsql": str(native).lower(), "dexsql_optional": str(optional).lower(),
-            "needs_java":str(operation in {"audit","decompile","multipath_audit","regenerate_ai","backend_validation"}).lower(),
+            "needs_java":str(operation in {"audit","decompile","multipath_audit","backend_validation"}).lower(),
             "requirements": "requirements-query.txt" if native_only else "requirements.txt"}
 
 

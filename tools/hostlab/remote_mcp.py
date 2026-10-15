@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import subprocess
 import uuid
+import time
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 import hostlab
@@ -74,6 +75,11 @@ def lookup(request_id):
     if not re.fullmatch(r"[0-9a-f]{32}", request_id):
         raise ToolError("Invalid request ID")
     mapping = hostlab.STATE / "remote-job-map" / (request_id + ".json")
+    journal = hostlab.STATE / "remote-requests" / (request_id + ".json")
+    if not mapping.exists() and journal.is_file() and journal.stat().st_size <= 1024 * 1024:
+        saved = json.loads(journal.read_text(encoding="utf-8"))
+        if type(saved.get("run_id")) is int and saved["run_id"] > 0:
+            hostlab.write_json(mapping, {"run_id": saved["run_id"]})
     if mapping.exists():
         run_id = int(json.loads(mapping.read_text(encoding="utf-8"))["run_id"])
         return json.loads(gh(["api", f"repos/{REPO}/actions/runs/{run_id}"]))
@@ -260,24 +266,48 @@ def submit_job(version_code: int, operation: str, argument: str = "", max_cell_c
         except Exception:
             raise ToolError("Source snapshot preparation failed; analysis was not dispatched") from None
         inputs["module_source"] = json.dumps(binding, separators=(",", ":"), sort_keys=True)
-    hostlab.write_json(hostlab.STATE / "remote-requests" / (request + ".json"), {
+    record_path = hostlab.STATE / "remote-requests" / (request + ".json")
+    queued_at = time.time()
+    record = {
         "request_id": request, "version_code": version_code, "operation": operation,
-        "source_mode": source_mode, "module_source": binding})
-    gh(["api", "--method", "POST", f"repos/{REPO}/actions/workflows/{WORKFLOW}/dispatches", "--input", "-"],
-       {"ref": "main", "inputs": inputs})
-    return json.dumps({"request_id": request, "status": "submitted", "repository": REPO,
-                       "module_source": binding})
+        "source_mode": source_mode, "module_source": binding, "status": "dispatch_unknown",
+        "created_at": queued_at, "queued_at": queued_at}
+    hostlab.write_json(record_path, record)
+    import remote_dispatch
+    dispatched = remote_dispatch.dispatch(REPO, WORKFLOW, inputs, gh)
+    record.update({key: value for key, value in dispatched.items() if key not in {"dispatched", "next_action"}})
+    hostlab.write_json(record_path, record)
+    return json.dumps({**record, "repository": REPO, "dispatched": dispatched["dispatched"],
+                       **({"next_action": dispatched["next_action"]} if "next_action" in dispatched else {})})
 
 
 @mcp.tool()
 def job_status(request_id: str) -> str:
     """Get queue/running/completion state for a submitted request. Does not wait."""
+    started = time.monotonic()
     run = lookup(request_id)
     if run is None:
-        return json.dumps({"status": "dispatch_pending", "request_id": request_id})
+        return json.dumps({"status": "dispatch_pending", "request_id": request_id,
+                           "lookup_elapsed_ms": (time.monotonic()-started)*1000})
     import remote_schedule
-    remote_schedule.observe(request_id, run)
-    return json.dumps({k: run[k] for k in ("id", "status", "conclusion", "html_url", "head_sha")})
+    receipt = remote_schedule.observe(request_id, run)
+    if receipt is None:
+        journal = hostlab.STATE / "remote-requests" / (request_id + ".json")
+        try:
+            if journal.is_file() and journal.stat().st_size <= 1024 * 1024:
+                receipt = remote_schedule.reconcile(json.loads(journal.read_text(encoding="utf-8")), run)
+        except (OSError, ValueError):
+            pass
+    result = {k: run[k] for k in ("id", "status", "conclusion", "html_url", "head_sha") if k in run}
+    if receipt is not None:
+        result.update(status=remote_schedule.public_status(receipt), conclusion=receipt.get("conclusion"),
+            state_uncertain=receipt.get("state_uncertain", False),
+            stale_observation_ignored=receipt.get("stale_observation_ignored", False))
+        for key in ("queued_at", "dispatch", "run_attempt", "run_updated_at"):
+            if key in receipt:
+                result[key] = receipt[key]
+    result.update(request_id=request_id, lookup_elapsed_ms=(time.monotonic()-started)*1000)
+    return json.dumps(result)
 
 
 @mcp.tool()
