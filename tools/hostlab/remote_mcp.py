@@ -86,11 +86,12 @@ def lookup(request_id):
 @mcp.tool()
 def plan_version_matrix(samples: list[dict], request: dict, max_parallel: int = 4,
                         reuse_completed: bool = True, deadline_seconds: int = 1800,
-                        runner_batch_size: int = 1) -> str:
-    """Plan 1..40 exact APKs, with 1..4 physical runners and optionally 1..4 sequential versions per runner. Each sample needs version_code/apk_sha256/sample_revision from inventory. One immutable tool commit binds the matrix. Default runner_batch_size=1 preserves individual jobs. Set reuse_completed=false for a fresh load test. No dispatch here."""
+                        runner_batch_size: int = 1, execution_policy: str = "fixed") -> str:
+    """Plan 1..40 exact APKs over at most 4 runners. Default fixed preserves runner_batch_size=1..4 and old identities. execution_policy=adaptive uses balanced groups (native up to 12, otherwise 4); leave runner_batch_size=1. Its cold projection performs no network/profile reads; exact verified profiles bind at submission. Every sample requires inventory version_code/apk_sha256/sample_revision. No dispatch here."""
     import version_matrix
     try:
-        return json.dumps(version_matrix.plan(samples,request,max_parallel,reuse_completed,deadline_seconds,runner_batch_size),ensure_ascii=False)
+        return json.dumps(version_matrix.plan(samples,request,max_parallel,reuse_completed,deadline_seconds,runner_batch_size,
+                                              execution_policy),ensure_ascii=False)
     except ValueError as exc:
         raise ToolError(str(exc)) from None
 
@@ -98,13 +99,14 @@ def plan_version_matrix(samples: list[dict], request: dict, max_parallel: int = 
 @mcp.tool()
 def submit_version_matrix(samples: list[dict], request: dict, max_parallel: int = 4,
                           reuse_completed: bool = True, deadline_seconds: int = 1800,
-                          idempotency_key: str = "", runner_batch_size: int = 1) -> str:
-    """Create a durable queue and dispatch at most two physical jobs. runner_batch_size=1..4 optionally shares preparation across sequential versions on each runner; default 1 keeps legacy behavior. Inventory pins are mandatory. Advance repeatedly to replenish up to 4 physical slots. Explicit keys resume the same matrix. Unknown dispatches and member failures never replay automatically."""
+                          idempotency_key: str = "", runner_batch_size: int = 1,
+                          execution_policy: str = "fixed") -> str:
+    """Create a durable exact-version queue. Fixed mode keeps runner_batch_size=1..4 and dispatches up to two jobs per call. Adaptive mode snapshots verified performance hints, balances bounded groups and fills up to four physical slots; leave runner_batch_size=1. Stable keys resume the original frozen topology even when profiles/main change. Unknown dispatches and failures never replay automatically."""
     import version_matrix
     try:
         created=version_matrix.create(samples,request,gh,repository=REPO,max_parallel=max_parallel,
             reuse_completed=reuse_completed,deadline_seconds=deadline_seconds,idempotency_key=idempotency_key,
-            runner_batch_size=runner_batch_size)
+            runner_batch_size=runner_batch_size, execution_policy=execution_policy)
         if "matrix_id" not in created:
             return json.dumps(created)
         return json.dumps(version_matrix.advance(created["matrix_id"],gh,lookup,runs,repository=REPO,
@@ -115,7 +117,7 @@ def submit_version_matrix(samples: list[dict], request: dict, max_parallel: int 
 
 @mcp.tool()
 def advance_version_matrix(matrix_id: str) -> str:
-    """Refresh accepted jobs and dispatch at most two queued versions under the captured tool revision and 1..4-slot budget. Call only while you intend the matrix to progress. capacity_full leaves versions queued, never lost; a deadline stops new dispatches without cancelling accepted work."""
+    """Refresh accepted jobs under the captured revision and at most 4 physical slots. Fixed queues dispatch at most two jobs per call; adaptive queues fill up to four. Call only while you intend progress. Capacity pressure keeps local entries; a deadline stops new dispatches without cancelling accepted jobs."""
     import version_matrix
     try:
         return json.dumps(version_matrix.advance(matrix_id,gh,lookup,runs,repository=REPO,
@@ -152,7 +154,7 @@ def version_matrix_result(matrix_id: str, offset: int = 0, limit: int = 8, downl
 
 @mcp.tool()
 def recover_version_matrix(matrix_id: str, idempotency_key: str = "", include_unverified_results: bool = False) -> str:
-    """Retry confirmed failed/skipped versions in a new queue under the original tool commit. Explicit include_unverified_results=true also authorizes repeated execution of members whose physical jobs completed but results remain unverified, potentially repeating earlier successful work. Running/unknown dispatches are always excluded. Repeating the same key/opt-in resumes its queue; a new key authorizes another attempt. Uses Actions minutes and dispatches at most two initial jobs."""
+    """Retry confirmed failed/skipped versions under the original tool commit and execution policy. Explicit include_unverified_results=true may repeat completed jobs whose member results remain unverified, including earlier successful work. Running/unknown dispatches stay excluded. The same key/opt-in resumes its queue; a new key authorizes another attempt. Uses Actions minutes; fixed/adaptive dispatch at most two/four initial jobs."""
     import version_matrix
     try:
         created = version_matrix.recover(matrix_id, gh, repository=REPO, idempotency_key=idempotency_key,
@@ -170,7 +172,14 @@ def matrix_group_artifact(group, payload, run):
     import remote_artifacts
     import runner_group
     downloaded = remote_artifacts.get(REPO, group["request_id"], run, gh)
-    return runner_group.collect(payload, downloaded, group["runner_revision"])
+    verified = runner_group.collect(payload, downloaded, group["runner_revision"])
+    try:
+        import adaptive_schedule
+        adaptive_schedule.observe(payload, downloaded, group["runner_revision"])
+    except Exception:
+        # Performance hints are optional; verified results remain authoritative.
+        pass
+    return verified
 
 
 def matrix_artifact(entry):
@@ -285,12 +294,12 @@ def job_result(request_id: str, result_offset: int = 0, sample_index: int = -1) 
     Pass result_page.next_offset back as result_offset until it is null. Reading pages
     reuses the downloaded artifact; it does not submit another Actions analysis job.
     Grouped jobs return a bounded group receipt and all file paths by default.
-    Set sample_index=0..3 to inspect/page a specific member, including failed members.
+    Set sample_index=0..11 to inspect/page a specific member, including failed members.
     """
     if not 0 <= result_offset <= 2147483647:
         raise ToolError("result_offset must be 0..2147483647")
-    if type(sample_index) is not int or not -1 <= sample_index <= 3:
-        raise ToolError("sample_index must be -1..3")
+    if type(sample_index) is not int or not -1 <= sample_index <= 11:
+        raise ToolError("sample_index must be -1..11")
     durable=repository_report(request_id)
     if durable:
         if result_offset or sample_index != -1:
@@ -317,7 +326,7 @@ def job_result(request_id: str, result_offset: int = 0, sample_index: int = -1) 
             content = groups[0].read_text(encoding="utf-8")
             return json.dumps({"run": run["html_url"], "files": [str(p) for p in files],
                 "text": content[:8000], "text_truncated": len(content) > 8000, "result_page": None,
-                "grouped": True, "next_action": "job_result(request_id, sample_index=0..3) or version_matrix_result",
+                "grouped": True, "next_action": "job_result(request_id, sample_index=0..11) or version_matrix_result",
                 "collection": {key:collected[key] for key in ("cache_hit", "artifact", "integrity", "elapsed_ms", "run_attempt")}}, ensure_ascii=False)
         member = groups[0].parent / "samples" / str(sample_index)
         files = [p for p in files if p.parent == member and p.name in {"job.json", "result.txt"}]

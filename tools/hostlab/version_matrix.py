@@ -24,7 +24,8 @@ def digest(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
-def definition(samples, request, max_parallel=4, reuse_completed=True, deadline_seconds=1800, runner_batch_size=1):
+def definition(samples, request, max_parallel=4, reuse_completed=True, deadline_seconds=1800, runner_batch_size=1,
+               execution_policy="fixed"):
     if not isinstance(samples, list) or not 1 <= len(samples) <= MAX_SAMPLES:
         raise ValueError("matrix needs 1..40 pinned samples")
     if type(reuse_completed) is not bool:
@@ -44,12 +45,18 @@ def definition(samples, request, max_parallel=4, reuse_completed=True, deadline_
             seen.add(identity)
             normalized.append(dict(row))
     runner_batch_size = analysis_plan.integer(runner_batch_size, 1, 4, "runner_batch_size")
+    if not isinstance(execution_policy, str) or execution_policy not in {"fixed", "adaptive"}:
+        raise ValueError("execution_policy must be fixed or adaptive")
+    if execution_policy == "adaptive" and runner_batch_size != 1:
+        raise ValueError("adaptive execution cannot also set a fixed runner_batch_size")
     spec = {"samples": normalized, "request": analysis_plan.validate(request),
             "max_parallel": analysis_plan.integer(max_parallel, 1, 4, "max_parallel"),
             "reuse_completed": reuse_completed,
             "deadline_seconds": analysis_plan.integer(deadline_seconds, 1, 7200, "deadline_seconds")}
     # Keep the exact schema/hash of existing one-sample matrices.
-    if runner_batch_size > 1:
+    if execution_policy == "adaptive":
+        spec["execution_policy"] = "adaptive"
+    elif runner_batch_size > 1:
         spec["runner_batch_size"] = runner_batch_size
         import runner_group
         for start in range(0, len(normalized), runner_batch_size):
@@ -58,16 +65,24 @@ def definition(samples, request, max_parallel=4, reuse_completed=True, deadline_
     return spec
 
 
-def plan(samples, request, max_parallel=4, reuse_completed=True, deadline_seconds=1800, runner_batch_size=1):
-    spec = definition(samples, request, max_parallel, reuse_completed, deadline_seconds, runner_batch_size)
+def plan(samples, request, max_parallel=4, reuse_completed=True, deadline_seconds=1800, runner_batch_size=1,
+         execution_policy="fixed"):
+    spec = definition(samples, request, max_parallel, reuse_completed, deadline_seconds, runner_batch_size, execution_policy)
+    adaptive = None
+    if execution_policy == "adaptive":
+        import adaptive_schedule
+        adaptive = adaptive_schedule.projection(spec["samples"], spec["request"], max_parallel, deadline_seconds)
     return {"schema": 1, "definition_sha256": digest(spec), "samples": spec["samples"],
             "sample_count": len(spec["samples"]), "duplicate_samples_removed": len(samples)-len(spec["samples"]),
             "max_parallel": spec["max_parallel"], "reuse_completed": spec["reuse_completed"],
             "runner_batch_size": runner_batch_size,
-            "physical_job_count": (len(spec["samples"]) + runner_batch_size - 1) // runner_batch_size,
+            "execution_policy": execution_policy,
+            "physical_job_count": adaptive["physical_job_count"] if adaptive else (len(spec["samples"]) + runner_batch_size - 1) // runner_batch_size,
             "deadline_seconds": spec["deadline_seconds"], "batch_plan": analysis_plan.plan(spec["request"]),
             "tool_revision": "one_immutable_commit_for_the_entire_matrix",
-            "advance_dispatch_budget": 2, "execution": "caller_driven_no_background_dispatch",
+            "advance_dispatch_budget": 4 if adaptive else 2, "execution": "caller_driven_no_background_dispatch",
+            **({"adaptive_plan": adaptive,
+                "profile_binding": "cold projection only; exact tooling/profile snapshot binds at create"} if adaptive else {}),
             "scope": "offline_static_only"}
 
 
@@ -98,6 +113,8 @@ def group_dispatch_key(value, index, indices):
     spec = value["definition"]
     identity = {"samples": [spec["samples"][i] for i in indices], "request": spec["request"],
                 "revision": value["runner_revision"], "epoch": int(value["created_at"] // 86400)}
+    if spec.get("execution_policy") == "adaptive":
+        identity["execution"] = spec["adaptive_plan"]["execution"]
     semantic = all(t["operation"] != "query" for t in spec["request"]["tasks"])
     return ("vmgroup_" + digest(identity)[:48] if spec["reuse_completed"] and semantic
             else "vg_" + value["matrix_id"] + "_" + str(index))
@@ -105,8 +122,12 @@ def group_dispatch_key(value, index, indices):
 
 def group_payload(matrix, group):
     import runner_group
-    return runner_group.validate({"schema": 1, "request": matrix["definition"]["request"],
-        "samples": [matrix["definition"]["samples"][i] for i in group["sample_indices"]]})
+    spec = matrix["definition"]
+    payload = {"schema": 1, "request": spec["request"],
+               "samples": [spec["samples"][i] for i in group["sample_indices"]]}
+    if spec.get("execution_policy") == "adaptive":
+        payload.update(schema=2, execution=spec["adaptive_plan"]["execution"])
+    return runner_group.validate(payload)
 
 
 def load(matrix_id):
@@ -122,13 +143,26 @@ def load(matrix_id):
     for i,entry in enumerate(value["entries"]):
         if entry["sample"]!=value["definition"]["samples"][i] or entry["dispatch_key"]!=dispatch_key(value,i):
             raise ValueError("matrix sample or retry binding changed")
-    size = value["definition"].get("runner_batch_size", 1)
-    if size > 1:
+    spec = value["definition"]
+    size = spec.get("runner_batch_size", 1)
+    if spec.get("execution_policy") == "adaptive":
+        import adaptive_schedule
+        if size != 1 or value.get("schema") != 3:
+            raise ValueError("adaptive matrix schema changed")
+        adaptive_schedule.validate_plan(spec.get("adaptive_plan", {}), spec["samples"], spec["request"],
+            value["runner_revision"], spec["max_parallel"], spec["deadline_seconds"])
+        expected = [g["sample_indices"] for g in spec["adaptive_plan"]["groups"]]
+    elif size > 1:
         analysis_plan.integer(size, 2, 4, "runner_batch_size")
         expected = [list(range(start, min(start + size, len(value["entries"]))))
                     for start in range(0, len(value["entries"]), size)]
+        if value.get("schema") != 2:
+            raise ValueError("matrix physical group schema changed")
+    else:
+        expected = None
+    if expected is not None:
         groups = value.get("groups", [])
-        if value.get("schema") != 2 or len(groups) != len(expected):
+        if len(groups) != len(expected):
             raise ValueError("matrix physical group queue changed")
         for index, (group, indices) in enumerate(zip(groups, expected)):
             if (group.get("group_id") != "g" + str(index) or group.get("sample_indices") != indices
@@ -160,6 +194,10 @@ def summary(matrix):
             "peak_inflight": matrix["peak_inflight"], "max_parallel": matrix["definition"]["max_parallel"],
             "physical_inflight": physical_inflight,
             "runner_batch_size": matrix["definition"].get("runner_batch_size", 1),
+            "execution_policy": matrix["definition"].get("execution_policy", "fixed"),
+            **({"planned_group_sizes": [len(g["sample_indices"]) for g in matrix["groups"]],
+                "adaptive_profile": matrix["definition"]["adaptive_plan"]["cost_snapshot"]["profile_source"]}
+               if matrix["definition"].get("execution_policy") == "adaptive" else {}),
             "physical_job_count": len(units),
             "created_at": matrix["created_at"], "deadline_at": matrix["deadline_at"],
             "entries": [{k:v for k,v in e.items() if k != "dispatch_key"} for e in matrix["entries"]],
@@ -172,8 +210,9 @@ def summary(matrix):
 
 
 def create(samples, request, gh, *, repository, max_parallel=4, reuse_completed=True,
-           deadline_seconds=1800, idempotency_key="", runner_batch_size=1, _runner_revision=None):
-    spec = definition(samples, request, max_parallel, reuse_completed, deadline_seconds, runner_batch_size)
+           deadline_seconds=1800, idempotency_key="", runner_batch_size=1, _runner_revision=None,
+           execution_policy="fixed"):
+    spec = definition(samples, request, max_parallel, reuse_completed, deadline_seconds, runner_batch_size, execution_policy)
     if idempotency_key and not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", idempotency_key):
         raise ValueError("invalid matrix idempotency key")
     root = directory()
@@ -185,12 +224,19 @@ def create(samples, request, gh, *, repository, max_parallel=4, reuse_completed=
         binding = root / ("key-" + digest(idempotency_key) + ".binding") if idempotency_key else None
         if binding and binding.exists():
             old = load(binding.read_text(encoding="ascii"))
-            if old["definition_sha256"] != digest(spec):
+            prior_input = {key: val for key, val in old["definition"].items() if key != "adaptive_plan"}
+            if digest(prior_input) != digest(spec):
                 raise ValueError("matrix key is already bound to a different request")
+            if _runner_revision is not None and old["runner_revision"] != _runner_revision:
+                raise ValueError("matrix recovery tool binding changed")
             return {**summary(old), "created": False, "reused": True}
         revision = _runner_revision or json.loads(gh(["api", f"repos/{repository}/git/ref/heads/main"]))["object"]["sha"]
         if not re.fullmatch(r"[0-9a-f]{40}", revision):
             raise ValueError("invalid matrix tool revision")
+        if execution_policy == "adaptive":
+            import adaptive_schedule
+            spec["adaptive_plan"] = adaptive_schedule.build(spec["samples"], spec["request"], revision,
+                max_parallel, deadline_seconds)
         created = time.time()
         matrix_id = uuid.uuid4().hex
         value = {"schema":1,"matrix_id":matrix_id,"definition":spec,"definition_sha256":digest(spec),
@@ -203,11 +249,13 @@ def create(samples, request, gh, *, repository, max_parallel=4, reuse_completed=
             entries.append({"sample_id": "s" + str(index), "sample": sample, "status": "queued_local",
                             "request_id": None, "dispatch_key": dispatch_key(value,index)})
         value["entries"]=entries
-        if runner_batch_size > 1:
-            value["schema"] = 2
+        if runner_batch_size > 1 or execution_policy == "adaptive":
+            value["schema"] = 3 if execution_policy == "adaptive" else 2
             value["groups"] = []
-            for index, start in enumerate(range(0, len(entries), runner_batch_size)):
-                indices = list(range(start, min(start + runner_batch_size, len(entries))))
+            topology = ([g["sample_indices"] for g in spec["adaptive_plan"]["groups"]] if execution_policy == "adaptive"
+                        else [list(range(start, min(start + runner_batch_size, len(entries))))
+                              for start in range(0, len(entries), runner_batch_size)])
+            for index, indices in enumerate(topology):
                 group = {"group_id": "g" + str(index), "sample_indices": indices,
                          "dispatch_key": group_dispatch_key(value, index, indices),
                          "status": "queued_local", "request_id": None}
@@ -242,7 +290,8 @@ def recover(matrix_id, gh, *, repository, idempotency_key="", include_unverified
     return create(samples, spec["request"], gh, repository=repository,
         max_parallel=spec["max_parallel"], reuse_completed=False,
         deadline_seconds=spec["deadline_seconds"], idempotency_key=key,
-        runner_batch_size=spec.get("runner_batch_size", 1), _runner_revision=original["runner_revision"])
+        runner_batch_size=spec.get("runner_batch_size", 1), _runner_revision=original["runner_revision"],
+        execution_policy=spec.get("execution_policy", "fixed"))
 
 
 def advance(matrix_id, gh, lookup, runs, *, repository, workflow, dispatch=True, collect_group=None):
@@ -405,7 +454,8 @@ def advance_groups(matrix, target, gh, lookup, recent, observed, *, repository, 
                 for index in group["sample_indices"]:
                     matrix["entries"][index].update(status="skipped", reason="matrix_submission_deadline")
     elif dispatch:
-        budget = min(2, matrix["definition"]["max_parallel"] - active)
+        dispatch_limit = 4 if matrix["definition"].get("execution_policy") == "adaptive" else 2
+        budget = min(dispatch_limit, matrix["definition"]["max_parallel"] - active)
         for group in matrix["groups"]:
             if budget <= 0:
                 break
@@ -413,9 +463,10 @@ def advance_groups(matrix, target, gh, lookup, recent, observed, *, repository, 
                 continue
             payload = group_payload(matrix, group)
             try:
+                options = {"execution": payload["execution"]} if "execution" in payload else {}
                 result = remote_schedule.submit_group(payload["samples"], payload["request"], gh, lookup, lambda: recent,
                     repository=repository, workflow=workflow, idempotency_key=group["dispatch_key"],
-                    runner_revision=matrix["runner_revision"], reuse_completed=matrix["definition"]["reuse_completed"])
+                    runner_revision=matrix["runner_revision"], reuse_completed=matrix["definition"]["reuse_completed"], **options)
             except Exception as exc:
                 matrix["poll_errors"].append({"group_id": group["group_id"], "error": type(exc).__name__})
                 break
