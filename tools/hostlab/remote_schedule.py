@@ -52,7 +52,8 @@ def describe(request):
 
 
 def submit(version_code, request, gh, lookup, runs, *, repository, workflow,
-           apk_sha256="", sample_revision="", idempotency_key=""):
+           apk_sha256="", sample_revision="", idempotency_key="", runner_revision=None,
+           reuse_completed=True):
     request = analysis_plan.validate(request)
     analysis_plan.integer(version_code, 1, 9999999999, "version_code")
     if bool(apk_sha256) != bool(sample_revision):
@@ -63,7 +64,7 @@ def submit(version_code, request, gh, lookup, runs, *, repository, workflow,
         raise ValueError("invalid sample revision")
     if idempotency_key and not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", idempotency_key):
         raise ValueError("invalid idempotency key")
-    head = json.loads(gh(["api", f"repos/{repository}/git/ref/heads/main"]))["object"]["sha"]
+    head = runner_revision or json.loads(gh(["api", f"repos/{repository}/git/ref/heads/main"]))["object"]["sha"]
     if not re.fullmatch(r"[0-9a-f]{40}", head):
         raise ValueError("invalid runner source revision")
     identity = {"version_code": version_code, "request": request, "apk_sha256": apk_sha256,
@@ -89,7 +90,7 @@ def submit(version_code, request, gh, lookup, runs, *, repository, workflow,
                 return {**old, "reused": True, "dispatched": False,
                         "status": run.get("status") if run else old["status"]}
             deterministic = all(task["operation"] != "query" for task in request["tasks"])
-            if idempotency_key or apk_sha256 and deterministic and run.get("conclusion") == "success" and time.time() - old["created_at"] < 86400:
+            if idempotency_key or reuse_completed and apk_sha256 and deterministic and run.get("conclusion") == "success" and time.time() - old["created_at"] < 86400:
                 return {**old, "reused": True, "dispatched": False, "status": "completed", "conclusion": run.get("conclusion")}
         recent = runs()
         observed = {r.get("display_title", "").removeprefix("hostlab-"):r for r in recent}

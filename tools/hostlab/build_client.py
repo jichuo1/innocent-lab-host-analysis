@@ -13,6 +13,8 @@ files += [here / "remote_mcp.py", here / "remote_job.py", here / "host-analysis.
 files += [here / name for name in ("install_dexsql.py", "analysis_plan.py", "analysis_batch.py", "remote_schedule.py",
                                    "plan_ci.py", "verify_backends.py", "test_analysis_scheduler.py", "requirements-query.txt", "DEXSQL.md")]
 files += [here / "vendor/dexsql/LICENSE", here / "vendor/dexsql/LICENSE-AUXILIARY"]
+files += [here / "version_matrix.py", here / "test_version_matrix.py"]
+files += [here / "examples/comment-search-links.json"]
 files += [here / "requirements-remote.txt", here / "setup-remote.cmd", here / "REMOTE_README.md"]
 files += [here / "surface_workers.py", here / "priority_analysis.py", here / "source_snapshot.py",
           here / "snapshot_context.py", here / "snapshot_transport.py",
@@ -33,7 +35,8 @@ print(str(output))
 print(f"Files: {len(files) + 1}; bytes: {output.stat().st_size}")
 remote = output.with_name("hostlab-remote-client.zip")
 with zipfile.ZipFile(remote, "w", zipfile.ZIP_DEFLATED) as archive:
-    for name in ("hostlab.py", "remote_mcp.py", "analysis_plan.py", "remote_schedule.py", "DEXSQL.md", "source_snapshot.py", "snapshot_transport.py",
+    for name in ("hostlab.py", "remote_mcp.py", "analysis_plan.py", "remote_schedule.py", "version_matrix.py", "DEXSQL.md", "source_snapshot.py", "snapshot_transport.py",
                  "requirements-remote.txt", "setup-remote.cmd", "REMOTE_README.md"):
         archive.write(here / name, "tools/hostlab/" + name)
+    archive.write(here / "examples/comment-search-links.json", "tools/hostlab/examples/comment-search-links.json")
 print(f"Remote-only client: {remote}; bytes: {remote.stat().st_size}")
