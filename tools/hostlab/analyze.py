@@ -1,14 +1,17 @@
 """Read-only APK analysis, reusing the project's explicit offline audit rules."""
 import argparse
 from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
+import time
 import hostlab
 
 HERE = Path(__file__).resolve().parent
@@ -35,25 +38,104 @@ def inputs(args):
     return fetch_sample(row, repo, revision), {**row, "source": "huggingface", "repo": repo, "revision": revision}
 
 
-def fetch_sample(row, repo, revision):
+def fetch_sample(row, repo, revision, *, timings=None):
     """Fetch one already-selected immutable sample; batch tasks share this input."""
     from huggingface_hub import hf_hub_download
-    path = Path(hf_hub_download(repo_id=repo, repo_type="dataset", filename=row["path"],
-                               revision=revision, token=True))
-    if path.stat().st_size != row["size"] or hostlab.digest(path) != row["sha256"]:
-        raise RuntimeError("APK download integrity mismatch")
-    # Hub snapshots on Linux are symlinks to extensionless blobs. dexq resolves
-    # paths before checking extensions, so stage a verified regular .apk file.
-    if path.resolve().suffix.lower() != ".apk":
-        target = hostlab.STATE / "samples" / row["sha256"] / "base.apk"
+    from remote_schedule import admission_lock
+    metrics = timings if timings is not None else {}
+    metrics.update(download_ms=0.0, verify_ms=0.0, stage_ms=0.0, staged_cache_hit=False)
+    started = time.monotonic()
+    lock = temp = None
+
+    def regular(path):
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            return None
+        if not stat.S_ISREG(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+            raise RuntimeError("Linked or nonregular sample cache file")
+        return info
+
+    def matches(path):
+        checked = time.monotonic()
+        try:
+            info = regular(path)
+            return info is not None and info.st_size == row["size"] and hostlab.digest(path) == row["sha256"]
+        finally:
+            metrics["verify_ms"] += (time.monotonic() - checked) * 1000
+
+    try:
+        code, sha, size = row["version_code"], row["sha256"], row["size"]
+        if (type(code) is not int or not 1 <= code <= 9999999999 or not isinstance(sha, str)
+                or not re.fullmatch(r"[0-9a-f]{64}", sha) or type(size) is not int
+                or not 1 <= size <= 1024 * 1024 * 1024
+                or row["path"] != f"apks/tv.danmaku.bili/{code}/{sha}/base.apk"):
+            raise RuntimeError("Invalid immutable sample identity")
+        root = hostlab.STATE.absolute()
+        target = root / "samples" / sha / "base.apk"
+        # Check all existing ancestors before mkdir/open, including Windows junctions.
+        for directory in reversed((target.parent, *target.parent.parents)):
+            try:
+                info = directory.lstat()
+            except FileNotFoundError:
+                continue
+            if not stat.S_ISDIR(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+                raise RuntimeError("Linked or non-directory sample cache path")
         target.parent.mkdir(parents=True, exist_ok=True)
-        if not target.exists() or target.stat().st_size != row["size"] or hostlab.digest(target) != row["sha256"]:
-            with tempfile.NamedTemporaryFile(dir=target.parent, suffix=".apk", delete=False) as stream:
-                temp = Path(stream.name)
-            shutil.copyfile(path, temp)
-            os.replace(temp, target)
-        path = target
-    return path
+        lock_path = target.parent / "prepare.lock"
+        regular(lock_path)
+        deadline = time.monotonic() + 600
+        while lock is None:
+            lock = admission_lock(lock_path)
+            if lock is None:
+                if time.monotonic() >= deadline:
+                    raise RuntimeError("Sample preparation lock timed out")
+                time.sleep(0.05)
+        if matches(target):
+            metrics["staged_cache_hit"] = True
+            return target
+        downloaded = time.monotonic()
+        try:
+            path = Path(hf_hub_download(repo_id=repo, repo_type="dataset", filename=row["path"],
+                                       revision=revision, token=True))
+        finally:
+            metrics["download_ms"] += (time.monotonic() - downloaded) * 1000
+        # Hub snapshots on Linux link to extensionless blobs. Verify the bytes
+        # while copying, then publish only the complete regular .apk file.
+        resolved = path.resolve(strict=True)
+        info = regular(resolved)
+        if info is None or info.st_size != size:
+            raise RuntimeError("APK download integrity mismatch")
+        if resolved.suffix.lower() == ".apk":
+            if not matches(resolved):
+                raise RuntimeError("APK download integrity mismatch")
+            return path
+        digest, count = hashlib.sha256(), 0
+        with resolved.open("rb") as source, tempfile.NamedTemporaryFile(
+                dir=target.parent, suffix=".apk", delete=False) as stream:
+            temp = Path(stream.name)
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                count += len(chunk)
+                if count > size:
+                    raise RuntimeError("APK download integrity mismatch")
+                checked = time.monotonic()
+                digest.update(chunk)
+                metrics["verify_ms"] += (time.monotonic() - checked) * 1000
+                stream.write(chunk)
+        if count != size or digest.hexdigest() != sha:
+            raise RuntimeError("APK download integrity mismatch")
+        os.replace(temp, target)
+        temp = None
+        return target
+    finally:
+        try:
+            if temp is not None:
+                temp.unlink(missing_ok=True)
+        finally:
+            if lock is not None:
+                lock.close()
+            metrics["stage_ms"] = max(0.0, (time.monotonic() - started) * 1000
+                                      - metrics["download_ms"] - metrics["verify_ms"])
 
 
 def tool_hashes():

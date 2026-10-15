@@ -5,26 +5,31 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import time
 import hostlab
 import analyze
 import source_snapshot
 import snapshot_transport
 
 
-def run_batch(request, row, repo, revision):
+def run_batch(request, row, repo, revision, *, context_timings=None):
+    import_started = time.monotonic()
     import asyncio
-    import time
     import analysis_batch
     import analysis_plan
     import install_dexsql
     output = hostlab.STATE / "remote-output"
     output.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
+    phases={**(context_timings or {}),"batch_import_ms":(started-import_started)*1000}
+    fetch_timings={}
     try:
-        apk = analyze.fetch_sample(row, repo, revision)
+        apk = analyze.fetch_sample(row, repo, revision, timings=fetch_timings)
         fetch_ms = (time.monotonic() - started) * 1000
         sample = {**row, "source": "huggingface", "repo": repo, "revision": revision}
+        analysis_started=time.monotonic()
         report = asyncio.run(analysis_batch.execute(apk, request, roots=[apk.parent], sample=sample))
+        phases["analysis_ms"]=(time.monotonic()-analysis_started)*1000
         rc = 0 if report["complete"] else 2
     except Exception as exc:
         fetch_ms = None
@@ -34,7 +39,9 @@ def run_batch(request, row, repo, revision):
     (output / "result.txt").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     here = Path(__file__).resolve().parent
     names = ("analysis_plan.py", "analysis_batch.py", "install_dexsql.py", "analyze.py", "hostlab.py",
-             "remote_job.py", "dexq/server.py", "dexq/dexq_workers.py")
+             "remote_job.py", "prepare_runtime.py", "dexq/server.py", "dexq/dexq_workers.py")
+    prepared=hostlab.STATE/"preparation.json"
+    preparation=json.loads(prepared.read_text(encoding="utf-8")) if prepared.is_file() and prepared.stat().st_size<=65536 else None
     job = {"operation": "batch", "version_code": row["version_code"], "apk_sha256": row["sha256"],
            "sample_revision": revision, "scope": "offline_static_only", "exit_code": rc,
            "request_sha256": analysis_plan.fingerprint(request), "complete": report["complete"],
@@ -42,6 +49,7 @@ def run_batch(request, row, repo, revision):
            "tools": {name: hostlab.digest(here / name) for name in names},
            "runner_revision": os.environ.get("HOSTLAB_RUNNER_REVISION") or os.environ.get("GITHUB_SHA"),
            "workflow_revision": os.environ.get("GITHUB_SHA"), "fetch_ms": fetch_ms,
+           "phases":{**phases,**fetch_timings},"preparation":preparation,
            "total_ms": (time.monotonic() - started) * 1000}
     hostlab.write_json(output / "job.json", job)
     print(json.dumps({"operation": "batch", "complete": report["complete"], "exit_code": rc,
@@ -87,6 +95,7 @@ def run_validation(argument, row, repo, revision):
 
 
 def main():
+    entry_started=time.monotonic()
     code = os.environ["HOSTLAB_VERSION"]
     operation = os.environ["HOSTLAB_OPERATION"]
     argument = os.environ.get("HOSTLAB_ARGUMENT", "")
@@ -139,12 +148,16 @@ def main():
         os.environ["HOSTLAB_MODULE_SOURCE"] = json.dumps(binding, separators=(",", ":"))
     os.environ["DEXQ_WORKERS"] = "2"
     repo = "innocent-lab-dev/bilibili-host-apks"
+    context_started=time.monotonic()
     _, current_head = hostlab.api_private(repo)
+    context_timings={"repo_info_ms":(time.monotonic()-context_started)*1000}
     head = os.environ.get("HOSTLAB_REVISION") or current_head
     sha = os.environ.get("HOSTLAB_SHA") or None
     if not re.fullmatch(r"[0-9a-f]{40}", head) or (sha and not re.fullmatch(r"[0-9a-f]{64}", sha)):
         raise RuntimeError("Invalid immutable sample identity")
+    manifest_started=time.monotonic()
     samples = hostlab.manifest(repo, head)["samples"]
+    context_timings["manifest_ms"]=(time.monotonic()-manifest_started)*1000
     if operation == "inventory":
         output = hostlab.STATE / "remote-output"
         output.mkdir(parents=True, exist_ok=True)
@@ -158,7 +171,8 @@ def main():
         return 0
     row = hostlab.select({"samples": samples}, int(code), sha)
     if operation == "batch":
-        return run_batch(batch_request, row, repo, head)
+        context_timings["entry_to_batch_ms"]=(time.monotonic()-entry_started)*1000
+        return run_batch(batch_request, row, repo, head, context_timings=context_timings)
     if operation == "backend_validation":
         return run_validation(argument, row, repo, head)
     hostlab.write_json(hostlab.CONFIG, {"repo": repo})
