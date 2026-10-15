@@ -108,7 +108,7 @@ samples = [{"version_code": row["version_code"], "apk_sha256": row["sha256"],
 不把数字 file_id 或 DEX 重排当成 Hook 变化。SQL 显式输出 descriptor 列时也可进入候选对比；长预览标记截断并指向完整本地文件。
 
 [examples/comment-search-links.json](examples/comment-search-links.json) 是与实际评论搜索链接适配契约对应的 15 项工作负载：
-Map getter/URL schema getter 候选、调用/字段/类型消费者、Smali、Manifest，以及三种结构发现查询。
+Map getter/URL schema getter 候选、调用/字段/类型消费者、Smali、Manifest，以及结构发现和布局展开查询。
 其中 protobuf 形状查询不预设类名，返回类型查询从真实消费者推导数据结构并展开字段布局；KMP 模型查询发现已知命名空间内的新增顶层 RichText 结构。
 结构属性与布局会单独计算语义哈希，排除 file_id 重排；长布局保留哈希和显式截断预览，完整数据仍在原始结果文件。
 它们产出静态候选及版本差异，不能直接升级为唯一可用 Hook 或设备验收。

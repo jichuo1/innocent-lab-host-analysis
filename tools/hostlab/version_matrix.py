@@ -325,6 +325,8 @@ def compare(matrix_id, job_result, offset=0, limit=8):
               "reuse_completed":matrix["definition"]["reuse_completed"],"versions":versions,
               "offset":offset,"next_offset":offset+limit if offset+limit<len(matrix["entries"]) else None,
               "sample_count":len(matrix["entries"]),
+              "baseline_sample":baseline_entry["sample"] if baseline_entry else None,
+              "baseline_rule":"first_successful_input_sample",
               "scope":"offline_static_only","runtime_compatibility_verified":False}
     destination = directory() / (matrix_id + "-comparison-"+str(offset)+".json")
     hostlab.write_json(destination,report)
