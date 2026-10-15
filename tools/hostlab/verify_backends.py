@@ -3,12 +3,10 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from collections import Counter
 import hashlib
 import json
 import os
 from pathlib import Path
-import statistics
 import subprocess
 import tempfile
 import time
@@ -55,6 +53,10 @@ async def verify(apk, sample, output, *, rounds=2, jadx=False):
     proof = {"scope": "offline_static_only", "sample": sample, "rounds": [],
              "os": os.name, "cpu_count": os.cpu_count(), "result_multisets_equal": False,
              "measurement": "serial real MCP sessions; OS file cache not flushed; shared input fetched once"}
+    here = Path(__file__).resolve().parent
+    source_files = [here / name for name in ("verify_backends.py", "analysis_batch.py", "analysis_plan.py", "install_dexsql.py",
+                                             "analyze.py", "hostlab.py", "dexq/server.py", "dexq/dexq_workers.py")]
+    proof["tools"] = {str(p.relative_to(here)):hostlab.digest(p) for p in source_files}
     baseline = None
     previous_cache = os.environ.get("DEXQ_CACHE_DIR")
     try:
@@ -119,6 +121,9 @@ async def verify(apk, sample, output, *, rounds=2, jadx=False):
         proof["source_sha_reverified"] = hostlab.digest(apk) == sample["sha256"]
         if not proof["source_sha_reverified"]:
             raise RuntimeError("sample changed during verification")
+        proof["tool_sources_unchanged"] = all(hostlab.digest(p) == proof["tools"][str(p.relative_to(here))] for p in source_files)
+        if not proof["tool_sources_unchanged"]:
+            raise RuntimeError("tool source changed during verification")
         hostlab.write_json(output / "verification.json", proof)
         return proof
     finally:

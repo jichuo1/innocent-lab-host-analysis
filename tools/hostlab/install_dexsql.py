@@ -20,7 +20,8 @@ ASSETS = {
 }
 HERE = Path(__file__).resolve().parent
 LICENSE_HASHES = {
-    "LICENSE": "197c30c39ed7e03d8d21dbd82452097eb064a0a4bfad3fd1980978de8ecde166",
+    # Canonical LF text; the release's CRLF LICENSE has raw SHA 197c30c3...ecde166.
+    "LICENSE": "a5e8ba355d3bbc08a1de333b93cfaadff62c1b335454930c3bc8163d710b5a30",
     "LICENSE-AUXILIARY": "91c80095437ed20c2dca7758f63f03e15eedb46aa4854577b5df20c788ecc514",
 }
 
@@ -90,8 +91,12 @@ def install():
     verify(target)
     for name in LICENSE_HASHES:
         shutil.copyfile(notices / name, target.parent / name)
-    subprocess.run([str(target), "extract", "licenses", "--output", str(target.parent / "THIRD_PARTY_NOTICES")],
-                   check=True, timeout=30, stdout=subprocess.DEVNULL)
+    # The native extractor refuses existing output; stage and replace only our own notice file.
+    with tempfile.TemporaryDirectory(dir=target.parent, prefix="notices-") as directory:
+        exported = Path(directory) / "THIRD_PARTY_NOTICES"
+        subprocess.run([str(target), "extract", "licenses", "--output", str(exported)],
+                       check=True, timeout=30, stdout=subprocess.DEVNULL)
+        os.replace(exported, target.parent / "THIRD_PARTY_NOTICES")
     return target
 
 

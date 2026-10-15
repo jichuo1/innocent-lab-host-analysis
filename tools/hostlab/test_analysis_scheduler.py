@@ -239,6 +239,29 @@ class ExecutionTest(unittest.IsolatedAsyncioTestCase):
 
 
 class InstallerTest(unittest.TestCase):
+    def test_git_line_endings_preserve_license_validation_and_content_changes_fail(self):
+        here=install_dexsql.HERE
+        licenses={name:(here/"vendor/dexsql"/name).read_bytes().replace(b"\r\n",b"\n") for name in install_dexsql.LICENSE_HASHES}
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            vendor=root/"vendor/dexsql"; vendor.mkdir(parents=True)
+            target=root/"installed/dexsql"; target.parent.mkdir(); target.write_bytes(b"verified fixture")
+            def export(args,**kwargs):
+                path=Path(args[-1])
+                self.assertFalse(path.exists(),"native extractor rejects existing paths")
+                path.write_text("third party notices",encoding="utf-8")
+            for newline in (b"\n",b"\r\n"):
+                for name,data in licenses.items(): (vendor/name).write_bytes(data.replace(b"\n",newline))
+                with patch.dict(os.environ,{},clear=True), patch.object(install_dexsql,"HERE",root), \
+                     patch.object(install_dexsql,"executable",return_value=target), \
+                     patch.object(install_dexsql,"verify",return_value=target), \
+                     patch.object(install_dexsql.subprocess,"run",side_effect=export):
+                    self.assertEqual(install_dexsql.install(),target)
+            (vendor/"LICENSE").write_bytes(licenses["LICENSE"]+b"changed")
+            with patch.dict(os.environ,{},clear=True), patch.object(install_dexsql,"HERE",root), \
+                 patch.object(install_dexsql,"executable",return_value=target), self.assertRaises(RuntimeError):
+                install_dexsql.install()
+
     def test_explicit_unverified_override_cannot_be_executed_or_overwritten(self):
         with tempfile.TemporaryDirectory() as directory:
             bad=Path(directory)/"not-dexsql.exe"; bad.write_bytes(b"wrong binary")
