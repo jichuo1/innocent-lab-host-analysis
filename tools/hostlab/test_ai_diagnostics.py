@@ -87,6 +87,18 @@ class AiDiagnosticsTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     catalog.configuration("primary")
 
+    def test_generation_probe_uses_same_output_parameter_and_protocol_contract(self):
+        with patch.dict(os.environ, {"AI_PRIMARY_BASE_URL": "https://api.openai.com/v1/chat/completions"}):
+            config = catalog.configuration("primary")
+            body = probe.payload(config, "minimal_chat", True)
+            self.assertEqual(config["base"], "https://api.openai.com/v1")
+            self.assertEqual(body["max_completion_tokens"], 128)
+            self.assertNotIn("max_tokens", body)
+        for suffix in ("responses", "messages"):
+            with patch.dict(os.environ, {"AI_PRIMARY_BASE_URL": "https://api.river.ai/v1/"+suffix}):
+                with self.assertRaises(ValueError):
+                    catalog.configuration("primary")
+
     def test_catalog_raw_key_preserved_and_padding_has_only_one_explicit_variant(self):
         raw = " " + SECRET + " "
         calls = []

@@ -262,6 +262,46 @@ class TransportTest(unittest.TestCase):
                 self.assertFalse(caught.exception.billing_unknown)
                 build.assert_not_called()
 
+    def test_full_chat_endpoint_and_output_parameter_are_explicit(self):
+        for base, extra, field in (("https://api.river.ai/v1/chat/completions/", {}, "max_tokens"),
+                ("https://api.openai.com/v1/chat/completions", {}, "max_completion_tokens"),
+                ("https://proxy.example/v1", {"AI_PRIMARY_OUTPUT_TOKEN_PARAMETER": "max_completion_tokens"}, "max_completion_tokens")):
+            with self.subTest(base=base), patch.dict(os.environ, dict(ENV, AI_PRIMARY_BASE_URL=base, **extra)), patch.object(transport.urllib.request, "build_opener") as build:
+                build.return_value.open.return_value = Response(delta({"content": "ok"}, "stop")+event(b"[DONE]"))
+                transport._call_api("primary", [], [])
+                request = build.return_value.open.call_args.args[0]
+                self.assertEqual(request.full_url.count("/chat/completions"), 1)
+                payload = json.loads(request.data)
+                self.assertEqual(payload[field], 8192)
+                self.assertEqual(len({"max_tokens", "max_completion_tokens"}.intersection(payload)), 1)
+
+    def test_unsupported_endpoint_or_token_parameter_never_posts(self):
+        for values in ({"AI_PRIMARY_BASE_URL": "https://example.test/v1/messages"},
+                {"AI_PRIMARY_BASE_URL": "https://example.test/v1/responses"},
+                {"AI_PRIMARY_OUTPUT_TOKEN_PARAMETER": "unbounded"}):
+            with self.subTest(values=values), patch.dict(os.environ, dict(ENV, **values)), patch.object(transport.urllib.request, "build_opener") as build:
+                with self.assertRaises(transport.ApiError) as caught:
+                    transport._call_api("primary", [], [])
+                self.assertFalse(caught.exception.billing_unknown)
+                build.assert_not_called()
+
+    def test_complete_usage_survives_postprocessing_protocol_rejection(self):
+        calls = [{"id": "same", "type": "function", "function": {"name": "finish_report", "arguments": "{}"}}]*2
+        raw = json.dumps({"choices": [{"message": {"tool_calls": calls}, "finish_reason": "tool_calls"}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 4, "total_tokens": 14}}).encode()
+        with self.assertRaises(transport.ApiError) as caught:
+            self.request(raw, "application/json")
+        self.assertEqual(caught.exception.usage["total_tokens"], 14)
+        self.assertFalse(caught.exception.billing_unknown)
+        self.assertEqual(caught.exception.metrics["finish_reason"], "tool_calls")
+
+    def test_ninth_tool_is_rejected_with_usage_instead_of_silently_dropped(self):
+        calls = [{"id": "call-"+str(i), "function": {"name": "finish_report", "arguments": "{}"}} for i in range(9)]
+        raw = json.dumps({"choices": [{"message": {"tool_calls": calls}, "finish_reason": "tool_calls"}], "usage": {"total_tokens": 14}}).encode()
+        with self.assertRaisesRegex(transport.ApiError, "tool calls exceed") as caught:
+            self.request(raw, "application/json")
+        self.assertFalse(caught.exception.billing_unknown)
+
     def test_http_error_retry_after_and_no_secret_body(self):
         error = urllib.error.HTTPError("https://example.test", 429, "transport-test-secret", {"Retry-After": "999"}, io.BytesIO(b"secret body"))
         with patch.dict(os.environ, ENV), patch.object(transport.urllib.request, "build_opener") as build:

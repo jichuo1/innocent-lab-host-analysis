@@ -71,6 +71,36 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(outcome["read_tool_calls"], 2)
         self.assertEqual((self.root / "priority-report.md").read_text().count("# AI 适配分析"), 1)
 
+    def test_public_receipt_overflow_records_known_reply_failure_not_unknown_post(self):
+        message = response("finish_report", {"overview": "中"*45000})[0]
+        with patch.object(ai_review, "call_api", return_value=(message, {"total_tokens": 19}, "test-model")) as api:
+            with self.assertRaises(RuntimeError):
+                ai_review.run(self.root)
+        self.assertEqual(api.call_count, 1)
+        ledger = json.loads((self.root/"ai-checkpoint.json").read_text())
+        attempt = ledger["attempts"][0]
+        self.assertEqual(attempt["status"], "failed")
+        self.assertFalse(attempt["billing_unknown"])
+        self.assertEqual(attempt["usage"]["total_tokens"], 19)
+        self.assertEqual(attempt["reason"], "API public response receipt exceeds bound")
+        self.assertRegex(attempt["response_sha256"], r"^[0-9a-f]{64}$")
+        self.assertEqual(ledger["responses"], {})
+
+    def test_public_reply_rejects_tool_count_without_silent_slice(self):
+        message = response("finish_report", {})[0]
+        message["tool_calls"] *= 9
+        with self.assertRaisesRegex(RuntimeError, "public receipt bound"):
+            ai_pipeline.public_reply(message)
+
+    def test_explicit_output_parameter_is_part_of_provider_binding(self):
+        summary = json.loads((self.root/"priority-summary.json").read_text())
+        units = ai_pipeline.draft_units(summary["page_path_matrix"])
+        before = ai_pipeline.build_binding(self.root, summary, units)
+        with patch.dict("os.environ", {"AI_PRIMARY_OUTPUT_TOKEN_PARAMETER": "max_completion_tokens"}):
+            after = ai_pipeline.build_binding(self.root, summary, units)
+        self.assertNotEqual(before["provider_config_sha256"]["primary"], after["provider_config_sha256"]["primary"])
+        self.assertEqual(before["provider_config_sha256"]["backup"], after["provider_config_sha256"]["backup"])
+
     def test_forced_submission_only_offers_the_finish_tool(self):
         offered = []
         def api(profile, messages, tools, **options):

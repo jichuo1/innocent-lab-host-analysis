@@ -17,7 +17,7 @@ MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 MAX_STREAM_BYTES = 8 * 1024 * 1024
 MAX_STREAM_EVENTS = 65536
 MAX_EVENT_BYTES = 256 * 1024
-MAX_TOOL_CALLS = 16
+MAX_TOOL_CALLS = 8
 
 
 class ApiError(RuntimeError):
@@ -37,6 +37,22 @@ class ApiError(RuntimeError):
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *args):
         return None
+
+
+def chat_base_url(value):
+    base = str(value).strip().rstrip("/")
+    if base.endswith("/chat/completions"):
+        base = base[:-len("/chat/completions")]
+    elif base.endswith(("/responses", "/messages")):
+        raise ApiError("API endpoint protocol is not Chat Completions", "configuration", False, False)
+    return base
+
+
+def output_token_parameter(profile, base):
+    explicit = os.environ.get("AI_"+str(profile).upper()+"_OUTPUT_TOKEN_PARAMETER", "").strip()
+    if explicit and explicit not in {"max_tokens", "max_completion_tokens"}:
+        raise ApiError("API output token parameter invalid", "configuration", False, False)
+    return explicit or ("max_completion_tokens" if urllib.parse.urlsplit(base).hostname == "api.openai.com" else "max_tokens")
 
 
 def _redact(value):
@@ -132,7 +148,7 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
 
     name = str(profile).upper()
     key = os.environ.get("AI_API_KEY_" + name, "").strip()
-    base = os.environ.get("AI_" + name + "_BASE_URL", "").rstrip("/")
+    base = chat_base_url(os.environ.get("AI_" + name + "_BASE_URL", ""))
     model = os.environ.get("AI_" + name + "_MODEL", "")
     parsed = urllib.parse.urlsplit(base)
     if (name not in {"PRIMARY", "BACKUP"} or not key or not model or len(model) > 256
@@ -144,7 +160,7 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
         raise ApiError("API configuration incomplete or invalid", "configuration", False, False)
     payload = {"model": model, "messages": messages, "tools": tools,
                "tool_choice": {"type": "function", "function": {"name": force_tool}} if force_tool else "auto",
-               "max_tokens": max_output, "stream": bool(stream)}
+               output_token_parameter(profile, base): max_output, "stream": bool(stream)}
     if stream:
         payload["stream_options"] = {"include_usage": True}
     body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
@@ -324,6 +340,12 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
     except ApiError as exc:
         if not exc.metrics:
             exc.metrics = dict(metrics, total_ms=elapsed())
+        if finish_reason in {"stop", "tool_calls", "length", "content_filter"}:
+            exc.metrics.setdefault("finish_reason", finish_reason)
+        if any(type(usage.get(key)) is int and usage[key] > 0 for key in
+               ("total_tokens", "prompt_tokens", "completion_tokens", "input_tokens", "output_tokens")):
+            exc.usage = _safe_usage(usage)
+            exc.billing_unknown = False
         raise
     except urllib.error.HTTPError as exc:
         status = exc.code

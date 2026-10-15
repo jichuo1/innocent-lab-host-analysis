@@ -39,7 +39,7 @@ def safe_usage(value):
 
 def payload(config, stage, include_usage):
     tokens = dict(STAGES)[stage]
-    body = {"model": config["model"], "messages": [{"role": "user", "content": "Reply with exactly the single word pong, without punctuation."}], "max_tokens": tokens, "stream": stage == "stream"}
+    body = {"model": config["model"], "messages": [{"role": "user", "content": "Reply with exactly the single word pong, without punctuation."}], config.get("output_token_parameter", "max_tokens"): tokens, "stream": stage == "stream"}
     if config["endpoint"]["host"] == "api.river.ai" and config["model"].startswith("deepseek-ai/"):
         body["reasoning_effort"] = "none"
     if stage == "stream" and include_usage:

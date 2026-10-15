@@ -438,6 +438,12 @@ def assemble_report(draft,review):
             if message:
                 raise RuntimeError(message)
             merged.update({k:revision[k] for k in REVISION_FIELDS if k in revision})
+            refs=row.get("evidence_ids")
+            if not isinstance(refs,list) or not refs or not all(isinstance(ref,str) and ref for ref in refs):
+                raise RuntimeError("Revised finding requires non-empty validated evidence_ids")
+            # The validated review justifies the revised text; stale draft
+            # references may be exactly the cross-page error it corrected.
+            merged["evidence_ids"]=copy.deepcopy(refs)
         elif revision is not None:
             raise RuntimeError("Revision patch is only allowed with disposition=revised")
         if disposition=="needs_more_evidence" and merged.get("level")=="static_evidence":

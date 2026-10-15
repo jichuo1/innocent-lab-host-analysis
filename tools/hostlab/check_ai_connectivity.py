@@ -72,6 +72,7 @@ def error_summary(status, raw, headers=None):
 
 
 def configuration(profile):
+    import ai_transport
     name = str(profile).upper()
     if name not in {"PRIMARY", "BACKUP"}:
         raise ValueError("invalid_profile")
@@ -80,10 +81,11 @@ def configuration(profile):
     model = os.environ.get("AI_" + name + "_MODEL", "").strip()
     if not key or not base or not model:
         raise ValueError("configuration_incomplete")
-    for suffix in ("/chat/completions", "/responses", "/messages"):
-        if base.endswith(suffix):
-            base = base[:-len(suffix)]
-            break
+    try:
+        base = ai_transport.chat_base_url(base)
+        token_parameter = ai_transport.output_token_parameter(profile, base)
+    except ai_transport.ApiError:
+        raise ValueError("invalid_configuration") from None
     try:
         parsed = urllib.parse.urlsplit(base)
         valid = (parsed.scheme == "https" and parsed.hostname and not parsed.username and not parsed.password
@@ -95,7 +97,7 @@ def configuration(profile):
         valid = False
     if not valid:
         raise ValueError("invalid_configuration")
-    return {"key": key, "base": base, "model": model,
+    return {"key": key, "base": base, "model": model, "output_token_parameter": token_parameter,
             "endpoint": {"scheme": "https", "host": parsed.hostname, "path": parsed.path}}
 
 

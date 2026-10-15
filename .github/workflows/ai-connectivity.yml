@@ -20,8 +20,10 @@ jobs:
           AI_API_KEY_BACKUP: ${{ secrets.AI_API_KEY_BACKUP }}
           AI_PRIMARY_BASE_URL: ${{ vars.AI_PRIMARY_BASE_URL }}
           AI_PRIMARY_MODEL: ${{ vars.AI_PRIMARY_MODEL }}
+          AI_PRIMARY_OUTPUT_TOKEN_PARAMETER: ${{ vars.AI_PRIMARY_OUTPUT_TOKEN_PARAMETER }}
           AI_BACKUP_BASE_URL: ${{ vars.AI_BACKUP_BASE_URL }}
           AI_BACKUP_MODEL: ${{ vars.AI_BACKUP_MODEL }}
+          AI_BACKUP_OUTPUT_TOKEN_PARAMETER: ${{ vars.AI_BACKUP_OUTPUT_TOKEN_PARAMETER }}
         run: python tools/hostlab/check_ai_connectivity.py
       - uses: actions/upload-artifact@v6
         if: always()
