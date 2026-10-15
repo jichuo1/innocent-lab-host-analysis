@@ -1,0 +1,375 @@
+"""Grouped runners retain every exact sample while overlapping bounded preparation."""
+from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
+import io
+import json
+import os
+from pathlib import Path
+import threading
+import time
+import unittest
+from unittest.mock import AsyncMock, patch
+
+import analysis_batch
+import analysis_plan
+import hostlab
+import plan_ci
+import remote_job
+import runner_group
+import runner_worker
+
+
+class RunnerWorkerTest(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.addCleanup(patch.stopall)
+        patch.object(hostlab, "STATE", self.root / "state").start()
+        patch.dict(os.environ, {"HOSTLAB_RUNNER_REVISION": "c"*40, "GITHUB_SHA": "d"*40}, clear=True).start()
+        patch("sys.stdout", new_callable=io.StringIO).start()
+        self.request = {"backend": "dexsql", "timeout_seconds": 1, "tasks": [{"id": "info", "operation": "info"}]}
+        self.paths, self.rows, self.samples = {}, [], []
+        for index in range(4):
+            code = 100 + index
+            path = self.root / f"sample-{index}.apk"
+            path.write_bytes(f"exact sample {index}".encode())
+            sha = hostlab.digest(path)
+            self.paths[code] = path
+            self.rows.append({"version_code": code, "sha256": sha, "size": path.stat().st_size,
+                "path": f"apks/tv.danmaku.bili/{code}/{sha}/base.apk"})
+            self.samples.append({"version_code": code, "apk_sha256": sha, "sample_revision": "b"*40})
+        self.payload = {"schema": 1, "request": self.request, "samples": self.samples}
+        self.gate = patch.object(hostlab, "api_private", return_value=(None, "a"*40)).start()
+        self.manifest = patch.object(hostlab, "manifest", return_value={"samples": self.rows}).start()
+        self.fetch = patch.object(runner_worker.analyze, "fetch_sample", side_effect=self.fetch_fixture).start()
+        self.execute = patch.object(analysis_batch, "execute", new_callable=AsyncMock,
+            side_effect=self.execute_fixture).start()
+
+    def fetch_fixture(self, row, repo, revision, *, timings):
+        timings.update(download_ms=1.0, verify_ms=1.0, stage_ms=1.0, staged_cache_hit=False)
+        return self.paths[row["version_code"]]
+
+    async def execute_fixture(self, apk, request, *, roots, sample):
+        matches = hostlab.digest(apk) == sample["sha256"]
+        return {"complete": matches, "tasks": [{"id": "info", "status": "complete"}],
+            "source_unchanged": matches, "sample": sample,
+            "backend_versions": {"dexsql": {"version": "fixture"}}}
+
+    def group(self):
+        return json.loads((hostlab.STATE / "remote-output/group.json").read_text(encoding="utf-8"))
+
+    def job(self, index):
+        return json.loads((hostlab.STATE / f"remote-output/samples/{index}/job.json").read_text(encoding="utf-8"))
+
+    def result(self, index):
+        return json.loads((hostlab.STATE / f"remote-output/samples/{index}/result.txt").read_text(encoding="utf-8"))
+
+    def test_exact_members_share_gate_manifest_and_keep_independent_metadata(self):
+        self.assertEqual(runner_worker.run(self.payload), 0)
+        self.gate.assert_called_once_with(runner_worker.SAMPLE_REPOSITORY)
+        self.manifest.assert_called_once_with(runner_worker.SAMPLE_REPOSITORY, "b"*40)
+        self.assertEqual(self.fetch.call_count, 4)
+        self.assertEqual(self.execute.await_count, 4)
+        group = self.group()
+        self.assertTrue(group["complete"])
+        self.assertEqual([row["sample"] for row in group["samples"]], self.samples)
+        self.assertEqual([row["status"] for row in group["samples"]], ["complete"]*4)
+        self.assertEqual(sorted(group["processing_order"]), list(range(4)))
+        for index, sample in enumerate(self.samples):
+            job = self.job(index)
+            self.assertEqual(job["operation"], "batch")
+            self.assertEqual(job["group_index"], index)
+            self.assertEqual(job["version_code"], sample["version_code"])
+            self.assertEqual(job["apk_sha256"], sample["apk_sha256"])
+            self.assertEqual(job["sample_revision"], sample["sample_revision"])
+            self.assertEqual(job["request_sha256"], analysis_plan.fingerprint(self.request))
+            self.assertEqual(job["runner_revision"], "c"*40)
+            self.assertIn("runner_group.py", job["tools"])
+            self.assertIn("runner_worker.py", job["tools"])
+            self.assertTrue(job["complete"])
+            self.assertTrue(self.result(index)["source_unchanged"])
+            for key in ("group_fetch_started_ms", "group_fetch_finished_ms", "group_fetch_queue_ms",
+                        "group_prefetch_ready_wait_ms", "analysis_ms"):
+                self.assertGreaterEqual(job["phases"][key], 0)
+        collected = runner_group.collect(self.payload, {"files": [str(path) for path in
+            (hostlab.STATE / "remote-output").rglob("*") if path.is_file()]}, "c"*40)
+        self.assertTrue(collected["complete"])
+
+    def test_group_receipt_contains_all_not_started_before_any_network_call(self):
+        def gate(repo):
+            checkpoint = self.group()
+            self.assertEqual([row["status"] for row in checkpoint["samples"]], ["not_started"]*4)
+            self.manifest.assert_not_called()
+            self.fetch.assert_not_called()
+            return None, "a"*40
+
+        self.gate.side_effect = gate
+        self.assertEqual(runner_worker.run(self.payload), 0)
+
+    def test_fetch_failure_does_not_lose_other_versions_or_leak_exception_message(self):
+        def fetch(row, repo, revision, *, timings):
+            if row["version_code"] == 101:
+                raise OSError("Authorization fixture-sensitive-message")
+            return self.fetch_fixture(row, repo, revision, timings=timings)
+
+        self.fetch.side_effect = fetch
+        self.assertEqual(runner_worker.run(self.payload), 2)
+        self.assertEqual([row["status"] for row in self.group()["samples"]],
+                         ["complete", "failed", "complete", "complete"])
+        self.assertEqual(self.execute.await_count, 3)
+        self.assertEqual(self.result(1)["error"], "OSError")
+        self.assertNotIn("fixture-sensitive-message", json.dumps(self.result(1)))
+        self.assertEqual(self.job(1)["group_index"], 1)
+
+    def test_analysis_failure_is_local_to_one_member(self):
+        async def execute(apk, request, *, roots, sample):
+            if sample["version_code"] == 101:
+                raise RuntimeError("fixture-sensitive-analysis-message")
+            return await self.execute_fixture(apk, request, roots=roots, sample=sample)
+
+        self.execute.side_effect = execute
+        self.assertEqual(runner_worker.run(self.payload), 2)
+        self.assertEqual([row["status"] for row in self.group()["samples"]],
+                         ["complete", "failed", "complete", "complete"])
+        self.assertNotIn("fixture-sensitive-analysis-message", json.dumps(self.result(1)))
+        self.assertEqual(self.execute.await_count, 4)
+
+    def test_partial_analysis_is_not_promoted_to_complete(self):
+        async def execute(apk, request, *, roots, sample):
+            result = await self.execute_fixture(apk, request, roots=roots, sample=sample)
+            if sample["version_code"] == 102:
+                result["complete"] = False
+                result["tasks"][0]["status"] = "partial"
+            return result
+
+        self.execute.side_effect = execute
+        self.assertEqual(runner_worker.run(self.payload), 2)
+        self.assertEqual(self.group()["samples"][2]["status"], "failed")
+        self.assertEqual(self.job(2)["exit_code"], 2)
+        self.assertFalse(self.result(2)["complete"])
+
+    def test_each_revision_manifest_is_resolved_once_and_bound_to_that_revision(self):
+        self.samples[1]["sample_revision"] = "e"*40
+        self.samples[3]["sample_revision"] = "e"*40
+        self.assertEqual(runner_worker.run(self.payload), 0)
+        self.assertEqual(self.manifest.call_count, 2)
+        self.assertEqual({call.args[1] for call in self.manifest.call_args_list}, {"b"*40, "e"*40})
+        for index, sample in enumerate(self.samples):
+            self.assertEqual(self.job(index)["sample_revision"], sample["sample_revision"])
+
+    def test_failed_manifest_does_not_block_unrelated_revision(self):
+        self.samples[1]["sample_revision"] = "e"*40
+        self.samples[3]["sample_revision"] = "e"*40
+
+        def manifest(repo, revision):
+            if revision == "e"*40:
+                raise OSError("fixture-private-path")
+            return {"samples": self.rows}
+
+        self.manifest.side_effect = manifest
+        self.assertEqual(runner_worker.run(self.payload), 2)
+        self.assertEqual(self.fetch.call_count, 2)
+        self.assertEqual([row["status"] for row in self.group()["samples"]],
+                         ["complete", "failed", "complete", "failed"])
+
+    def test_missing_exact_sample_fails_only_that_member(self):
+        self.manifest.return_value = {"samples": self.rows[1:]}
+        self.assertEqual(runner_worker.run(self.payload), 2)
+        self.assertEqual(self.group()["samples"][0]["status"], "failed")
+        self.assertEqual(self.fetch.call_count, 3)
+        self.assertEqual(self.execute.await_count, 3)
+
+    def test_private_repository_gate_failure_prevents_all_sample_access(self):
+        self.gate.side_effect = RuntimeError("fixture-gate-detail")
+        self.assertEqual(runner_worker.run(self.payload), 2)
+        self.manifest.assert_not_called()
+        self.fetch.assert_not_called()
+        self.execute.assert_not_awaited()
+        self.assertEqual([row["status"] for row in self.group()["samples"]], ["failed"]*4)
+        for index in range(4):
+            self.assertEqual(self.job(index)["apk_sha256"], self.samples[index]["apk_sha256"])
+            self.assertNotIn("fixture-gate-detail", json.dumps(self.result(index)))
+
+    def test_completed_prefetch_avoids_waiting_for_slow_first_version(self):
+        second_analyzed = threading.Event()
+
+        def fetch(row, repo, revision, *, timings):
+            if row["version_code"] == 100 and not second_analyzed.wait(3):
+                raise RuntimeError("head of line blocked faster member")
+            return self.fetch_fixture(row, repo, revision, timings=timings)
+
+        async def execute(apk, request, *, roots, sample):
+            if sample["version_code"] == 101:
+                second_analyzed.set()
+            return await self.execute_fixture(apk, request, roots=roots, sample=sample)
+
+        self.fetch.side_effect, self.execute.side_effect = fetch, execute
+        self.assertEqual(runner_worker.run(self.payload), 0)
+        order = self.group()["processing_order"]
+        self.assertLess(order.index(1), order.index(0))
+        self.assertEqual([row["index"] for row in self.group()["samples"]], list(range(4)))
+
+    def test_prefetch_peak_is_two_and_native_analyses_do_not_overlap(self):
+        mutex = threading.Lock()
+        first_pair = threading.Barrier(2)
+        active = peak = native = native_peak = 0
+        thread_ids = set()
+
+        def fetch(row, repo, revision, *, timings):
+            nonlocal active, peak
+            with mutex:
+                active += 1
+                peak = max(peak, active)
+                thread_ids.add(threading.get_ident())
+            try:
+                if row["version_code"] < 102:
+                    first_pair.wait(timeout=3)
+                time.sleep(0.01)
+                return self.fetch_fixture(row, repo, revision, timings=timings)
+            finally:
+                with mutex:
+                    active -= 1
+
+        async def execute(apk, request, *, roots, sample):
+            nonlocal native, native_peak
+            with mutex:
+                native += 1
+                native_peak = max(native_peak, native)
+            try:
+                return await self.execute_fixture(apk, request, roots=roots, sample=sample)
+            finally:
+                with mutex:
+                    native -= 1
+
+        self.fetch.side_effect, self.execute.side_effect = fetch, execute
+        self.assertEqual(runner_worker.run(self.payload), 0)
+        self.assertEqual(peak, 2)
+        self.assertEqual(native_peak, 1)
+        self.assertEqual(len(thread_ids), 2)
+
+    def test_partial_checkpoint_is_saved_before_later_sample_finishes(self):
+        saw_complete = threading.Event()
+
+        async def execute(apk, request, *, roots, sample):
+            checkpoint = self.group()
+            if any(row["status"] == "complete" for row in checkpoint["samples"]):
+                saw_complete.set()
+            return await self.execute_fixture(apk, request, roots=roots, sample=sample)
+
+        self.execute.side_effect = execute
+        self.assertEqual(runner_worker.run(self.payload), 0)
+        self.assertTrue(saw_complete.is_set())
+
+    def test_reporting_exception_still_leaves_failed_member_and_continues(self):
+        original = remote_job.run_batch
+
+        def batch(*args, **kwargs):
+            if kwargs["group_index"] == 1:
+                raise RuntimeError("fixture-private-report-path")
+            return original(*args, **kwargs)
+
+        with patch.object(remote_job, "run_batch", side_effect=batch):
+            self.assertEqual(runner_worker.run(self.payload), 2)
+        self.assertEqual(self.group()["samples"][1]["status"], "failed")
+        self.assertEqual(self.job(1)["group_index"], 1)
+        self.assertIn("runner_worker.py", self.job(1)["tools"])
+        self.assertNotIn("fixture-private-report-path", json.dumps(self.result(1)))
+        self.assertEqual(self.execute.await_count, 3)
+
+    def test_unexpected_future_failure_is_local_and_does_not_abort_group(self):
+        original = runner_worker.fetch
+
+        def fetch(row, *args):
+            if row["version_code"] == 102:
+                raise RuntimeError("unexpected preparation wrapper failure")
+            return original(row, *args)
+
+        with patch.object(runner_worker, "fetch", side_effect=fetch):
+            self.assertEqual(runner_worker.run(self.payload), 2)
+        self.assertEqual([row["status"] for row in self.group()["samples"]],
+                         ["complete", "complete", "failed", "complete"])
+
+    def test_deadline_joins_running_downloads_and_does_not_claim_they_ended(self):
+        entered, release = threading.Event(), threading.Event()
+
+        def fetch(row, repo, revision, *, timings):
+            entered.set()
+            if not release.wait(3):
+                raise RuntimeError("test fetch release missing")
+            return self.fetch_fixture(row, repo, revision, timings=timings)
+
+        self.fetch.side_effect = fetch
+        with patch.object(runner_worker, "MAX_GROUP_SECONDS", 0.04), ThreadPoolExecutor(max_workers=1) as pool:
+            running = pool.submit(runner_worker.run, self.payload)
+            try:
+                self.assertTrue(entered.wait(2))
+                deadline = time.monotonic() + 2
+                while not self.group()["deadline_exhausted"] and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(self.group()["deadline_exhausted"])
+                self.assertFalse(running.done(), "running downloads must be joined before final return")
+                self.execute.assert_not_awaited()
+            finally:
+                release.set()
+            self.assertEqual(running.result(timeout=3), 2)
+        self.assertEqual([row["status"] for row in self.group()["samples"]], ["not_started"]*4)
+        self.assertFalse(self.group()["complete"])
+        self.assertEqual(self.fetch.call_count, 2)
+
+    def test_invalid_group_rejected_before_network_or_output(self):
+        malformed = deepcopy(self.payload)
+        malformed["samples"] *= 2
+        with self.assertRaises(ValueError):
+            runner_worker.run(malformed)
+        self.gate.assert_not_called()
+        self.fetch.assert_not_called()
+        self.assertFalse(hostlab.STATE.exists())
+
+
+class GroupDispatcherTest(unittest.TestCase):
+    def payload(self, backend="dexsql"):
+        return {"schema": 1, "request": {"backend": backend, "tasks": [{"id": "a", "operation": "info"}]},
+            "samples": [{"version_code": 100, "apk_sha256": "a"*64, "sample_revision": "b"*40}]}
+
+    def env(self, payload):
+        return {"HOSTLAB_VERSION": "100", "HOSTLAB_OPERATION": "batch_group", "HOSTLAB_ARGUMENT": json.dumps(payload),
+                "HOSTLAB_RUNNER_REVISION": "c"*40, "HOSTLAB_MAX_CELL_CHARS": "300"}
+
+    def test_dispatch_checks_exact_checkout_then_enters_group_worker(self):
+        payload = self.payload()
+        with patch.dict(os.environ, self.env(payload), clear=True), \
+             patch.object(remote_job.subprocess, "check_output", return_value="c"*40+"\n"), \
+             patch.object(runner_worker, "run", return_value=0) as worker, \
+             patch.object(hostlab, "api_private") as gate:
+            self.assertEqual(remote_job.main(), 0)
+        worker.assert_called_once()
+        self.assertEqual(worker.call_args.args[0], runner_group.validate(payload))
+        gate.assert_not_called()
+
+    def test_mismatched_compatibility_version_or_checkout_never_starts_worker(self):
+        for bad_version, observed in (("101", "c"*40), ("100", "e"*40)):
+            env = self.env(self.payload())
+            env["HOSTLAB_VERSION"] = bad_version
+            with self.subTest(version=bad_version, observed=observed), patch.dict(os.environ, env, clear=True), \
+                 patch.object(remote_job.subprocess, "check_output", return_value=observed), \
+                 patch.object(runner_worker, "run") as worker, self.assertRaises(RuntimeError):
+                remote_job.main()
+            worker.assert_not_called()
+
+    def test_group_dependency_subset_matches_legacy_batch_and_preserves_sqlite(self):
+        for backend in ("dexsql", "sqlite", "auto"):
+            payload = self.payload(backend)
+            group = plan_ci.requirements("batch_group", json.dumps(payload))
+            batch = plan_ci.requirements("batch", json.dumps(payload["request"]))
+            self.assertEqual(group, batch)
+            self.assertEqual(group["needs_java"], "false")
+        self.assertEqual(plan_ci.requirements("batch_group", json.dumps(self.payload()))["requirements"],
+                         "requirements-query.txt")
+        self.assertEqual(plan_ci.requirements("batch_group", json.dumps(self.payload("sqlite")))["requirements"],
+                         "requirements.txt")
+
+
+if __name__ == "__main__":
+    unittest.main()

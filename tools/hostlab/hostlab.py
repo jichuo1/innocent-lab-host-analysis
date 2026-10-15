@@ -77,7 +77,7 @@ def config():
 def api_private(repo):
     from huggingface_hub import HfApi
     api = HfApi(token=True)
-    info = api.repo_info(repo_id=repo, repo_type="dataset")
+    info = api.repo_info(repo_id=repo, repo_type="dataset", timeout=30)
     if not info.private:
         raise RuntimeError("Refusing access: sample repository must be private")
     return api, info.sha

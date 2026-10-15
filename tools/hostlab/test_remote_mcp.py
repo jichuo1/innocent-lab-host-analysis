@@ -15,7 +15,7 @@ async def main(args):
     async with Client(params) as client:
         tools = await client.list_tools()
         assert {t.name for t in tools.tools} == {"submit_job", "job_status", "job_result", "list_jobs", "plan_analysis", "submit_analysis",
-            "plan_version_matrix", "submit_version_matrix", "advance_version_matrix", "version_matrix_status", "version_matrix_result"}
+            "plan_version_matrix", "submit_version_matrix", "advance_version_matrix", "version_matrix_status", "version_matrix_result", "recover_version_matrix"}
         async def call(name, arguments):
             r = await client.call_tool(name, arguments)
             assert not r.is_error, name
@@ -36,7 +36,7 @@ async def main(args):
         else:
             result = await client.call_tool("submit_job", {"version_code": -1, "operation": "info"})
             assert result.is_error
-            print("Remote MCP: eleven tools discovered; invalid input rejected")
+            print("Remote MCP: twelve tools discovered; invalid input rejected")
 
 
 if __name__ == "__main__":

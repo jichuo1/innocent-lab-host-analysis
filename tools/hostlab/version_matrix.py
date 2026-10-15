@@ -24,7 +24,7 @@ def digest(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
-def definition(samples, request, max_parallel=4, reuse_completed=True, deadline_seconds=1800):
+def definition(samples, request, max_parallel=4, reuse_completed=True, deadline_seconds=1800, runner_batch_size=1):
     if not isinstance(samples, list) or not 1 <= len(samples) <= MAX_SAMPLES:
         raise ValueError("matrix needs 1..40 pinned samples")
     if type(reuse_completed) is not bool:
@@ -43,17 +43,28 @@ def definition(samples, request, max_parallel=4, reuse_completed=True, deadline_
         if identity not in seen:
             seen.add(identity)
             normalized.append(dict(row))
-    return {"samples": normalized, "request": analysis_plan.validate(request),
+    runner_batch_size = analysis_plan.integer(runner_batch_size, 1, 4, "runner_batch_size")
+    spec = {"samples": normalized, "request": analysis_plan.validate(request),
             "max_parallel": analysis_plan.integer(max_parallel, 1, 4, "max_parallel"),
             "reuse_completed": reuse_completed,
             "deadline_seconds": analysis_plan.integer(deadline_seconds, 1, 7200, "deadline_seconds")}
+    # Keep the exact schema/hash of existing one-sample matrices.
+    if runner_batch_size > 1:
+        spec["runner_batch_size"] = runner_batch_size
+        import runner_group
+        for start in range(0, len(normalized), runner_batch_size):
+            runner_group.validate({"schema": 1, "request": spec["request"],
+                                   "samples": normalized[start:start + runner_batch_size]})
+    return spec
 
 
-def plan(samples, request, max_parallel=4, reuse_completed=True, deadline_seconds=1800):
-    spec = definition(samples, request, max_parallel, reuse_completed, deadline_seconds)
+def plan(samples, request, max_parallel=4, reuse_completed=True, deadline_seconds=1800, runner_batch_size=1):
+    spec = definition(samples, request, max_parallel, reuse_completed, deadline_seconds, runner_batch_size)
     return {"schema": 1, "definition_sha256": digest(spec), "samples": spec["samples"],
             "sample_count": len(spec["samples"]), "duplicate_samples_removed": len(samples)-len(spec["samples"]),
             "max_parallel": spec["max_parallel"], "reuse_completed": spec["reuse_completed"],
+            "runner_batch_size": runner_batch_size,
+            "physical_job_count": (len(spec["samples"]) + runner_batch_size - 1) // runner_batch_size,
             "deadline_seconds": spec["deadline_seconds"], "batch_plan": analysis_plan.plan(spec["request"]),
             "tool_revision": "one_immutable_commit_for_the_entire_matrix",
             "advance_dispatch_budget": 2, "execution": "caller_driven_no_background_dispatch",
@@ -83,6 +94,21 @@ def binding_hash(value):
     return digest({k:value[k] for k in ("matrix_id","definition_sha256","runner_revision","created_at")})
 
 
+def group_dispatch_key(value, index, indices):
+    spec = value["definition"]
+    identity = {"samples": [spec["samples"][i] for i in indices], "request": spec["request"],
+                "revision": value["runner_revision"], "epoch": int(value["created_at"] // 86400)}
+    semantic = all(t["operation"] != "query" for t in spec["request"]["tasks"])
+    return ("vmgroup_" + digest(identity)[:48] if spec["reuse_completed"] and semantic
+            else "vg_" + value["matrix_id"] + "_" + str(index))
+
+
+def group_payload(matrix, group):
+    import runner_group
+    return runner_group.validate({"schema": 1, "request": matrix["definition"]["request"],
+        "samples": [matrix["definition"]["samples"][i] for i in group["sample_indices"]]})
+
+
 def load(matrix_id):
     value = json.loads(path(matrix_id).read_text(encoding="utf-8"))
     if value["definition_sha256"] != digest(value["definition"]):
@@ -96,25 +122,58 @@ def load(matrix_id):
     for i,entry in enumerate(value["entries"]):
         if entry["sample"]!=value["definition"]["samples"][i] or entry["dispatch_key"]!=dispatch_key(value,i):
             raise ValueError("matrix sample or retry binding changed")
+    size = value["definition"].get("runner_batch_size", 1)
+    if size > 1:
+        analysis_plan.integer(size, 2, 4, "runner_batch_size")
+        expected = [list(range(start, min(start + size, len(value["entries"]))))
+                    for start in range(0, len(value["entries"]), size)]
+        groups = value.get("groups", [])
+        if value.get("schema") != 2 or len(groups) != len(expected):
+            raise ValueError("matrix physical group queue changed")
+        for index, (group, indices) in enumerate(zip(groups, expected)):
+            if (group.get("group_id") != "g" + str(index) or group.get("sample_indices") != indices
+                    or group.get("dispatch_key") != group_dispatch_key(value, index, indices)):
+                raise ValueError("matrix physical group binding changed")
+            for member, sample_index in enumerate(indices):
+                entry = value["entries"][sample_index]
+                if entry.get("group_id") != group["group_id"] or entry.get("group_index") != member:
+                    raise ValueError("matrix member group binding changed")
+                if entry.get("matrix_id") != matrix_id:
+                    raise ValueError("matrix member source binding changed")
+                if entry.get("request_id") != group.get("request_id"):
+                    raise ValueError("matrix physical request binding changed")
+    elif "groups" in value:
+        raise ValueError("single-sample matrix has unexpected physical groups")
     return value
 
 
 def summary(matrix):
     counts = Counter(e["status"] for e in matrix["entries"])
     finished = all(e["status"] in TERMINAL for e in matrix["entries"])
+    units = matrix.get("groups", matrix["entries"])
+    physical_inflight = len({e["request_id"] for e in units if e.get("request_id")
+        and e["status"] not in TERMINAL | {"awaiting_results"}})
+    awaiting = any(e["status"] == "awaiting_results" for e in matrix["entries"])
     return {"matrix_id": matrix["matrix_id"], "runner_revision": matrix["runner_revision"],
             "definition_sha256": matrix["definition_sha256"], "sample_count": len(matrix["entries"]),
             "counts": dict(counts), "finished": finished, "complete": counts["complete"] == len(matrix["entries"]),
             "peak_inflight": matrix["peak_inflight"], "max_parallel": matrix["definition"]["max_parallel"],
+            "physical_inflight": physical_inflight,
+            "runner_batch_size": matrix["definition"].get("runner_batch_size", 1),
+            "physical_job_count": len(units),
             "created_at": matrix["created_at"], "deadline_at": matrix["deadline_at"],
             "entries": [{k:v for k,v in e.items() if k != "dispatch_key"} for e in matrix["entries"]],
             "next_action": "version_matrix_result" if finished else "advance_version_matrix",
+            **({"next_action_detail": "Retry advance_version_matrix to collect the same accepted jobs. "
+                "If results cannot be recovered, recover_version_matrix(include_unverified_results=true) "
+                "explicitly authorizes another execution only for completed jobs with unverified results; "
+                "earlier successful work may run again."} if awaiting else {}),
             "poll_errors": matrix.get("poll_errors", []), "scope": "offline_static_only"}
 
 
 def create(samples, request, gh, *, repository, max_parallel=4, reuse_completed=True,
-           deadline_seconds=1800, idempotency_key=""):
-    spec = definition(samples, request, max_parallel, reuse_completed, deadline_seconds)
+           deadline_seconds=1800, idempotency_key="", runner_batch_size=1, _runner_revision=None):
+    spec = definition(samples, request, max_parallel, reuse_completed, deadline_seconds, runner_batch_size)
     if idempotency_key and not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", idempotency_key):
         raise ValueError("invalid matrix idempotency key")
     root = directory()
@@ -129,7 +188,7 @@ def create(samples, request, gh, *, repository, max_parallel=4, reuse_completed=
             if old["definition_sha256"] != digest(spec):
                 raise ValueError("matrix key is already bound to a different request")
             return {**summary(old), "created": False, "reused": True}
-        revision = json.loads(gh(["api", f"repos/{repository}/git/ref/heads/main"]))["object"]["sha"]
+        revision = _runner_revision or json.loads(gh(["api", f"repos/{repository}/git/ref/heads/main"]))["object"]["sha"]
         if not re.fullmatch(r"[0-9a-f]{40}", revision):
             raise ValueError("invalid matrix tool revision")
         created = time.time()
@@ -144,6 +203,17 @@ def create(samples, request, gh, *, repository, max_parallel=4, reuse_completed=
             entries.append({"sample_id": "s" + str(index), "sample": sample, "status": "queued_local",
                             "request_id": None, "dispatch_key": dispatch_key(value,index)})
         value["entries"]=entries
+        if runner_batch_size > 1:
+            value["schema"] = 2
+            value["groups"] = []
+            for index, start in enumerate(range(0, len(entries), runner_batch_size)):
+                indices = list(range(start, min(start + runner_batch_size, len(entries))))
+                group = {"group_id": "g" + str(index), "sample_indices": indices,
+                         "dispatch_key": group_dispatch_key(value, index, indices),
+                         "status": "queued_local", "request_id": None}
+                value["groups"].append(group)
+                for member, sample_index in enumerate(indices):
+                    entries[sample_index].update(group_id=group["group_id"], group_index=member, matrix_id=matrix_id)
         hostlab.write_json(path(matrix_id), value)
         if binding:
             binding.write_text(matrix_id, encoding="ascii")
@@ -152,7 +222,30 @@ def create(samples, request, gh, *, repository, max_parallel=4, reuse_completed=
         lock.close()
 
 
-def advance(matrix_id, gh, lookup, runs, *, repository, workflow, dispatch=True):
+def recover(matrix_id, gh, *, repository, idempotency_key="", include_unverified_results=False):
+    """Default to confirmed failures; only explicit opt-in may repeat unverified completed work."""
+    original = load(matrix_id)
+    if type(include_unverified_results) is not bool:
+        raise ValueError("include_unverified_results must be boolean")
+    if idempotency_key and not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", idempotency_key):
+        raise ValueError("invalid matrix recovery idempotency key")
+    samples = [e["sample"] for e in original["entries"] if e["status"] in {"failed", "skipped"}
+        or include_unverified_results and e["status"] == "awaiting_results" and e.get("request_id")
+        and e.get("result_run", {}).get("status") == "completed"]
+    if not samples:
+        raise ValueError("matrix has no eligible confirmed failures or opted-in unverified completed results")
+    spec = original["definition"]
+    identity = {"matrix_id": matrix_id, "key": idempotency_key}
+    if include_unverified_results:
+        identity["include_unverified_results"] = True
+    key = "vmrecover_" + digest(identity)[:48]
+    return create(samples, spec["request"], gh, repository=repository,
+        max_parallel=spec["max_parallel"], reuse_completed=False,
+        deadline_seconds=spec["deadline_seconds"], idempotency_key=key,
+        runner_batch_size=spec.get("runner_batch_size", 1), _runner_revision=original["runner_revision"])
+
+
+def advance(matrix_id, gh, lookup, runs, *, repository, workflow, dispatch=True, collect_group=None):
     target = path(matrix_id)
     if not target.exists():
         raise ValueError("unknown matrix ID")
@@ -169,6 +262,9 @@ def advance(matrix_id, gh, lookup, runs, *, repository, workflow, dispatch=True)
             hostlab.write_json(target,matrix)
             return summary(matrix)
         observed={r.get("display_title","").removeprefix("hostlab-"):r for r in recent}
+        if "groups" in matrix:
+            return advance_groups(matrix, target, gh, lookup, recent, observed,
+                repository=repository, workflow=workflow, dispatch=dispatch, collect_group=collect_group)
         for entry in matrix["entries"]:
             if entry["status"] in TERMINAL or not entry["request_id"]:
                 continue
@@ -225,6 +321,120 @@ def advance(matrix_id, gh, lookup, runs, *, repository, workflow, dispatch=True)
         return summary(matrix)
     finally:
         lock.close()
+
+
+def advance_groups(matrix, target, gh, lookup, recent, observed, *, repository, workflow,
+                   dispatch, collect_group):
+    """Refresh physical jobs, then resolve every member from verified group results."""
+    pending_results = []
+    for group in matrix["groups"]:
+        if group["status"] in TERMINAL or not group["request_id"]:
+            continue
+        members = [matrix["entries"][i] for i in group["sample_indices"]]
+        try:
+            run = group.get("result_run") if group["status"] == "awaiting_results" else None
+            run = run or observed.get(group["request_id"]) or lookup(group["request_id"])
+        except Exception as exc:
+            matrix["poll_errors"].append({"group_id": group["group_id"], "error": type(exc).__name__})
+            continue
+        if run is None:
+            continue
+        hostlab.write_json(hostlab.STATE / "remote-job-map" / (group["request_id"] + ".json"), {"run_id": run["id"]})
+        details = {"run_id": run["id"], "run_url": run["html_url"], "conclusion": run.get("conclusion")}
+        group.update(details)
+        remote_schedule.observe(group["request_id"], run)
+        if run["status"] != "completed":
+            group["status"] = run["status"]
+            for entry in members:
+                entry.update(details, status=run["status"])
+            continue
+        snapshot = {key: run[key] for key in (
+            "id", "status", "conclusion", "html_url", "head_sha", "run_attempt", "display_title", "run_started_at") if key in run}
+        group.update(status="awaiting_results", result_run=snapshot)
+        for entry in members:
+            entry.update(details, status="awaiting_results", result_run=snapshot)
+        pending_results.append((group, members, snapshot, group_payload(matrix, group)))
+
+    if pending_results:
+        # Persist accepted run snapshots before any network collection. Worker threads
+        # only collect; validation, matrix state changes and publication stay here.
+        hostlab.write_json(target, matrix)
+        def collect_finished(item):
+            if collect_group is None:
+                raise ValueError("group_result_collector_unavailable")
+            group, _, snapshot, payload = item
+            return collect_group({**group, "runner_revision": matrix["runner_revision"]}, payload, snapshot)
+
+        with ThreadPoolExecutor(max_workers=min(4, len(pending_results)), thread_name_prefix="hostlab-group-collect") as pool:
+            futures = [pool.submit(collect_finished, item) for item in pending_results]
+            for (group, members, _, _), future in zip(pending_results, futures):
+                # Failed/cancelled jobs can contain successful earlier members.
+                # Collection failures retain their request and never cause paid replay.
+                try:
+                    collected = future.result()
+                    rows = collected["members"]
+                    if (not isinstance(rows, list) or len(rows) != len(members)
+                            or sorted(row.get("index", -1) for row in rows) != list(range(len(members)))):
+                        raise ValueError("group result members changed")
+                    by_index = {row["index"]: row for row in rows}
+                    for index, entry in enumerate(members):
+                        row = by_index[index]
+                        if row.get("sample") != entry["sample"] or row.get("status") not in TERMINAL:
+                            raise ValueError("group result member identity changed")
+                    for index, entry in enumerate(members):
+                        row = by_index[index]
+                        entry["status"] = row["status"]
+                        if row.get("reason"):
+                            entry["reason"] = row["reason"]
+                    group["status"] = "complete" if all(e["status"] == "complete" for e in members) else "failed"
+                    group.pop("collection_error", None)
+                except Exception as exc:
+                    import remote_artifacts
+                    code = str(exc) if isinstance(exc, remote_artifacts.ArtifactError) else type(exc).__name__
+                    group["collection_error"] = code
+                    matrix["poll_errors"].append({"group_id": group["group_id"], "phase": "group_results",
+                                                  "error": code})
+                hostlab.write_json(target, matrix)
+
+    active = sum(g["status"] not in TERMINAL | {"awaiting_results"} and bool(g["request_id"])
+                 for g in matrix["groups"])
+    if time.time() >= matrix["deadline_at"]:
+        for group in matrix["groups"]:
+            if group["status"] == "queued_local":
+                group.update(status="skipped", reason="matrix_submission_deadline")
+                for index in group["sample_indices"]:
+                    matrix["entries"][index].update(status="skipped", reason="matrix_submission_deadline")
+    elif dispatch:
+        budget = min(2, matrix["definition"]["max_parallel"] - active)
+        for group in matrix["groups"]:
+            if budget <= 0:
+                break
+            if group["status"] != "queued_local":
+                continue
+            payload = group_payload(matrix, group)
+            try:
+                result = remote_schedule.submit_group(payload["samples"], payload["request"], gh, lookup, lambda: recent,
+                    repository=repository, workflow=workflow, idempotency_key=group["dispatch_key"],
+                    runner_revision=matrix["runner_revision"], reuse_completed=matrix["definition"]["reuse_completed"])
+            except Exception as exc:
+                matrix["poll_errors"].append({"group_id": group["group_id"], "error": type(exc).__name__})
+                break
+            if not result.get("request_id"):
+                group["deferred_reason"] = result["status"]
+                break
+            status = "awaiting_results" if result["status"] == "completed" else result["status"]
+            accepted = {"request_id": result["request_id"], "status": status,
+                        "reused": result.get("reused", False), "accepted_at": time.time()}
+            group.update(accepted)
+            for index in group["sample_indices"]:
+                matrix["entries"][index].update(accepted)
+            if status != "awaiting_results":
+                active += 1
+            budget -= 1
+            hostlab.write_json(target, matrix)
+    matrix["peak_inflight"] = max(matrix["peak_inflight"], active)
+    hostlab.write_json(target, matrix)
+    return summary(matrix)
 
 
 def attributes(output):

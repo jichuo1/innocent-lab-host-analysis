@@ -98,7 +98,7 @@ MCP 复用内存数据集，`.dxc2` 磁盘缓存属于原生 CLI，当前批量�
 
 使用 `plan_version_matrix` / `submit_version_matrix` 规划或启动同一功能跨版本的调查；
 `advance_version_matrix` 刷新状态并补充待运行样本，`version_matrix_status` 只刷新而不启动新任务，
-`version_matrix_result` 收集并比较候选。远程客户端共提供 11 项工具。
+`version_matrix_result` 收集并比较候选。远程客户端共提供 12 项工具，包括显式失败恢复。
 
 每个 selector 必须来自 inventory.json：
 
@@ -154,3 +154,29 @@ tools/hostlab/.venv/Scripts/python.exe tools/hostlab/verify_backends.py --versio
 
 Actions 的 backend_validation 操作用准确 runner_revision、样本 revision/SHA，对比类/方法/字段/四类引用集合、Manifest、Smali 和保留的 JADX CLI。
 验证缓存位于附件目录之外，附件仅保存计时、计数、结果身份哈希和结论。静态验证不能替代 Android Hook／设备验收。
+
+### 同一 runner 复用多版本环境
+
+`plan_version_matrix` 和 `submit_version_matrix` 可传 `runner_batch_size=1..4`，默认 1，旧客户端与已保存矩阵继续使用原路径。
+例如 `submit_version_matrix(samples=samples, request=request, runner_batch_size=4, max_parallel=4)`：每个物理 runner 最多处理四个版本，最多同时接纳四个 runner；34 版最多需要九个新作业。
+分组、准确样本、请求、工具提交及重试键在首次派发前固化。更改分组参数需要新矩阵，不可改变旧矩阵的身份。
+
+一个 runner 只准备一次依赖环境、验证一次私有仓库，并按不可变 revision 复用 manifest。
+输入准备使用最多两个下载工作线程和滑动窗口，下载完成的版本先分析；分析期间继续预取后续样本，避免输入顺序让已就绪版本等待较慢下载。
+每个版本仍独立验证 manifest 路径、size、完整 SHA-256 与分析后源 SHA，使用全新的后端会话，分析本身在一个 runner 内串行执行以控制内存。
+HF/Xet 连接池在进程内复用，不将私有 APK、HF_HOME 或令牌保存到公开依赖缓存。下载线程不能安全强杀；最终进程期限仍由 Actions 作业限定。
+
+组结果包含 `group.json` 与 `samples/<组内索引>/job.json,result.txt`；每版保留原 batch 身份及组内索引。
+`job_result` 对组请求默认返回组回执与全部文件路径；加 `sample_index=0..3` 可独立读取成功或失败成员的输出，继续支持 `result_offset` 的 Unicode 分页。
+每完成一版即原子更新检查点，成员失败继续处理其它版本，附件步骤始终运行。
+Actions conclusion 只描述物理作业；矩阵先校验组回执与逐版元数据，才接受逐版 complete/failed/skipped。
+收集临时失败保留 `awaiting_results` 并重读同一附件，不重复派发；组作业失败也可取回其已完成成员。
+同轮完成组最多四路并行收集，只有主线程验证、合并和保存矩阵状态。
+`physical_inflight` 表示正在占用的 runner，成员状态数可以大于此值。一个组的多版结果复用同一份已验证附件下载。
+
+`recover_version_matrix(matrix_id, idempotency_key="")` 是显式启动恢复的入口，只重跑原矩阵已确认 failed/skipped 成员，保留原工具提交、请求及分组参数。
+已成功成员不会重跑，未知派发和仍在执行的成员不进入恢复队列。默认恢复键重入同一恢复矩阵；如果恢复本身再次失败，有意再次执行时使用新的显式键。
+附件缺失或身份不符不能伪装为成功，也不自动变成新的付费作业。deadline 只停止尚未派发的组；已接受作业不自动取消。
+若物理作业已明确结束而附件永久丢失，可显式设置 `include_unverified_results=true` 创建恢复队列；原结果继续标记不可验收。
+这会有意重新执行已结束但无法验证的成员，可能重复其计算；默认关闭，且从不包含仍运行或派发结果未知的成员。
+任意旧 SQLite SQL 方言、自动选择/回退规则及 JADX CLI 继续按既有契约执行。
