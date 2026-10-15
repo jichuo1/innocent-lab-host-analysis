@@ -95,6 +95,34 @@ class CheckpointTest(unittest.TestCase):
         self.assertFalse(saved["billing_unknown"])
         self.assertEqual(saved["metrics"]["finish_reason"], "length")
 
+    def test_failed_zero_placeholders_or_auxiliary_usage_stay_unknown_after_restart(self):
+        cases = (
+            {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            {"prompt_tokens_details": {}, "completion_tokens_details": {}},
+            {"prompt_tokens_details": {"cached_tokens": 0}, "server_counter": 5},
+        )
+        for usage in cases:
+            with self.subTest(usage=usage), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                value = checkpoint.Checkpoint(root, self.binding)
+                token = value.claim("draft", "d0", "b"*64, "primary", "session")
+                error = self.error()
+                error.usage = copy.deepcopy(usage)
+                value.failed(token, error)
+                row = value.value["attempts"][0]
+                self.assertEqual(usage, row["usage"])
+                self.assertTrue(row["usage_unknown"])
+                self.assertTrue(row["billing_unknown"])
+                value.close()
+                resumed = checkpoint.Checkpoint(root, self.binding)
+                try:
+                    saved = resumed.value["attempts"][0]
+                    self.assertEqual(usage, saved["usage"])
+                    self.assertTrue(saved["usage_unknown"])
+                    self.assertTrue(saved["billing_unknown"])
+                finally:
+                    resumed.close()
+
     def test_circuit_is_persistent_and_does_not_spend_retry_without_admission(self):
         value = self.opened()
         for index in range(2):

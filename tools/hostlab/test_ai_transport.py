@@ -58,11 +58,26 @@ class TransportTest(unittest.TestCase):
         self.assertTrue(usage["_transport"]["usage_received"])
         self.assertFalse(usage["_usage_unknown"])
         self.assertNotIn("private reasoning", json.dumps(message))
-        self.assertEqual(request.get_header("X-opencode-session"), "hostlab-test")
+        self.assertIsNone(request.get_header("X-opencode-session"))
         payload = json.loads(request.data)
         self.assertTrue(payload["stream"])
         self.assertEqual(payload["max_tokens"], 8192)
         self.assertEqual(request.get_header("User-agent"), "HostLab-AIReview/2")
+
+    def test_session_header_is_preserved_only_for_exact_opencode_host(self):
+        for base, expected in (
+                ("https://opencode.ai/zen/go/v1", "hostlab-test"),
+                ("https://OPENCODE.AI/zen/go/v1", "hostlab-test"),
+                ("https://api.river.ai/v1", None),
+                ("https://api.experientiallabs.ai/v1", None),
+                ("https://api.opencode.ai/v1", None),
+                ("https://opencode.ai.example.test/v1", None)):
+            with self.subTest(base=base), patch.dict(os.environ, dict(ENV, AI_PRIMARY_BASE_URL=base)), patch.object(transport.urllib.request, "build_opener") as build:
+                build.return_value.open.return_value = Response(delta({"content": "ok"}, "stop") + event(b"[DONE]"))
+                transport._call_api("primary", [{"role": "user", "content": "synthetic"}], [], session_id="hostlab-test")
+                request = build.return_value.open.call_args.args[0]
+                self.assertEqual(request.get_header("X-opencode-session"), expected)
+                self.assertEqual(build.return_value.open.call_count, 1)
 
     def test_missing_usage_is_unknown_not_zero(self):
         (message, usage, _), _ = self.request(delta({"content": "complete"}, "stop") + event(b"[DONE]"))

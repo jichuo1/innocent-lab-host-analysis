@@ -284,7 +284,11 @@ class Checkpoint:
         import ai_transport
         usage = ai_transport._safe_usage(getattr(error, "usage", None))
         if usage:
-            row.update(usage=usage, usage_unknown=False, billing_unknown=False)
+            # Preserve reported counters without mistaking zero placeholders or
+            # auxiliary details for evidence of metered input/output tokens.
+            known = any(type(usage.get(key)) is int and usage[key] > 0 for key in
+                        ("total_tokens", "prompt_tokens", "completion_tokens", "input_tokens", "output_tokens"))
+            row.update(usage=usage, usage_unknown=not known, billing_unknown=not known)
         provider = self.value["providers"].setdefault(row["profile"], {"failures": 0, "open_until": 0})
         provider["failures"] += 1
         if provider["failures"] >= 2:

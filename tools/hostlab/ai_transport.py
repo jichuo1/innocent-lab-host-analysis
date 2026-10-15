@@ -151,7 +151,7 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
     metrics["request_bytes"] = len(body)
     headers = {"Authorization": "Bearer " + key, "Content-Type": "application/json",
                "Accept": "text/event-stream, application/json", "User-Agent": "HostLab-AIReview/2"}
-    if session_id:
+    if session_id and parsed.hostname == "opencode.ai":
         headers["x-opencode-session"] = session_id
     request = urllib.request.Request(base + "/chat/completions", data=body, headers=headers)
     deadline = started + total_timeout
