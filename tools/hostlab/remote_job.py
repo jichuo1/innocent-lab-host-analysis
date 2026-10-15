@@ -11,12 +11,98 @@ import source_snapshot
 import snapshot_transport
 
 
+def run_batch(request, row, repo, revision):
+    import asyncio
+    import time
+    import analysis_batch
+    import analysis_plan
+    import install_dexsql
+    output = hostlab.STATE / "remote-output"
+    output.mkdir(parents=True, exist_ok=True)
+    started = time.monotonic()
+    try:
+        apk = analyze.fetch_sample(row, repo, revision)
+        fetch_ms = (time.monotonic() - started) * 1000
+        sample = {**row, "source": "huggingface", "repo": repo, "revision": revision}
+        report = asyncio.run(analysis_batch.execute(apk, request, roots=[apk.parent], sample=sample))
+        rc = 0 if report["complete"] else 2
+    except Exception as exc:
+        fetch_ms = None
+        rc = 1
+        report = {"complete": False, "scope": "offline_static_only", "error": type(exc).__name__,
+                  "message": str(exc)[:1000], "tasks": []}
+    (output / "result.txt").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    here = Path(__file__).resolve().parent
+    names = ("analysis_plan.py", "analysis_batch.py", "install_dexsql.py", "analyze.py", "hostlab.py",
+             "remote_job.py", "dexq/server.py", "dexq/dexq_workers.py")
+    job = {"operation": "batch", "version_code": row["version_code"], "apk_sha256": row["sha256"],
+           "sample_revision": revision, "scope": "offline_static_only", "exit_code": rc,
+           "request_sha256": analysis_plan.fingerprint(request), "complete": report["complete"],
+           "backend_versions": report.get("backend_versions"),
+           "tools": {name: hostlab.digest(here / name) for name in names},
+           "runner_revision": os.environ.get("HOSTLAB_RUNNER_REVISION") or os.environ.get("GITHUB_SHA"),
+           "workflow_revision": os.environ.get("GITHUB_SHA"), "fetch_ms": fetch_ms,
+           "total_ms": (time.monotonic() - started) * 1000}
+    hostlab.write_json(output / "job.json", job)
+    print(json.dumps({"operation": "batch", "complete": report["complete"], "exit_code": rc,
+                      "tasks": [{"id": t["id"], "status": t["status"]} for t in report["tasks"]]}))
+    return rc
+
+
+def run_validation(argument, row, repo, revision):
+    import asyncio
+    import shutil
+    import uuid
+    import verify_backends
+    options = json.loads(argument or "{}")
+    if not isinstance(options, dict) or set(options) - {"rounds", "jadx"}:
+        raise ValueError("unsupported validation options")
+    rounds = options.get("rounds", 2)
+    if type(rounds) is not int or rounds not in {1,2,3} or type(options.get("jadx", True)) is not bool:
+        raise ValueError("invalid validation rounds/JADX flag")
+    output = hostlab.STATE / "remote-output"
+    output.mkdir(parents=True, exist_ok=True)
+    work = hostlab.STATE / "backend-validation" / uuid.uuid4().hex
+    rc = 1
+    result = {"complete": False, "scope": "offline_static_only"}
+    try:
+        apk = analyze.fetch_sample(row, repo, revision)
+        sample = {**row, "source": "huggingface", "repo": repo, "revision": revision}
+        proof = asyncio.run(verify_backends.verify(apk, sample, work, rounds=rounds, jadx=options.get("jadx", True)))
+        shutil.copyfile(work / "verification.json", output / "verification.json")
+        result.update(complete=True, verification=proof)
+        rc = 0
+    except Exception as exc:
+        result.update(error=type(exc).__name__, message=str(exc)[:1000])
+        if (work / "failure.json").is_file():
+            shutil.copyfile(work / "failure.json", output / "failure.json")
+    (output / "result.txt").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    names = ("verify_backends.py", "analysis_batch.py", "analysis_plan.py", "install_dexsql.py", "remote_job.py")
+    hostlab.write_json(output / "job.json", {"operation": "backend_validation", "version_code": row["version_code"],
+        "apk_sha256": row["sha256"], "sample_revision": revision, "exit_code": rc,
+        "scope": "offline_static_only", "complete": result["complete"],
+        "tools": {name: hostlab.digest(Path(__file__).with_name(name)) for name in names}})
+    print(json.dumps({"operation": "backend_validation", "complete": result["complete"], "exit_code": rc}))
+    return rc
+
+
 def main():
     code = os.environ["HOSTLAB_VERSION"]
     operation = os.environ["HOSTLAB_OPERATION"]
     argument = os.environ.get("HOSTLAB_ARGUMENT", "")
-    if not re.fullmatch(r"[1-9][0-9]{0,9}", code) or len(argument) > 4096:
+    if not re.fullmatch(r"[1-9][0-9]{0,9}", code) or (len(argument.encode("utf-8")) > 30000 if operation == "batch" else len(argument) > 4096):
         raise RuntimeError("Invalid bounded input")
+    batch_request = None
+    if operation == "batch":
+        import analysis_plan
+        batch_request = analysis_plan.validate(json.loads(argument))
+        runner_revision = os.environ.get("HOSTLAB_RUNNER_REVISION", "")
+        if runner_revision:
+            if not re.fullmatch(r"[0-9a-f]{40}", runner_revision):
+                raise RuntimeError("Invalid runner revision")
+            observed = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+            if observed != runner_revision:
+                raise RuntimeError("Runner checkout does not match scheduled source")
     raw_max_cell = os.environ.get("HOSTLAB_MAX_CELL_CHARS", "300")
     if not re.fullmatch(r"[0-9]{1,5}", raw_max_cell) or not 1 <= int(raw_max_cell) <= 16000:
         raise RuntimeError("max_cell_chars must be 1..16000")
@@ -71,6 +157,10 @@ def main():
                            "sample_count": len(samples), "exit_code": 0, "scope": "metadata_only"})
         return 0
     row = hostlab.select({"samples": samples}, int(code), sha)
+    if operation == "batch":
+        return run_batch(batch_request, row, repo, head)
+    if operation == "backend_validation":
+        return run_validation(argument, row, repo, head)
     hostlab.write_json(hostlab.CONFIG, {"repo": repo})
     base = [sys.executable, str(Path(__file__).with_name("hostlab.py"))]
     source = ["--version-code", code, "--sha256", row["sha256"], "--revision", head]

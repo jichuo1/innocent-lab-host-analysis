@@ -12,7 +12,7 @@ import hostlab
 
 REPO = "jichuo1/innocent-lab-host-analysis"
 WORKFLOW = "host-analysis.yml"
-mcp = MCPServer(name="hostlab-remote", instructions="Run APK analysis in private GitHub Actions. Submit returns a request ID; check status later, then retrieve results. APKs stay on the runner. Full multi-path reports include AI suggestions and durable reports-branch links; none establish runtime acceptance.")
+mcp = MCPServer(name="hostlab-remote", instructions="Run bounded APK analysis in GitHub Actions. Prefer plan_analysis then submit_analysis for related queries: one batch reuses input and prepared backends. Raw SQL keeps its declared sqlite/dexsql dialect. Legacy submit_job stays compatible. Reuse returned request IDs, poll job_status, and page job_result; never resubmit an unknown dispatch. APKs stay on the runner. Static evidence does not establish runtime acceptance.")
 
 
 def gh(args, payload=None):
@@ -84,6 +84,30 @@ def lookup(request_id):
 
 
 @mcp.tool()
+def plan_analysis(request: dict) -> str:
+    """Plan up to 16 related tasks without dispatching. Request: {backend:auto|sqlite|dexsql,tasks:[{id,operation,...}]}. query requires sql and dialect; locate requires kind/name; refs requires kind/target and methods|sites detail; decode requires a full method descriptor; info reads Manifest. Auto preserves raw SQL dialect and reference-site semantics, prefers native references, and reuses warm SQLite structure indexes on the runner. This is a plan, not execution evidence."""
+    import remote_schedule
+    try:
+        return json.dumps(remote_schedule.describe(request), ensure_ascii=False)
+    except ValueError as exc:
+        raise ToolError(str(exc)) from None
+
+
+@mcp.tool()
+def submit_analysis(version_code: int, request: dict, apk_sha256: str = "", sample_revision: str = "",
+                    idempotency_key: str = "") -> str:
+    """Schedule one bounded analysis batch. Related tasks share one APK fetch and one session per backend. Optional APK SHA and immutable sample revision must be supplied together and enable completed-result reuse for deterministic semantic tasks for 24h. Arbitrary SQL is not cached after completion. Equal active submissions are reused. An idempotency key explicitly binds retries, including failures. Unknown dispatch is never replayed: use returned request_id with job_status/job_result. capacity_full/scheduler_busy do not dispatch. Uses Actions minutes."""
+    import remote_schedule
+    try:
+        result = remote_schedule.submit(version_code, request, gh, lookup, runs, repository=REPO,
+                                        workflow=WORKFLOW, apk_sha256=apk_sha256,
+                                        sample_revision=sample_revision, idempotency_key=idempotency_key)
+        return json.dumps(result, ensure_ascii=False)
+    except ValueError as exc:
+        raise ToolError(str(exc)) from None
+
+
+@mcp.tool()
 def submit_job(version_code: int, operation: str, argument: str = "", max_cell_chars: int = 300,
                source_mode: str = "auto") -> str:
     """Submit multipath_audit, audit, decompile (class), query (SELECT SQL), decode (method), string_refs (string), or info. Uses Actions minutes; returns immediately.
@@ -130,6 +154,8 @@ def job_status(request_id: str) -> str:
     run = lookup(request_id)
     if run is None:
         return json.dumps({"status": "dispatch_pending", "request_id": request_id})
+    import remote_schedule
+    remote_schedule.observe(request_id, run)
     return json.dumps({k: run[k] for k in ("id", "status", "conclusion", "html_url", "head_sha")})
 
 

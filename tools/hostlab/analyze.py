@@ -32,6 +32,12 @@ def inputs(args):
     _, head = hostlab.api_private(repo)
     revision = args.revision or head
     row = hostlab.select(hostlab.manifest(repo, revision), args.version_code, args.sha256)
+    return fetch_sample(row, repo, revision), {**row, "source": "huggingface", "repo": repo, "revision": revision}
+
+
+def fetch_sample(row, repo, revision):
+    """Fetch one already-selected immutable sample; batch tasks share this input."""
+    from huggingface_hub import hf_hub_download
     path = Path(hf_hub_download(repo_id=repo, repo_type="dataset", filename=row["path"],
                                revision=revision, token=True))
     if path.stat().st_size != row["size"] or hostlab.digest(path) != row["sha256"]:
@@ -47,7 +53,7 @@ def inputs(args):
             shutil.copyfile(path, temp)
             os.replace(temp, target)
         path = target
-    return path, {**row, "source": "huggingface", "repo": repo, "revision": revision}
+    return path
 
 
 def tool_hashes():
