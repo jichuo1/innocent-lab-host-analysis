@@ -55,6 +55,7 @@ operation: info / query / decode / string_refs / decompile / audit / multipath_a
 草稿按最多两个页面分片、最多六个单元，再用独立上下文逐片复核重点页面与全部发现。全流程最多 16 次 API 请求（含探索、修正、失败和最多两次传输补偿），跨恢复任务累计；每次最多 8192 输出 token、240 秒墙钟时限、45 秒读空闲时限，AI 累计限时 30 分钟。逐页面/路径校验与评论、动态新读取证据要求保持生效，复核未完成不发布成功 Release。
 `regenerate_ai` 支持旧数字 run ID，也支持 JSON `{"static_run":原始静态runID,"checkpoint_run":检查点runID,"resume_unknown":false}`。恢复保留目标、基线、规则、矩阵和原 run 身份；仅重新绑定明确指定的源码快照并执行 AI。它不准备 Java/JADX、不下载或扫描 APK，模型不提供 decompile_class。检查点中的成功响应复用，静态/源码/提示/工具/提供商配置漂移则拒绝复用；请求结果不明时默认禁止重放，显式授权仍保留未知计费和已用预算。
 每次请求先持久化账本，连续两次提供商失败熔断 60 秒。公开检查点只保存请求哈希、调用状态、用量和结构化结果，不包含源码正文或请求消息。未知用量不计作零。
+启用 fallback 时，主通道 401/403 仅尝试一次已配置的独立备用凭据；不会重复原认证失败请求，备用拒绝时停止。该切换也消耗两次全局补偿额度，初始通道与 fallback 策略绑定进检查点。
 reports 分支保存可浏览结论，私有 Release 只保存完整成功分析的证据；失败只保留报告记录。MCP 取结果优先访问长期报告。
 不需要 HF Token、APK、JDK、JADX 或 Android SDK。只会下载报告和有界分析结果。
 计算在 GitHub Actions Runner；分析 job 最多 45 分钟，发布 job 最多 15 分钟。Actions 附件保留 14 天，仓库报告和 Release 不按这个期限清理。

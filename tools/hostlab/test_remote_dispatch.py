@@ -21,6 +21,17 @@ class DispatchTest(unittest.TestCase):
         self.root = Path(temporary.name)
         p = patch.object(hostlab, "STATE", self.root); p.start(); self.addCleanup(p.stop)
 
+    def test_lock_initialization_sharing_conflict_is_busy_and_closes_handle(self):
+        for failing in ("write", "flush"):
+            with self.subTest(failing=failing):
+                path, stream = Mock(), Mock()
+                path.open.return_value = stream
+                stream.tell.return_value = 0
+                getattr(stream, failing).side_effect = PermissionError("another Windows handle locked this byte")
+                self.assertIsNone(remote_schedule.admission_lock(path))
+                path.open.assert_called_once_with("a+b", buffering=0)
+                stream.close.assert_called_once()
+
     def test_new_api_returns_run_id_and_maps_without_run_list_discovery(self):
         def gh(args, payload=None):
             if payload is None:

@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import ai_pipeline
 import ai_checkpoint
+import ai_transport
 import ai_review
 import test_ai_review as fixtures
 
@@ -68,6 +69,45 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(len(outcome["review"]["findings"]), 4)
         self.assertEqual(outcome["read_tool_calls"], 2)
         self.assertEqual((self.root / "priority-report.md").read_text().count("# AI 适配分析"), 1)
+
+    def test_primary_auth_rejection_switches_credentials_once_and_keeps_accounting(self):
+        profiles = []
+        def api(profile, *args, **options):
+            profiles.append(profile)
+            if profile == "primary":
+                raise ai_transport.ApiError("API HTTP 401", "http", False, True, http_status=401)
+            return self.provider(profile, *args, **options)
+        with patch.dict("os.environ", {"AI_ALLOW_FALLBACK": "true", "AI_DEFAULT_PROFILE": "primary"}), \
+             patch.object(ai_review, "call_api", side_effect=api), patch.object(ai_pipeline.time, "sleep"):
+            ai_review.run(self.root)
+            calls = len(profiles)
+            ai_review.run(self.root)
+        self.assertEqual(len(profiles), calls)
+        self.assertEqual(profiles.count("primary"), 1)
+        self.assertTrue(all(profile == "backup" for profile in profiles[1:]))
+        outcome = json.loads((self.root / "ai-analysis.json").read_text())
+        self.assertEqual(outcome["status"], "completed")
+        self.assertEqual(outcome["attempts"][0]["credential_fallback"], "primary_to_backup")
+        self.assertTrue(outcome["attempts"][0]["billing_unknown"])
+        self.assertEqual(json.loads((self.root / "ai-checkpoint.json").read_text())["transport_retries"], 1)
+
+    def test_both_auth_rejections_stop_without_repeating_either_profile(self):
+        profiles = []
+        def api(profile, *args, **options):
+            profiles.append(profile)
+            raise ai_transport.ApiError("API HTTP 401", "http", False, True, http_status=401)
+        with patch.dict("os.environ", {"AI_ALLOW_FALLBACK": "true", "AI_DEFAULT_PROFILE": "primary"}), \
+             patch.object(ai_review, "call_api", side_effect=api), patch.object(ai_pipeline.time, "sleep"):
+            with self.assertRaises(RuntimeError): ai_review.run(self.root)
+        self.assertEqual(profiles, ["primary", "backup"])
+        self.assertEqual(json.loads((self.root / "ai-analysis.json").read_text())["status"], "failed")
+
+    def test_disabled_fallback_does_not_try_another_credential(self):
+        with patch.dict("os.environ", {"AI_ALLOW_FALLBACK": "false", "AI_DEFAULT_PROFILE": "primary"}), \
+             patch.object(ai_review, "call_api", side_effect=ai_transport.ApiError(
+                 "API HTTP 403", "http", False, True, http_status=403)) as api:
+            with self.assertRaises(RuntimeError): ai_review.run(self.root)
+        self.assertEqual(api.call_count, 1)
 
     def test_unknown_billing_is_retained_and_no_apk_tool_is_offered(self):
         offered = []

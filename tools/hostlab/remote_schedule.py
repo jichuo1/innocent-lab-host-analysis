@@ -16,13 +16,15 @@ import hostlab
 
 def admission_lock(path):
     """OS releases this nonblocking lock even if the caller crashes."""
-    stream = path.open("a+b")
-    stream.seek(0, 2)
-    if stream.tell() == 0:
-        stream.write(b" ")
-        stream.flush()
-    stream.seek(0)
+    stream = path.open("a+b", buffering=0)
     try:
+        # Another Windows opener can lock the first byte between our size
+        # check and initialization. That sharing conflict is also a busy lock.
+        stream.seek(0, 2)
+        if stream.tell() == 0:
+            stream.write(b" ")
+            stream.flush()
+        stream.seek(0)
         if os.name == "nt":
             import msvcrt
             msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
@@ -30,7 +32,10 @@ def admission_lock(path):
             import fcntl
             fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
-        stream.close()
+        try:
+            stream.close()
+        except OSError:
+            pass
         return None
     return stream
 
