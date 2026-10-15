@@ -20,7 +20,7 @@ MAX_TOOL_CALLS = 16
 
 class ApiError(RuntimeError):
     def __init__(self, reason, kind="protocol", retryable=False, billing_unknown=True,
-                 http_status=None, retry_after=None, metrics=None):
+                 http_status=None, retry_after=None, metrics=None, usage=None):
         super().__init__(reason)
         self.reason = reason
         self.kind = kind
@@ -29,6 +29,7 @@ class ApiError(RuntimeError):
         self.http_status = http_status
         self.retry_after = retry_after
         self.metrics = dict(metrics or {})
+        self.usage = _safe_usage(usage)
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -122,10 +123,13 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
         return round((time.monotonic() - started) * 1000, 3)
 
     def fail(reason, kind="protocol", retryable=False):
-        raise ApiError(reason, kind, retryable, True, metrics=dict(metrics, total_ms=elapsed()))
+        known = any(type(usage.get(key)) is int and usage[key] > 0 for key in
+                    ("total_tokens", "prompt_tokens", "completion_tokens", "input_tokens", "output_tokens"))
+        raise ApiError(reason, kind, retryable, not known,
+                       metrics=dict(metrics, total_ms=elapsed()), usage=usage)
 
     name = str(profile).upper()
-    key = os.environ.get("AI_API_KEY_" + name, "")
+    key = os.environ.get("AI_API_KEY_" + name, "").strip()
     base = os.environ.get("AI_" + name + "_BASE_URL", "").rstrip("/")
     model = os.environ.get("AI_" + name + "_MODEL", "")
     parsed = urllib.parse.urlsplit(base)
@@ -152,10 +156,11 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
     request = urllib.request.Request(base + "/chat/completions", data=body, headers=headers)
     deadline = started + total_timeout
     usage = {}
+    raw_bound = min(8 * 1024 * 1024, MAX_RESPONSE_BYTES * max(1, (max_output+8191)//8192))
     response_model = model
     finish_reason = None
     try:
-        with urllib.request.build_opener(NoRedirect()).open(request, timeout=min(90, total_timeout)) as response:
+        with urllib.request.build_opener(NoRedirect()).open(request, timeout=min(120, total_timeout)) as response:
             metrics["headers_ms"] = elapsed()
             is_sse = "text/event-stream" in response.headers.get("Content-Type", "").lower()
             metrics["streaming"] = is_sse
@@ -238,7 +243,7 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
                 if not chunk:
                     break
                 metrics["response_bytes"] += len(chunk)
-                if metrics["response_bytes"] > MAX_RESPONSE_BYTES:
+                if metrics["response_bytes"] > raw_bound:
                     fail("API response exceeds bound")
                 if not is_sse:
                     raw_json.extend(chunk)
@@ -267,8 +272,10 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
             if is_sse:
                 if not done:
                     fail("API stream interrupted before DONE", "interrupted", True)
+                if finish_reason in {"stop", "tool_calls", "length", "content_filter"}:
+                    metrics["finish_reason"] = finish_reason
                 if finish_reason not in {"stop", "tool_calls"}:
-                    fail("API output incomplete", "incomplete", True)
+                    fail("API output incomplete", "incomplete", finish_reason == "length")
                 message = {"content": "".join(content) or None,
                            "tool_calls": [calls[index] for index in sorted(calls)]}
             else:
@@ -277,8 +284,9 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
                     fail("API response envelope malformed")
                 choice = data["choices"][0]
                 finish_reason = choice.get("finish_reason")
+                usage = _safe_usage(data.get("usage"))
                 if finish_reason not in {"stop", "tool_calls"}:
-                    fail("API output incomplete", "incomplete", True)
+                    fail("API output incomplete", "incomplete", finish_reason == "length")
                 message = choice.get("message")
                 usage = _safe_usage(data.get("usage"))
                 if isinstance(data.get("model"), str) and 0 < len(data["model"]) <= 256:
@@ -347,7 +355,7 @@ def call_api(profile, messages, tools, force_tool=None, session_id=None, *,
         if "error" in value:
             error = value["error"]
             raise ApiError(error["reason"], error["kind"], error["retryable"], error["billing_unknown"],
-                           error.get("http_status"), error.get("retry_after"), error.get("metrics"))
+                           error.get("http_status"), error.get("retry_after"), error.get("metrics"), error.get("usage"))
         message, usage, model = value["result"]
         usage["_transport"]["wall_ms"] = round((time.monotonic()-started)*1000, 3)
         return message, usage, model
@@ -365,7 +373,7 @@ if __name__ == "__main__":
         result = {"result": _call_api(**json.loads(raw))}
     except ApiError as error:
         result = {"error": {key: getattr(error, key) for key in (
-            "reason", "kind", "retryable", "billing_unknown", "http_status", "retry_after", "metrics")}}
+            "reason", "kind", "retryable", "billing_unknown", "http_status", "retry_after", "metrics", "usage")}}
     except Exception:
         result = {"error": {"reason": "API worker failed", "kind": "protocol",
                             "retryable": False, "billing_unknown": True}}

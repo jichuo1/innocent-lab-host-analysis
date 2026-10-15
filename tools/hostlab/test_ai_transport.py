@@ -81,6 +81,27 @@ class TransportTest(unittest.TestCase):
             self.request(delta({"content": "ok"}, "transport-test-secret") + event(b"[DONE]"))
         self.assertNotIn("secret", str(caught.exception))
 
+    def test_truncated_reply_keeps_reported_usage_without_accepting_partial_content(self):
+        raw = delta({"content": "partial"}, "length", usage={"prompt_tokens": 12, "completion_tokens": 8}) + event(b"[DONE]")
+        with self.assertRaises(transport.ApiError) as caught:
+            self.request(raw)
+        self.assertFalse(caught.exception.billing_unknown)
+        self.assertEqual(caught.exception.usage["completion_tokens"], 8)
+        self.assertEqual(caught.exception.metrics["finish_reason"], "length")
+
+    def test_content_filter_is_not_automatically_retried(self):
+        with self.assertRaises(transport.ApiError) as caught:
+            self.request(delta({}, "content_filter") + event(b"[DONE]"))
+        self.assertFalse(caught.exception.retryable)
+
+    def test_extended_output_scales_raw_stream_limit_but_remains_bounded(self):
+        raw = b": " + b" "*90 + b"\n\n" + delta({"content": "ok"}, "stop") + event(b"[DONE]")
+        with patch.object(transport, "MAX_RESPONSE_BYTES", 180):
+            with self.assertRaises(transport.ApiError):
+                self.request(raw)
+            (message, _, _), _ = self.request(raw, max_output=16384)
+        self.assertEqual(message["content"], "ok")
+
     def test_worker_wall_deadline_terminates_and_reaps_once(self):
         with patch.object(transport.subprocess, "Popen") as popen:
             worker = popen.return_value

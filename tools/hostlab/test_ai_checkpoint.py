@@ -15,7 +15,21 @@ class CheckpointTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.binding = {"source_sha256": "a"*64, "policy": {"total_timeout": 240}}
+        self.binding = {"source_sha256": "a"*64, "policy": {
+            "max_requests": 16, "transport_retries": 2, "deadline_seconds": 1800,
+            "initial_profile": "primary", "allow_fallback": True, "max_output": 8192,
+            "total_timeout": 240, "idle_timeout": 45, "stream": True}}
+
+    def test_only_fixed_default_and_explicit_recovery_limits_are_supported(self):
+        self.assertEqual(checkpoint.policy_limits(self.binding)["max_requests"], 16)
+        extended = copy.deepcopy(self.binding)
+        extended["policy"].update(max_requests=24, transport_retries=4, max_output=16384, recovery_policy="extended-v1")
+        self.assertEqual(checkpoint.policy_limits(extended)["max_requests"], 24)
+        for update in ({"max_requests": 17}, {"max_output": 16384}, {"transport_retries": 4},
+                       {"recovery_policy": "extended-v2"}, {"deadline_seconds": 1801}, {"stream": 1}):
+            value = copy.deepcopy(self.binding); value["policy"].update(update)
+            with self.subTest(update=update), self.assertRaises(checkpoint.CheckpointError):
+                checkpoint.policy_limits(value)
 
     def opened(self, **options):
         value = checkpoint.Checkpoint(self.root, self.binding, **options)
@@ -63,6 +77,23 @@ class CheckpointTest(unittest.TestCase):
         value.received(token, "b"*64, {"role": "assistant", "content": None}, {"_usage_unknown": True}, "m")
         self.assertTrue(value.value["attempts"][0]["billing_unknown"])
         self.assertTrue(value.value["attempts"][0]["usage_unknown"])
+
+    def test_failed_length_keeps_known_usage_but_never_backfills_old_unknown_calls(self):
+        value = self.opened()
+        old = value.claim("draft", "d0", "a"*64, "primary", "session")
+        value.failed(old, self.error())
+        original = copy.deepcopy(value.value["attempts"][0])
+        token = value.claim("draft", "d0", "b"*64, "backup", "session")
+        error = self.error()
+        error.usage = {"prompt_tokens": 12, "completion_tokens": 8192, "private_body": "secret"}
+        error.metrics["finish_reason"] = "length"
+        value.failed(token, error)
+        self.assertEqual(value.value["attempts"][0], original)
+        saved = value.value["attempts"][-1]
+        self.assertEqual(saved["usage"], {"prompt_tokens": 12, "completion_tokens": 8192})
+        self.assertFalse(saved["usage_unknown"])
+        self.assertFalse(saved["billing_unknown"])
+        self.assertEqual(saved["metrics"]["finish_reason"], "length")
 
     def test_circuit_is_persistent_and_does_not_spend_retry_without_admission(self):
         value = self.opened()

@@ -56,6 +56,7 @@ operation: info / query / decode / string_refs / decompile / audit / multipath_a
 `regenerate_ai` 支持旧数字 run ID，也支持 JSON `{"static_run":原始静态runID,"checkpoint_run":检查点runID,"resume_unknown":false}`。恢复保留目标、基线、规则、矩阵和原 run 身份；仅重新绑定明确指定的源码快照并执行 AI。它不准备 Java/JADX、不下载或扫描 APK，模型不提供 decompile_class。检查点中的成功响应复用，静态/源码/提示/工具/提供商配置漂移则拒绝复用；请求结果不明时默认禁止重放，显式授权仍保留未知计费和已用预算。
 每次请求先持久化账本，连续两次提供商失败熔断 60 秒。公开检查点只保存请求哈希、调用状态、用量和结构化结果，不包含源码正文或请求消息。未知用量不计作零。
 启用 fallback 时，主通道 401/403 仅尝试一次已配置的独立备用凭据；不会重复原认证失败请求，备用拒绝时停止。该切换也消耗两次全局补偿额度，初始通道与 fallback 策略绑定进检查点。
+`checkpoint_run` 恢复在未显式指定源码时固定采用该检查点源码，不再依赖原静态报告的旧源码或移动的最新指针。遇到经过验证的草稿分片而默认预算不足，可显式加入 `"recovery_policy":"extended-v1"`：在旧账务基础上将恢复链总限设为 24 次请求、4 次补偿、每次 16384 输出，累计期限仍为 30 分钟；默认任务上限不变。导入草稿必须重新通过完整校验，历史调用不删除，独立复核全部保留。
 reports 分支保存可浏览结论，私有 Release 只保存完整成功分析的证据；失败只保留报告记录。MCP 取结果优先访问长期报告。
 不需要 HF Token、APK、JDK、JADX 或 Android SDK。只会下载报告和有界分析结果。
 计算在 GitHub Actions Runner；分析 job 最多 45 分钟，发布 job 最多 15 分钟。Actions 附件保留 14 天，仓库报告和 Release 不按这个期限清理。

@@ -66,9 +66,31 @@ class RegenerateCheckpointTest(unittest.TestCase):
         self.assertEqual(regen.argument("987"), {"static_run": 987, "resume_unknown": False})
         self.assertTrue(regen.argument('{"static_run":987,"checkpoint_run":988,"resume_unknown":true}')["resume_unknown"])
         for value in ({"static_run": True}, {"static_run": 1, "resume_unknown": 1},
-                      {"static_run": 1, "checkpoint_run": "2"}, {"static_run": 1, "extra": True}):
+                      {"static_run": 1, "checkpoint_run": "2"}, {"static_run": 1, "extra": True},
+                      {"static_run": 1, "recovery_policy": "extended-v1"},
+                      {"static_run": 1, "checkpoint_run": 2, "recovery_policy": "extended-v2"},
+                      {"static_run": 1, "checkpoint_run": 2, "recovery_policy": True}):
             with self.subTest(value=value), self.assertRaises(RuntimeError):
                 regen.argument(json.dumps(value))
+
+    def test_explicit_extended_policy_restores_only_verified_public_recovery_inputs(self):
+        checkpoint_files = self.checkpoint()
+        restore = Mock(return_value={"parent_run": 988, "checkpoint_sha256": "a"*64, "evidence_sha256": "b"*64})
+        with patch.object(regen, "verified_artifact", side_effect=lambda run: (self.run,
+                checkpoint_files if run == 988 else self.downloaded)), \
+             patch.dict("sys.modules", {"ai_recovery": SimpleNamespace(restore_inputs=restore)}), \
+             patch.dict("os.environ", {"HOSTLAB_ARGUMENT": '{"static_run":987,"checkpoint_run":988,"recovery_policy":"extended-v1"}'}):
+            regen.main()
+        restore.assert_called_once_with(hostlab.STATE/"remote-output", checkpoint_files["files"], 988)
+        self.assertEqual(self.restored()["ai_recovery_policy"], "extended-v1")
+        self.assertEqual(self.restored()["ai_recovery_inputs"]["parent_run"], 988)
+
+    def test_policy_from_old_summary_does_not_implicitly_authorize_extension(self):
+        self.data.update(ai_recovery_policy="extended-v1", ai_recovery_inputs={"untrusted": True})
+        self.save(self.source/"priority-summary.json", self.data)
+        regen.main()
+        self.assertNotIn("ai_recovery_policy", self.restored())
+        self.assertNotIn("ai_recovery_inputs", self.restored())
 
     def test_current_restore_metrics_do_not_relabel_the_original_apk_scan(self):
         original = {**self.job, "command": ["old-apk-auditor"], "phases": {"analysis_ms": 319000},
@@ -164,8 +186,69 @@ class RegenerateCheckpointTest(unittest.TestCase):
         self.assertTrue(self.restored()["ai_resume_unknown"])
         self.assertEqual(self.restored()["checkpoint_from_run"], 988)
 
+    def test_checkpoint_default_uses_its_pinned_source_instead_of_static_run_source(self):
+        checkpoint = self.checkpoint()
+        context, binding = frozen_source("checkpoint-current-source")
+        metadata = source_snapshot.public_context(context, binding)
+        metadata["freshness"] = "ancestor_annotation_preserved"
+        summary_path = Path(next(path for path in checkpoint["files"] if Path(path).name == "priority-summary.json"))
+        checkpoint_summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        checkpoint_summary["source_snapshot"] = metadata
+        self.save(summary_path, checkpoint_summary)
+        restore = Mock()
+        with patch.object(regen, "verified_artifact", side_effect=lambda run: (self.run,
+                checkpoint if run == 988 else self.downloaded)), \
+             patch.object(snapshot_transport, "load_for_analysis", return_value=(context, binding)) as load, \
+             patch.dict("sys.modules", {"ai_checkpoint": SimpleNamespace(restore_checkpoint=restore)}), \
+             patch.dict("os.environ", {"HOSTLAB_ARGUMENT": '{"static_run":987,"checkpoint_run":988}'}):
+            regen.main()
+        self.assertEqual(json.loads(load.call_args.args[0]), binding)
+        self.assertEqual(self.restored()["source_snapshot"], metadata)
+        self.assertEqual(self.restored()["source_selection"], "checkpoint")
+        self.assertEqual(self.restored()["freshness"], "checkpoint_resume")
+        self.assertEqual(self.restored()["previous_provenance"]["source_snapshot"]["binding"], self.binding)
+        self.assertEqual(self.restored()["previous_provenance"]["checkpoint_source_snapshot"]["binding"], binding)
+        job = json.loads((hostlab.STATE/"remote-output/job.json").read_text(encoding="utf-8"))
+        self.assertEqual(job["source_selection"], "checkpoint")
+        self.assertEqual(job["freshness"], "checkpoint_resume")
+        restore.assert_called_once()
+
+    def test_explicit_source_conflict_is_not_silently_replaced_with_checkpoint_source(self):
+        checkpoint = self.checkpoint()
+        context, binding = frozen_source("different-checkpoint-source")
+        metadata = source_snapshot.public_context(context, binding)
+        summary_path = Path(next(path for path in checkpoint["files"] if Path(path).name == "priority-summary.json"))
+        checkpoint_summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        checkpoint_summary["source_snapshot"] = metadata
+        self.save(summary_path, checkpoint_summary)
+        restore = Mock()
+        with patch.object(regen, "verified_artifact", side_effect=lambda run: (self.run,
+                checkpoint if run == 988 else self.downloaded)), \
+             patch.dict("sys.modules", {"ai_checkpoint": SimpleNamespace(restore_checkpoint=restore)}), \
+             patch.dict("os.environ", {"HOSTLAB_ARGUMENT": '{"static_run":987,"checkpoint_run":988}',
+                                       "HOSTLAB_MODULE_SOURCE": json.dumps(self.binding)}), \
+             self.assertRaisesRegex(RuntimeError, "Checkpoint source binding differs"):
+            regen.main()
+        self.assertEqual(json.loads(snapshot_transport.load_for_analysis.call_args.args[0]), self.binding)
+        restore.assert_not_called()
+
+    def test_explicit_matching_checkpoint_source_keeps_explicit_selection(self):
+        checkpoint = self.checkpoint()
+        restore = Mock()
+        with patch.object(regen, "verified_artifact", side_effect=lambda run: (self.run,
+                checkpoint if run == 988 else self.downloaded)), \
+             patch.dict("sys.modules", {"ai_checkpoint": SimpleNamespace(restore_checkpoint=restore)}), \
+             patch.dict("os.environ", {"HOSTLAB_ARGUMENT": '{"static_run":987,"checkpoint_run":988}',
+                                       "HOSTLAB_MODULE_SOURCE": json.dumps(self.binding)}):
+            regen.main()
+        self.assertEqual(self.restored()["source_selection"], "explicit")
+        self.assertEqual(self.restored()["source_snapshot"]["binding"], self.binding)
+        self.assertEqual(self.restored()["freshness"], "checkpoint_resume")
+        restore.assert_called_once()
+
     def test_checkpoint_static_or_source_drift_rejects_before_restore(self):
         checkpoint = self.checkpoint()
+        snapshot_transport.load_for_analysis.reset_mock()
         restore = Mock()
         checkpoint_summary = Path(next(p for p in checkpoint["files"] if Path(p).name == "priority-summary.json"))
         original = json.loads(checkpoint_summary.read_text(encoding="utf-8"))
@@ -179,6 +262,7 @@ class RegenerateCheckpointTest(unittest.TestCase):
                  self.assertRaisesRegex(RuntimeError, "Checkpoint"):
                 regen.main()
         restore.assert_not_called()
+        snapshot_transport.load_for_analysis.assert_not_called()
 
     def test_copy_interruption_preserves_prior_file_and_retry_recovers(self):
         target = self.root / "copy/target.json"

@@ -28,6 +28,8 @@ files += [here / "ai_review.py", here / "ai_prompts.py", here / "publish_report.
 files += [here / name for name in ("ai_transport.py", "ai_checkpoint.py", "ai_pipeline.py",
                                    "test_ai_transport.py", "test_ai_checkpoint.py", "test_ai_pipeline.py",
                                    "test_ai_review.py", "test_source_runner.py", "test_regenerate_checkpoint.py")]
+files += [here / name for name in ("ai_recovery.py", "test_ai_recovery.py", "check_ai_connectivity.py",
+                                   "probe_ai_generation.py", "test_ai_diagnostics.py")]
 files += sorted(p for p in (here / "analysis").iterdir() if p.suffix in {".py", ".java", ".md"})
 files += [here / "vendor/jadx-1.5.6-all.jar", here / "vendor/JADX-LICENSE"]
 files += [here / "dexq/server.py", here / "dexq/dexq_workers.py"]
