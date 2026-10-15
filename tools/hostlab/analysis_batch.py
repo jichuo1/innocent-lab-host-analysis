@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import time
+import zipfile
 
 from mcp import Client
 from mcp.client.stdio import StdioServerParameters
@@ -24,6 +25,13 @@ class BackendError(RuntimeError):
     def __init__(self, message, detail=None):
         super().__init__(message)
         self.detail = detail
+
+
+def failure(exc):
+    # anyio's transport may wrap the useful backend error in nested task groups.
+    while isinstance(exc, BaseExceptionGroup) and exc.exceptions:
+        exc = exc.exceptions[0]
+    return {"error": type(exc).__name__, "message": str(exc)[:1000], "detail": getattr(exc, "detail", None)}
 
 
 def cache_directory():
@@ -46,6 +54,33 @@ def controlled_input(apk, roots):
     if not any(apk.is_relative_to(root) for root in roots):
         raise ValueError("analysis input is outside the allowed roots")
     return apk
+
+
+def archive_inventory(apk):
+    """Compare physical DEX members, since native MCP can silently skip malformed members."""
+    if apk.stat().st_size > 1024 * 1024 * 1024:
+        raise ValueError("source input exceeds 1 GiB budget")
+    if apk.suffix.lower() == ".dex":
+        return None
+    with zipfile.ZipFile(apk) as archive:
+        infos = archive.infolist()
+        if len(infos) > 100000:
+            raise ValueError("archive exceeds entry budget")
+        members = [i for i in infos if re.fullmatch(r"classes\d*\.dex", i.filename)]
+    names = [i.filename for i in members]
+    if not names or len(names) != len(set(names)):
+        raise ValueError("archive needs an unambiguous classes*.dex member inventory")
+    if sum(i.file_size for i in members) > 1024 * 1024 * 1024:
+        raise ValueError("uncompressed DEX exceeds 1 GiB budget")
+    return set(names)
+
+
+def verify_inventory(expected, files):
+    # DEX 041 has synthetic #N logical members sharing one physical archive member.
+    actual = {re.sub(r"#\d+$", "", name) for name in files.values()}
+    if expected is not None and actual != expected:
+        raise BackendError("backend did not load the complete physical DEX inventory",
+                           {"missing": sorted(expected - actual), "unexpected": sorted(actual - expected)})
 
 
 def child_environment(apk, threads):
@@ -174,6 +209,8 @@ class Session:
                 while cursor is not None and len(body.encode()) < 64000:
                     page = await self.call("decode", **kwargs, offset=cursor)
                     part = page["methods"][0]
+                    if len((body + part["smali"]).encode()) > 64000:
+                        break
                     body += part["smali"]
                     next_cursor = part["next_offset"]
                     if next_cursor is not None and next_cursor <= cursor:
@@ -193,6 +230,8 @@ class Session:
 
 async def execute(apk, request, *, roots, sample=None):
     apk = controlled_input(apk, roots)
+    expected_members = archive_inventory(apk)
+    initial_stat = (apk.stat().st_size, apk.stat().st_mtime_ns)
     request = analysis_plan.validate(request)
     native = install_dexsql.status()
     planning = analysis_plan.plan(request, dexsql_available=native["available"], sqlite_cache_hit=sqlite_cached(apk))
@@ -215,11 +254,12 @@ async def execute(apk, request, *, roots, sample=None):
                                       env=child_environment(apk, threads))
         pending = list(group["task_ids"])
         try:
-            async with Client(params) as client:
+            async with asyncio.timeout(max(0.001, deadline - time.monotonic())), Client(params) as client:
                 session = Session(client, backend, apk, deadline)
                 memo = {}
                 try:
                     report["sessions"].append(await session.open())
+                    verify_inventory(expected_members, session.files)
                     while pending:
                         name = pending.pop(0)
                         began = time.monotonic()
@@ -240,8 +280,7 @@ async def execute(apk, request, *, roots, sample=None):
                                 memo[identity] = (name, output)
                         except Exception as exc:
                             report["tasks"].append({"id": name, "backend": backend, "status": "error",
-                                "elapsed_ms": (time.monotonic() - began) * 1000, "error": type(exc).__name__,
-                                "message": str(exc)[:1000], "detail": getattr(exc, "detail", None)})
+                                "elapsed_ms": (time.monotonic() - began) * 1000, **failure(exc)})
                             # A failed/expired dataset is never silently reused or replayed.
                             break
                 finally:
@@ -251,11 +290,18 @@ async def execute(apk, request, *, roots, sample=None):
                         except Exception:
                             pass  # Client EOF also releases the server and its datasets.
         except Exception as exc:
-            report["sessions"].append({"backend": backend, "error": type(exc).__name__, "message": str(exc)[:1000]})
+            report["sessions"].append({"backend": backend, **failure(exc)})
         for name in pending:
             report["tasks"].append({"id": name, "backend": backend, "status": "skipped", "reason": "backend_session_failed_or_deadline"})
     order = {t["id"]:i for i,t in enumerate(request["tasks"])}
     report["tasks"].sort(key=lambda t:order[t["id"]])
     report["complete"] = len(report["tasks"]) == len(request["tasks"]) and all(t["status"] == "complete" for t in report["tasks"])
+    try:
+        current_stat = (apk.stat().st_size, apk.stat().st_mtime_ns)
+        report["source_unchanged"] = initial_stat == current_stat and (not sample or hostlab.digest(apk) == sample["sha256"])
+    except OSError as exc:
+        report["source_unchanged"] = False
+        report["source_error"] = type(exc).__name__
+    report["complete"] = report["complete"] and report["source_unchanged"]
     report["result_bytes"] = used
     return report

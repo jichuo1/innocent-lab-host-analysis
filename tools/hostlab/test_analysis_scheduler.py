@@ -9,6 +9,7 @@ import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
+import zipfile
 from unittest.mock import AsyncMock, patch
 
 import analysis_batch
@@ -178,7 +179,8 @@ class ScheduleTest(unittest.TestCase):
 class ExecutionTest(unittest.IsolatedAsyncioTestCase):
     async def test_failed_session_is_closed_and_remaining_tasks_are_not_replayed(self):
         with tempfile.TemporaryDirectory() as temp:
-            apk = Path(temp)/"app.apk"; apk.write_bytes(b"fixture")
+            apk = Path(temp)/"app.apk"
+            with zipfile.ZipFile(apk,"w") as archive: archive.writestr("classes.dex",b"fixture")
             client = SimpleNamespace(call_tool=AsyncMock())
             context = SimpleNamespace(__aenter__=None)
             class Context:
@@ -186,6 +188,7 @@ class ExecutionTest(unittest.IsolatedAsyncioTestCase):
                 async def __aexit__(self,*args): return False
             async def opened(session):
                 session.dataset="opened"
+                session.files={0:"classes.dex"}
                 return {"backend":"sqlite"}
             with patch.object(analysis_batch,"Client",return_value=Context()), \
                  patch.object(analysis_batch.install_dexsql,"status",return_value={"available":False}), \
@@ -214,6 +217,25 @@ class ExecutionTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("HF_TOKEN",env)
         self.assertNotIn("GH_TOKEN",env)
         self.assertNotIn("AI_API_KEY",env)
+
+    async def test_skipped_or_duplicate_dex_members_cannot_be_reported_complete(self):
+        with self.assertRaisesRegex(analysis_batch.BackendError,"complete physical"):
+            analysis_batch.verify_inventory({"classes.dex","classes2.dex"},{0:"classes2.dex"})
+        analysis_batch.verify_inventory({"classes.dex"},{0:"classes.dex",1:"classes.dex#2"})
+        with tempfile.TemporaryDirectory() as temp:
+            apk=Path(temp)/"ambiguous.apk"
+            import warnings
+            with warnings.catch_warnings(), zipfile.ZipFile(apk,"w") as archive:
+                warnings.simplefilter("ignore")
+                archive.writestr("classes.dex",b"one")
+                archive.writestr("classes.dex",b"two")
+            with self.assertRaisesRegex(ValueError,"unambiguous"):
+                analysis_batch.archive_inventory(apk)
+
+    async def test_transport_wrapping_preserves_the_input_coverage_failure(self):
+        cause=analysis_batch.BackendError("incomplete",{"missing":["classes.dex"]})
+        wrapped=ExceptionGroup("transport",[ExceptionGroup("task",[cause])])
+        self.assertEqual(analysis_batch.failure(wrapped),{"error":"BackendError","message":"incomplete","detail":{"missing":["classes.dex"]}})
 
 
 class InstallerTest(unittest.TestCase):
