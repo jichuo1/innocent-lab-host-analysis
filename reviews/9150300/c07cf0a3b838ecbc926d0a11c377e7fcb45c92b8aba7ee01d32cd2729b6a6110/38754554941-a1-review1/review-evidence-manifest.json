@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "kind": "codex-review-correction",
+  "review_id": "38754554941-a1-review1",
+  "original_run": 38754554941,
+  "new_model_requests": 0,
+  "files": [
+    {
+      "path": "corrected-ai-analysis.json",
+      "bytes": 196472,
+      "sha256": "5388889a29d656ec081b7d3d9cff03293d81917a51d6c47844d9dd7a1b5b4f93"
+    },
+    {
+      "path": "corrections.json",
+      "bytes": 19826,
+      "sha256": "95944c2f77568e05c52b3108f0a9368d158a19f3be20b4187dca88cdc34a8aa3"
+    },
+    {
+      "path": "original-ai/ai-analysis.json",
+      "bytes": 212111,
+      "sha256": "cc93249caa430294c11d2de75030fdb4bc1703b2230f17021b24c4922c7f330a"
+    },
+    {
+      "path": "original-ai/ai-checkpoint.json",
+      "bytes": 348471,
+      "sha256": "80b31e2d19eb2a332ea1ae746b9495279e36a42fa53a5a0ac8247f125408d824"
+    },
+    {
+      "path": "original-ai/ai-draft.json",
+      "bytes": 67264,
+      "sha256": "59e1e78fbeb860569e01d63821f2b019d0aa10ff864d774a80452191b01b6019"
+    },
+    {
+      "path": "original-ai/ai-evidence.json",
+      "bytes": 347479,
+      "sha256": "ee3f196f1bbe46319c562b6c52edee934944ec6bdd689dfd8572c607be598507"
+    },
+    {
+      "path": "original-ai/ai-review.json",
+      "bytes": 53430,
+      "sha256": "55211d56bf083350839782dccc550900707a2641accc9460b0276fbc1466b6dd"
+    },
+    {
+      "path": "original-evidence-manifest.json",
+      "bytes": 3045,
+      "sha256": "502a1fd9d5f0d2e08cf8cf20a1b3c0d56ffd410f4f93b9ef6a6f6c42e04f6640"
+    },
+    {
+      "path": "provenance.json",
+      "bytes": 2796,
+      "sha256": "012c1305b54b0eb9b356ca37b97c66bbcbe7577c18eeeaa7fb42f5107b948f6f"
+    },
+    {
+      "path": "report.md",
+      "bytes": 50433,
+      "sha256": "18e65bcacfe191695b20b97f7d66b563d27e583db4710fc1a1c9dd6f94d85ac1"
+    },
+    {
+      "path": "summary.json",
+      "bytes": 1784,
+      "sha256": "bcc5b8a38de2ab5c108c965cd7ac4c908b86716b6eb97916959457737c215e59"
+    }
+  ],
+  "manifest_self": "This manifest is also a ZIP member; its SHA is verified as a separate Release asset, avoiding a self-hash cycle.",
+  "original_evidence": [
+    {
+      "id": 644200144,
+      "name": "evidence-manifest.json",
+      "size": 3045,
+      "digest": "sha256:502a1fd9d5f0d2e08cf8cf20a1b3c0d56ffd410f4f93b9ef6a6f6c42e04f6640",
+      "browser_download_url": "https://github.com/jichuo1/innocent-lab-host-analysis/releases/download/analysis-9150300-c07cf0a3b838-38754554941-a1/evidence-manifest.json"
+    },
+    {
+      "id": 644200066,
+      "name": "evidence.zip",
+      "size": 12294818,
+      "digest": "sha256:43565ce175e7bb3c6985f93fbcc010e8a75c735a2e1a2d6c899d93943b291e8f",
+      "browser_download_url": "https://github.com/jichuo1/innocent-lab-host-analysis/releases/download/analysis-9150300-c07cf0a3b838-38754554941-a1/evidence.zip"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "review_id": "38754554941-a1-review1",
+  "author": "Codex independent frozen-source review",
+  "new_model_requests": 0,
+  "original_run": 38754554941,
+  "original_report_id": "38754554941-a1",
+  "original_artifact_sha256": "sha256:39ef5cb00ccb5ca43b37ae0fabc8507f78e9bde4589ada2399a843b3620d66e1",
+  "original_report_url": "https://github.com/jichuo1/innocent-lab-host-analysis/blob/reports/samples/9150300/c07cf0a3b838ecbc926d0a11c377e7fcb45c92b8aba7ee01d32cd2729b6a6110/runs/38754554941-a1/report.md",
+  "original_release_url": "https://github.com/jichuo1/innocent-lab-host-analysis/releases/tag/analysis-9150300-c07cf0a3b838-38754554941-a1",
+  "original_release_id": 413938514,
+  "original_assets": [
+    {
+      "id": 644200144,
+      "name": "evidence-manifest.json",
+      "size": 3045,
+      "digest": "sha256:502a1fd9d5f0d2e08cf8cf20a1b3c0d56ffd410f4f93b9ef6a6f6c42e04f6640",
+      "browser_download_url": "https://github.com/jichuo1/innocent-lab-host-analysis/releases/download/analysis-9150300-c07cf0a3b838-38754554941-a1/evidence-manifest.json"
+    },
+    {
+      "id": 644200066,
+      "name": "evidence.zip",
+      "size": 12294818,
+      "digest": "sha256:43565ce175e7bb3c6985f93fbcc010e8a75c735a2e1a2d6c899d93943b291e8f",
+      "browser_download_url": "https://github.com/jichuo1/innocent-lab-host-analysis/releases/download/analysis-9150300-c07cf0a3b838-38754554941-a1/evidence.zip"
+    }
+  ],
+  "original_evidence_reuse": "Original evidence.zip and all 17 member hashes are referenced without copying large frozen static JSON.",
+  "original_verified_members": 17,
+  "original_files_sha256": {
+    "ai-analysis.json": "cc93249caa430294c11d2de75030fdb4bc1703b2230f17021b24c4922c7f330a",
+    "ai-draft.json": "59e1e78fbeb860569e01d63821f2b019d0aa10ff864d774a80452191b01b6019",
+    "ai-review.json": "55211d56bf083350839782dccc550900707a2641accc9460b0276fbc1466b6dd",
+    "ai-evidence.json": "ee3f196f1bbe46319c562b6c52edee934944ec6bdd689dfd8572c607be598507",
+    "priority-summary.json": "f7e5cf05e677a26c181ce2f3e08f4885a87815901887b9a6788b71f56df9493d",
+    "priority-target.json": "9f30a87f7b1c6954a89627f17d4a1bc162be89946f6ba700e329dbf48cf7b29f",
+    "priority-baseline.json": "f0d9680c9a8de749465c2590e2d8444e850c6e64ec648ac526e2007d3f824a02"
+  },
+  "application_source_snapshot_sha256": "2fa2d3b70f73fa431ed83267a9519c726a41b67de39eb7ee785813de39067120",
+  "application_source_head": "5422fad1e3f798252619d610a0504573ff47211b",
+  "review_implementation_commit": "72911f3117e953ea471e2037b5564d2380f176f1",
+  "source_private_bodies_in_review_attachment": false,
+  "apks_or_dex_in_review_attachment": false,
+  "model_usage_preserved": true,
+  "scope": "Static evidence correction; not a new model report, installed-module test or runtime Hook acceptance."
+}

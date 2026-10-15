@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "review_id": "38754554941-a1-review1",
+  "original_report_id": "38754554941-a1",
+  "version_code": 9150300,
+  "apk_sha256": "c07cf0a3b838ecbc926d0a11c377e7fcb45c92b8aba7ee01d32cd2729b6a6110",
+  "kind": "codex_independent_source_review_correction",
+  "status": "REVIEW_REQUIRED",
+  "complete": true,
+  "runtime_verified": false,
+  "new_model_requests_this_review": 0,
+  "original_model_accounting": {
+    "model_requests": 19,
+    "original_generation_new_requests": 16,
+    "transport_compensations": 1,
+    "cumulative_ai_seconds": 529.268020492,
+    "usage_unknown": true
+  },
+  "pages": 10,
+  "registered_paths": 25,
+  "findings": 12,
+  "original_ai_dispositions": {
+    "revised": 10,
+    "retained": 2
+  },
+  "source_snapshot_sha256": "2fa2d3b70f73fa431ed83267a9519c726a41b67de39eb7ee785813de39067120",
+  "source_repository_head": "5422fad1e3f798252619d610a0504573ff47211b",
+  "source_catalog_records": 689,
+  "model_module_source_body_reads": 0,
+  "installer_and_hook_coverage": "unverified",
+  "original_report_url": "https://github.com/jichuo1/innocent-lab-host-analysis/blob/reports/samples/9150300/c07cf0a3b838ecbc926d0a11c377e7fcb45c92b8aba7ee01d32cd2729b6a6110/runs/38754554941-a1/report.md",
+  "original_release_url": "https://github.com/jichuo1/innocent-lab-host-analysis/releases/tag/analysis-9150300-c07cf0a3b838-38754554941-a1",
+  "report_url": "https://github.com/jichuo1/innocent-lab-host-analysis/blob/reports/reviews/9150300/c07cf0a3b838ecbc926d0a11c377e7fcb45c92b8aba7ee01d32cd2729b6a6110/38754554941-a1-review1/report.md",
+  "release_url": "https://github.com/jichuo1/innocent-lab-host-analysis/releases/tag/analysis-9150300-c07cf0a3b838-38754554941-a1-review1",
+  "review_implementation_commit": "72911f3117e953ea471e2037b5564d2380f176f1"
+}

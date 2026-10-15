@@ -36,5 +36,14 @@
   },
   "regenerated_from_run": 38716769106,
   "static_evidence_run": 38716769106,
-  "request_id": "ed536f5500b64368af469ebbd25879a8"
+  "request_id": "ed536f5500b64368af469ebbd25879a8",
+  "source_review": {
+    "review_id": "38754554941-a1-review1",
+    "path": "reviews/9150300/c07cf0a3b838ecbc926d0a11c377e7fcb45c92b8aba7ee01d32cd2729b6a6110/38754554941-a1-review1/report.md",
+    "report_url": "https://github.com/jichuo1/innocent-lab-host-analysis/blob/reports/reviews/9150300/c07cf0a3b838ecbc926d0a11c377e7fcb45c92b8aba7ee01d32cd2729b6a6110/38754554941-a1-review1/report.md",
+    "release_url": "https://github.com/jichuo1/innocent-lab-host-analysis/releases/tag/analysis-9150300-c07cf0a3b838-38754554941-a1-review1",
+    "report_sha256": "18e65bcacfe191695b20b97f7d66b563d27e583db4710fc1a1c9dd6f94d85ac1",
+    "summary_sha256": "bcc5b8a38de2ab5c108c965cd7ac4c908b86716b6eb97916959457737c215e59",
+    "manifest_sha256": "1d99b126cafaa1da1b7174f23cacdab2254d2bc3708e51b8ee52479d02f56e8f"
+  }
 }

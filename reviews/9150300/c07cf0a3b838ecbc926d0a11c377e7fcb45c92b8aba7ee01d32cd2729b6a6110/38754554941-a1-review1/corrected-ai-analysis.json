@@ -1,0 +1,2110 @@
+{
+  "schema": 2,
+  "pipeline": "checkpoint-shards-v1",
+  "prompt_version": "checkpoint-sharded-review-v6",
+  "prompt_sha256": "ee65e382e8d0cae6599ce02b665e56b93f2c5a28652202a2339a307a72fda7d9",
+  "status": "completed",
+  "profile": "primary",
+  "source_snapshot": {
+    "schema": 2,
+    "selection_version": 1,
+    "captured_at": "2026-10-15T14:19:32.431433Z",
+    "repository_head": "5422fad1e3f798252619d610a0504573ff47211b",
+    "working_tree_dirty": true,
+    "source_tree_sha256": "37745f8f27c41c22eab6e0bc780c6af700d650f49c3f004f862bf9c5f1548a5c",
+    "claim": "Frozen working-tree source evidence; not verified installer or runtime coverage",
+    "unmapped_multi_path_candidates": [
+      "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/agent/host/HostAgentWindow.kt",
+      "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/HookEntry.kt",
+      "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/RoamingCompatHook.kt",
+      "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/VersionAdapter.kt",
+      "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/VersionAdapterContract.kt",
+      "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/feature/KotlinMossChannel.kt",
+      "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/feature/KotlinMossReplyBridge.kt",
+      "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/feature/NativeFeedbackPanel.kt",
+      "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/feature/ReplyTopologyComposeMenu.kt",
+      "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/runtime/HostThreadGuard.kt",
+      "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/runtime/replytopology/ReplyTopologyGraphBuilder.kt",
+      "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/ui/skin/activity/SkinnedActivity.kt",
+      "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/ui/skin/liquid/LiquidRefractionBackendApi33.kt"
+    ],
+    "binding": {
+      "schema": 1,
+      "repo": "innocent-lab-dev/bilibili-host-apks",
+      "revision": "f4bfe9d6226c2e4558ed5050999b6a426fa7cb0b",
+      "path": "source-snapshots/2fa2d3b70f73fa431ed83267a9519c726a41b67de39eb7ee785813de39067120/context.json",
+      "snapshot_sha256": "2fa2d3b70f73fa431ed83267a9519c726a41b67de39eb7ee785813de39067120",
+      "source_tree_sha256": "37745f8f27c41c22eab6e0bc780c6af700d650f49c3f004f862bf9c5f1548a5c",
+      "repository_head": "5422fad1e3f798252619d610a0504573ff47211b",
+      "captured_at": "2026-10-15T14:19:32.431433Z",
+      "verified_at": "2026-10-15T14:20:03.900845+00:00",
+      "origin": "worktree",
+      "working_tree_dirty": true,
+      "file_count": 689,
+      "selection_version": 1
+    },
+    "freshness": "historical_static_evidence_new_source"
+  },
+  "static_evidence_run": 38716769106,
+  "runtime_verified": false,
+  "claim_scope": "ai_suggestions_over_static_evidence",
+  "attempts": [
+    {
+      "id": "3a71777eb4f84d92ad0397ee555d3bfd",
+      "stage": "draft",
+      "unit": "d0",
+      "profile": "primary",
+      "request_sha256": "ddabe4aefa95d207f7d0bb4552c0f21fd0e372a8458d84f1a631650d1c7fefbf",
+      "session_id": "hostlab-06dd239b8bc263a20484538bce5f8424",
+      "status": "response_received",
+      "billing_unknown": false,
+      "transport_retry": false,
+      "started_at": 1792074657.329066,
+      "request_timeout_seconds": 240,
+      "usage_unknown": false,
+      "usage": {
+        "prompt_tokens": 12316,
+        "completion_tokens": 139,
+        "total_tokens": 12455,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "_transport": {
+          "response_bytes": 4506,
+          "events": 17,
+          "headers_ms": 1383.9,
+          "first_event_ms": 1401.469,
+          "first_visible_delta_ms": 1401.556,
+          "request_bytes": 38695,
+          "total_ms": 2181.128,
+          "wall_ms": 2245.724,
+          "finish_reason": "tool_calls"
+        },
+        "_usage_unknown": false
+      },
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash"
+    },
+    {
+      "id": "a8e66a45d38a42879bf9c7223dbfb270",
+      "stage": "draft",
+      "unit": "d0",
+      "profile": "primary",
+      "request_sha256": "318c59a556006d8faa31432814e74e7adbe78de46ff30b58c1c531e354f21dcd",
+      "session_id": "hostlab-06dd239b8bc263a20484538bce5f8424",
+      "status": "response_received",
+      "billing_unknown": false,
+      "transport_retry": false,
+      "started_at": 1792074659.5910344,
+      "request_timeout_seconds": 240,
+      "usage_unknown": false,
+      "usage": {
+        "prompt_tokens": 14155,
+        "completion_tokens": 4063,
+        "total_tokens": 18218,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "_transport": {
+          "response_bytes": 2052381,
+          "events": 7405,
+          "headers_ms": 1884.59,
+          "first_event_ms": 1904.021,
+          "first_visible_delta_ms": 2050.062,
+          "request_bytes": 44062,
+          "total_ms": 50795.989,
+          "wall_ms": 50861.262,
+          "finish_reason": "tool_calls"
+        },
+        "_usage_unknown": false
+      },
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+      "call_errors": [
+        {
+          "tool": "finish_report",
+          "error": "At least one finding must cite deep-dive evidence"
+        }
+      ]
+    },
+    {
+      "id": "96831c8553c047d4a6f17f54d4a42b52",
+      "stage": "draft",
+      "unit": "d0",
+      "profile": "primary",
+      "request_sha256": "5cbb19936f73426fdb7c3198d4b039ea912321956cd0b5852572fe5a49c66c08",
+      "session_id": "hostlab-06dd239b8bc263a20484538bce5f8424",
+      "status": "failed",
+      "billing_unknown": true,
+      "transport_retry": false,
+      "started_at": 1792074710.4580543,
+      "request_timeout_seconds": 240,
+      "reason": "API response exceeds bound",
+      "kind": "protocol",
+      "retryable": false,
+      "http_status": null,
+      "retry_after": null,
+      "metrics": {
+        "response_bytes": 2097273,
+        "events": 7513,
+        "headers_ms": 1640.212,
+        "first_event_ms": 1649.603,
+        "first_visible_delta_ms": 1766.978,
+        "request_bytes": 60190,
+        "total_ms": 38407.281
+      }
+    },
+    {
+      "id": "341c563ed5514ae18f77736098aa956e",
+      "stage": "draft",
+      "unit": "d0",
+      "profile": "primary",
+      "request_sha256": "4a174ecc604973cbfbb4da994115b572b95341794fa841b82318a6c7d35f08f6",
+      "session_id": "hostlab-44b650ff6c9c867ad8609cacbc0608aa",
+      "status": "response_received",
+      "billing_unknown": false,
+      "transport_retry": true,
+      "started_at": 1792075679.3505063,
+      "request_timeout_seconds": 240,
+      "usage_unknown": false,
+      "usage": {
+        "prompt_tokens": 14106,
+        "completion_tokens": 3206,
+        "total_tokens": 17312,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "_transport": {
+          "response_bytes": 1604624,
+          "events": 5747,
+          "assembled_bytes": 12245,
+          "headers_ms": 5742.065,
+          "first_event_ms": 5763.427,
+          "first_visible_delta_ms": 5906.635,
+          "request_bytes": 44170,
+          "total_ms": 41782.342,
+          "wall_ms": 41848.567,
+          "finish_reason": "tool_calls"
+        },
+        "_usage_unknown": false
+      },
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash"
+    },
+    {
+      "id": "a8f5511cc7124cddb34977cf8717c2dc",
+      "stage": "draft",
+      "unit": "d1",
+      "profile": "primary",
+      "request_sha256": "fbc1c5738504d51567564d965d804541d2ec7e608830ad43c59451011dc6207f",
+      "session_id": "hostlab-2c72f975f045a2f8f7aa400b337a013d",
+      "status": "response_received",
+      "billing_unknown": false,
+      "transport_retry": false,
+      "started_at": 1792075721.2129889,
+      "request_timeout_seconds": 240,
+      "usage_unknown": false,
+      "usage": {
+        "prompt_tokens": 12802,
+        "completion_tokens": 128,
+        "total_tokens": 12930,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "_transport": {
+          "response_bytes": 4000,
+          "events": 15,
+          "assembled_bytes": 284,
+          "headers_ms": 4612.135,
+          "first_event_ms": 4618.059,
+          "first_visible_delta_ms": 4618.186,
+          "request_bytes": 40191,
+          "total_ms": 5377.503,
+          "wall_ms": 5445.645,
+          "finish_reason": "tool_calls"
+        },
+        "_usage_unknown": false
+      },
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash"
+    },
+    {
+      "id": "3a0863237d3d49249418af8fa3f4830c",
+      "stage": "draft",
+      "unit": "d1",
+      "profile": "primary",
+      "request_sha256": "5d56053952d25cfaf825c84b18d9edf24a59d21eaa893164b50aafba0fa35470",
+      "session_id": "hostlab-2c72f975f045a2f8f7aa400b337a013d",
+      "status": "response_received",
+      "billing_unknown": false,
+      "transport_retry": false,
+      "started_at": 1792075726.6758566,
+      "request_timeout_seconds": 240,
+      "usage_unknown": false,
+      "usage": {
+        "prompt_tokens": 15845,
+        "completion_tokens": 37,
+        "total_tokens": 15882,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "_transport": {
+          "response_bytes": 2154,
+          "events": 7,
+          "assembled_bytes": 89,
+          "headers_ms": 5268.537,
+          "first_event_ms": 5282.567,
+          "first_visible_delta_ms": 5443.8,
+          "request_bytes": 49724,
+          "total_ms": 5617.075,
+          "wall_ms": 5683.894,
+          "finish_reason": "tool_calls"
+        },
+        "_usage_unknown": false
+      },
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+      "call_errors": [
+        {
+          "tool": "finish_report",
+          "error": "Assess every registered page exactly once (missing=home,search); submit exactly these page names: home,search"
+        }
+      ]
+    },
+    {
+      "id": "af07a3109e8d43eabd73b0413f953169",
+      "stage": "draft",
+      "unit": "d1",
+      "profile": "primary",
+      "request_sha256": "c3ae8871465e7a320abee41a870aefb375483fbaf69c81b70dab3e71153754df",
+      "session_id": "hostlab-2c72f975f045a2f8f7aa400b337a013d",
+      "status": "response_received",
+      "billing_unknown": false,
+      "transport_retry": false,
+      "started_at": 1792075732.3684027,
+      "request_timeout_seconds": 240,
+      "usage_unknown": false,
+      "usage": {
+        "prompt_tokens": 15973,
+        "completion_tokens": 3540,
+        "total_tokens": 19513,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 15616
+        },
+        "_transport": {
+          "response_bytes": 1983170,
+          "events": 7108,
+          "assembled_bytes": 13874,
+          "headers_ms": 1164.314,
+          "first_event_ms": 1185.519,
+          "first_visible_delta_ms": 1330.28,
+          "request_bytes": 50126,
+          "total_ms": 42283.07,
+          "wall_ms": 42352.456,
+          "finish_reason": "tool_calls"
+        },
+        "_usage_unknown": false
+      },
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash"
+    },
+    {
+      "id": "a27dbe867cc940e58169914c306f93de",
+      "stage": "draft",
+      "unit": "d2",
+      "profile": "primary",
+      "request_sha256": "18720c757aa2fe58a7e207f01becb380a5e013228dda445a09297b149e7e148e",
+      "session_id": "hostlab-2287fa95a25d38229c592ff0243e7392",
+      "status": "response_received",
+      "billing_unknown": false,
+      "transport_retry": false,
+      "started_at": 1792075774.7309413,
+      "request_timeout_seconds": 240,
+      "usage_unknown": false,
+      "usage": {
+        "prompt_tokens": 14716,
+        "completion_tokens": 2905,
+        "total_tokens": 17621,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "_transport": {
+          "response_bytes": 1338928,
+          "events": 4794,
+          "assembled_bytes": 10666,
+          "headers_ms": 1534.918,
+          "first_event_ms": 1534.993,
+          "first_visible_delta_ms": 1699.904,
+          "request_bytes": 46273,
+          "total_ms": 33542.55,
+          "wall_ms": 33610.429,
+          "finish_reason": "tool_calls"
+        },
+        "_usage_unknown": false
+      },
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash"
+    },
+    {
+      "id": "9d87c7a4f1c54e558c9164272a44c55d",
+      "stage": "draft",
+      "unit": "d3",
+      "profile": "primary",
+      "request_sha256": "1a19184b87f309e323873ecd153566e686eb3b4865beeb48b97035795bc67233",
+      "session_id": "hostlab-42d70ebb83165b15ec5e4f6279f7d445",
+      "status": "response_received",
+      "billing_unknown": false,
+      "transport_retry": false,
+      "started_at": 1792075808.3524473,
+      "request_timeout_seconds": 240,
+      "usage_unknown": false,
+      "usage": {
+        "prompt_tokens": 15398,
+        "completion_tokens": 3608,
+        "total_tokens": 19006,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "_transport": {
+          "response_bytes": 1718896,
+          "events": 6157,
+          "assembled_bytes": 13053,
+          "headers_ms": 5124.089,
+          "first_event_ms": 5141.162,
+          "first_visible_delta_ms": 5304.837,
+          "request_bytes": 48600,
+          "total_ms": 42550.246,
+          "wall_ms": 42617.86,
+          "finish_reason": "tool_calls"
+        },
+        "_usage_unknown": false
+      },
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash"
+    },
+    {
+      "id": "bee3da4cb99a4e75b6ac941d5c75d4be",
+      "stage": "draft",
+      "unit": "d4",
+      "profile": "primary",
+      "request_sha256": "5823b869602a30c11302068d3d19d7e3031f9f58ca52ba343248678f366fc69e",
+      "session_id": "hostlab-50a401a046b7571e48e10ffbb244a5e1",
+      "status": "response_received",
+      "billing_unknown": false,
+      "transport_retry": false,
+      "started_at": 1792075850.9826896,
+      "request_timeout_seconds": 240,
+      "usage_unknown": false,
+      "usage": {
+        "prompt_tokens": 13866,
+        "completion_tokens": 3301,
+        "total_tokens": 17167,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "_transport": {
+          "response_bytes": 1782078,
+          "events": 6386,
+          "assembled_bytes": 12800,
+          "headers_ms": 1191.73,
+          "first_event_ms": 1206.293,
+          "first_visible_delta_ms": 1334.821,
+          "request_bytes": 43662,
+          "total_ms": 37426.446,
+          "wall_ms": 37493.9,
+          "finish_reason": "tool_calls"
+        },
+        "_usage_unknown": false
+      },
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash"
+    },
+    {
+      "id": "5290c6cecd784a81805332f6784b2348",
+      "stage": "review",
+      "unit": "r0",
+      "profile": "primary",
+      "request_sha256": "812fb0deade4fc304e52356ab343d1fcc2260c51fa41d99b546001970c4bc09d",
+      "session_id": "hostlab-fc5bb4e315937177e4786861d5de3737",
+      "status": "response_received",
+      "billing_unknown": false,
+      "transport_retry": false,
+      "started_at": 1792075888.6063406,
+      "request_timeout_seconds": 240,
+      "usage_unknown": false,
+      "usage": {
+        "prompt_tokens": 21780,
+        "completion_tokens": 217,
+        "total_tokens": 21997,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "_transport": {
+          "response_bytes": 3622,
+          "events": 12,
+          "assembled_bytes": 407,
+          "headers_ms": 4838.461,
+          "first_event_ms": 4864.062,
+          "first_visible_delta_ms": 4864.243,
+          "request_bytes": 72690,
+          "total_ms": 5886.556,
+          "wall_ms": 5959.61,
+          "finish_reason": "tool_calls"
+        },
+        "_usage_unknown": false
+      },
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+      "call_errors": [
+        {
+          "tool": "family_evidence",
+          "error": "Read-only tool budget exhausted"
+        },
+        {
+          "tool": "family_evidence",
+          "error": "Read-only tool budget exhausted"
+        }
+      ]
+    },
+    {
+      "id": "7e568a4b05bf459a87d0f92d2ec80edc",
+      "stage": "review",
+      "unit": "r0",
+      "profile": "primary",
+      "request_sha256": "ce395d72772d55eb867a9c41b5db5c0cee9ebf7241278e3abdd36f76946bbeab",
+      "session_id": "hostlab-fc5bb4e315937177e4786861d5de3737",
+      "status": "response_received",
+      "billing_unknown": false,
+      "transport_retry": false,
+      "started_at": 1792075894.5936017,
+      "request_timeout_seconds": 240,
+      "usage_unknown": false,
+      "usage": {
+        "prompt_tokens": 23573,
+        "completion_tokens": 2637,
+        "total_tokens": 26210,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "_transport": {
+          "response_bytes": 1376130,
+          "events": 4930,
+          "assembled_bytes": 10246,
+          "headers_ms": 5753.28,
+          "first_event_ms": 5759.439,
+          "first_visible_delta_ms": 5919.564,
+          "request_bytes": 78197,
+          "total_ms": 30074.549,
+          "wall_ms": 30147.48,
+          "finish_reason": "tool_calls"
+        },
+        "_usage_unknown": false
+      },
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+      "call_errors": [
+        {
+          "tool": "finish_review",
+          "error": "Reviewer must reread and cite priority page evidence: dynamic"
+        }
+      ]
+    },
+    {
+      "id": "d8dc0853c6e6421a85febbed7d756cdf",
+      "stage": "review",
+      "unit": "r0",
+      "profile": "primary",
+      "request_sha256": "21b41ec1342643183d0ae32496a59d3d66efd4e3742c81e6c172000b8b9b334c",
+      "session_id": "hostlab-fc5bb4e315937177e4786861d5de3737",
+      "status": "response_received",
+      "billing_unknown": false,
+      "transport_retry": false,
+      "started_at": 1792075924.7553666,
+      "request_timeout_seconds": 240,
+      "usage_unknown": false,
+      "usage": {
+        "prompt_tokens": 26280,
+        "completion_tokens": 2612,
+        "total_tokens": 28892,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 23552
+        },
+        "_transport": {
+          "response_bytes": 1361833,
+          "events": 4879,
+          "assembled_bytes": 10124,
+          "headers_ms": 1139.213,
+          "first_event_ms": 1163.749,
+          "first_visible_delta_ms": 1318.691,
+          "request_bytes": 88854,
+          "total_ms": 16335.677,
+          "wall_ms": 16405.995,
+          "finish_reason": "tool_calls"
+        },
+        "_usage_unknown": false
+      },
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+      "call_errors": [
+        {
+          "tool": "finish_review",
+          "error": "Reviewer must reread and cite priority page evidence: dynamic"
+        }
+      ]
+    },
+    {
+      "id": "db6284ae918940a6994df8e44dd8f5ec",
+      "stage": "review",
+      "unit": "r0",
+      "profile": "primary",
+      "request_sha256": "1ae61dc249a900026b6aeb8fbde3ddcce90e21c6c704eaf10229920802834d17",
+      "session_id": "hostlab-fc5bb4e315937177e4786861d5de3737",
+      "status": "response_received",
+      "billing_unknown": false,
+      "transport_retry": false,
+      "started_at": 1792075941.175956,
+      "request_timeout_seconds": 240,
+      "usage_unknown": false,
+      "usage": {
+        "prompt_tokens": 28962,
+        "completion_tokens": 2458,
+        "total_tokens": 31420,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 26112
+        },
+        "_transport": {
+          "response_bytes": 1295460,
+          "events": 4642,
+          "assembled_bytes": 9400,
+          "headers_ms": 1450.799,
+          "first_event_ms": 1468.363,
+          "first_visible_delta_ms": 1612.022,
+          "request_bytes": 99387,
+          "total_ms": 17478.142,
+          "wall_ms": 17546.17,
+          "finish_reason": "tool_calls"
+        },
+        "_usage_unknown": false
+      },
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+      "call_errors": [
+        {
+          "tool": "finish_review",
+          "error": "Reviewer must reread and cite priority page evidence: comment"
+        }
+      ]
+    },
+    {
+      "id": "5bde93a0e644406a82f016fdd4da1e06",
+      "stage": "review",
+      "unit": "r0",
+      "profile": "primary",
+      "request_sha256": "2b282918e0c4a3f1e00dad9c81bc143b3274dd5b0e326d01e61e626860a870ee",
+      "session_id": "hostlab-fc5bb4e315937177e4786861d5de3737",
+      "status": "response_received",
+      "billing_unknown": false,
+      "transport_retry": false,
+      "started_at": 1792075958.7374854,
+      "request_timeout_seconds": 240,
+      "usage_unknown": false,
+      "usage": {
+        "prompt_tokens": 31490,
+        "completion_tokens": 2451,
+        "total_tokens": 33941,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 28928
+        },
+        "_transport": {
+          "response_bytes": 1287741,
+          "events": 4614,
+          "assembled_bytes": 9385,
+          "headers_ms": 4882.819,
+          "first_event_ms": 4900.925,
+          "first_visible_delta_ms": 5041.757,
+          "request_bytes": 109196,
+          "total_ms": 19787.443,
+          "wall_ms": 19857.513,
+          "finish_reason": "tool_calls"
+        },
+        "_usage_unknown": false
+      },
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash"
+    },
+    {
+      "id": "e185767c16bf4bdcaa614a67c41b1068",
+      "stage": "review",
+      "unit": "r1",
+      "profile": "primary",
+      "request_sha256": "a59f9f2ea1cf2a76afc5c0eb44f28d74d8455b370d21c221c106d088f633cd20",
+      "session_id": "hostlab-adae76862795025cc5f1cc02eae848a7",
+      "status": "response_received",
+      "billing_unknown": false,
+      "transport_retry": false,
+      "started_at": 1792075978.612221,
+      "request_timeout_seconds": 240,
+      "usage_unknown": false,
+      "usage": {
+        "prompt_tokens": 22009,
+        "completion_tokens": 3274,
+        "total_tokens": 25283,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "_transport": {
+          "response_bytes": 1753918,
+          "events": 6287,
+          "assembled_bytes": 12103,
+          "headers_ms": 4718.657,
+          "first_event_ms": 4730.16,
+          "first_visible_delta_ms": 4846.759,
+          "request_bytes": 73361,
+          "total_ms": 38109.318,
+          "wall_ms": 38177.308,
+          "finish_reason": "tool_calls"
+        },
+        "_usage_unknown": false
+      },
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash"
+    },
+    {
+      "id": "f7c9d34f040048f7a0771cc2ded39bb8",
+      "stage": "review",
+      "unit": "r2",
+      "profile": "primary",
+      "request_sha256": "554d8eff375d120ff41255a6ce0396c47041ad8111e24bff904732628bde5700",
+      "session_id": "hostlab-7826d80cfc86651a57aa3d37712e88e3",
+      "status": "response_received",
+      "billing_unknown": false,
+      "transport_retry": false,
+      "started_at": 1792076016.8098183,
+      "request_timeout_seconds": 240,
+      "usage_unknown": false,
+      "usage": {
+        "prompt_tokens": 21609,
+        "completion_tokens": 3558,
+        "total_tokens": 25167,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "_transport": {
+          "response_bytes": 1782499,
+          "events": 6433,
+          "assembled_bytes": 13225,
+          "headers_ms": 5918.643,
+          "first_event_ms": 5932.331,
+          "first_visible_delta_ms": 6089.565,
+          "request_bytes": 70906,
+          "total_ms": 41600.754,
+          "wall_ms": 41669.878,
+          "finish_reason": "tool_calls"
+        },
+        "_usage_unknown": false
+      },
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash"
+    },
+    {
+      "id": "9be10df2503a466a88ea909f3bf3b031",
+      "stage": "review",
+      "unit": "r3",
+      "profile": "primary",
+      "request_sha256": "4b7a03701065741cfede17caa10727709731e3077092920cf29f433fe7a9f72b",
+      "session_id": "hostlab-07f93c56713c962654b73e3c2d0d4906",
+      "status": "response_received",
+      "billing_unknown": false,
+      "transport_retry": false,
+      "started_at": 1792076058.4987159,
+      "request_timeout_seconds": 240,
+      "usage_unknown": false,
+      "usage": {
+        "prompt_tokens": 22781,
+        "completion_tokens": 2274,
+        "total_tokens": 25055,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "_transport": {
+          "response_bytes": 1118824,
+          "events": 4008,
+          "assembled_bytes": 8380,
+          "headers_ms": 1431.024,
+          "first_event_ms": 1445.794,
+          "first_visible_delta_ms": 1585.435,
+          "request_bytes": 75012,
+          "total_ms": 22399.001,
+          "wall_ms": 22465.998,
+          "finish_reason": "tool_calls"
+        },
+        "_usage_unknown": false
+      },
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash"
+    },
+    {
+      "id": "97760c1c25c844c9a1c534625cc94e88",
+      "stage": "review",
+      "unit": "r4",
+      "profile": "primary",
+      "request_sha256": "f27db23b85bf7b0881a54c06b2219d62cd39de6aaea6527943507c3854a2076d",
+      "session_id": "hostlab-7eda9b5656a3b4fd300439e2db44d5d0",
+      "status": "response_received",
+      "billing_unknown": false,
+      "transport_retry": false,
+      "started_at": 1792076080.9848328,
+      "request_timeout_seconds": 240,
+      "usage_unknown": false,
+      "usage": {
+        "prompt_tokens": 20983,
+        "completion_tokens": 2240,
+        "total_tokens": 23223,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "_transport": {
+          "response_bytes": 1172677,
+          "events": 4202,
+          "assembled_bytes": 8523,
+          "headers_ms": 5132.215,
+          "first_event_ms": 5154.248,
+          "first_visible_delta_ms": 5329.643,
+          "request_bytes": 69281,
+          "total_ms": 28088.557,
+          "wall_ms": 28155.01,
+          "finish_reason": "tool_calls"
+        },
+        "_usage_unknown": false
+      },
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash"
+    }
+  ],
+  "limits": {
+    "draft_logical_units": 5,
+    "max_draft_logical_units": 6,
+    "review_logical_units": 5,
+    "hard_cap": 24,
+    "transport_retry_allowance": 4,
+    "model_read_tools": 6,
+    "prefetched_pages": 10,
+    "deadline_seconds": 1800,
+    "server_read_tool_calls": 12,
+    "output_tokens_per_request": 16384,
+    "usd_cap_enforced": false,
+    "recovery_policy": "extended-v1"
+  },
+  "report": {
+    "overview": "本更正版由Codex基于冻结证据独立复核，不是一次新模型生成。目标9150300与基线9150200覆盖10个登记页面、25条路径；当前采集class_records与invoke_edges逐项一致，不能外推到未登记UI或服务端/运行状态。唯一资源文件变化已知为resources.arsc，其内部entry与页面归属尚未解析。原模型已完成12条finding的独立review（10 revised、2 retained），本更正版同步revised引用并纠正统计单位、样本范围与页级过度推断。源码为本次按SHA固定的689文件快照；dirty是整体状态，不能推出选中Hook文件均未提交或过期。本轮模型module_source正文读取为0，安装器/定位器覆盖与实际注入版本尚未验证，runtime_verified保持false，不宣称适配通过或样式穷尽。",
+    "pages": [
+      {
+        "page": "comment",
+        "assessment": "本页登记静态摘要：comment_legacy_v2: 581类/0个Composer签名/734条外部invoke边；comment_native_legacy: 156类/0个Composer签名/177条外部invoke边；comment_native_next: 45类/0个Composer签名/46条外部invoke边；comment_native_exp3: 60类/0个Composer签名/59条外部invoke边；comment_compose: 2417类/274个Composer签名/918条外部invoke边。两版本当前登记采集记录一致；comment_java_moss: 50条定义/50条invoke边；comment_kotlin_moss: 130条定义/26条invoke边。定义、类数和调用边属于不同单位，不能换算覆盖率、未调用数量或运行主通道。Composer签名匹配计数不是UI样式分类，普通数据类也不证明另一条渲染栈。runtime_enabled仍为unknown；源码快照已固定689文件，但本轮module_source调用为0，未完成定位器/安装器正文评审或设备验证。",
+        "evidence_ids": [
+          "E001",
+          "E011"
+        ],
+        "path_reviews": [
+          {
+            "path": "comment_legacy_v2",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：581类、0个匹配Composer签名、734条外部invoke边，fingerprint=dc1ce6f264dcb03a41f07c9e62ab96960b84a44cfb4f08c86b2e303ddc49ee44；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E001"
+            ]
+          },
+          {
+            "path": "comment_native_legacy",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：156类、0个匹配Composer签名、177条外部invoke边，fingerprint=5f1a4dd53cbaae51fb45d984193742cedf07d76da36e3b4130d13addea0a330c；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E001"
+            ]
+          },
+          {
+            "path": "comment_native_next",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：45类、0个匹配Composer签名、46条外部invoke边，fingerprint=4f7755ff77b0b83cbe617afc6e39314ed234091c1a4098e850d3837a6562e8be；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E001"
+            ]
+          },
+          {
+            "path": "comment_native_exp3",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：60类、0个匹配Composer签名、59条外部invoke边，fingerprint=d0a1de81d6ec335006536430c98e1c5eb255a1ad18180c7c52d9f6603374f370；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E001"
+            ]
+          },
+          {
+            "path": "comment_compose",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：2417类、274个匹配Composer签名、918条外部invoke边，fingerprint=b91f872535860e67b091dfa456d421e21d5d3c892b76ddedc9b5475a9ab32f58；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E001",
+              "E011"
+            ]
+          }
+        ]
+      },
+      {
+        "page": "dynamic",
+        "assessment": "本页登记静态摘要：dynamic_legacy: 3227类/105个Composer签名/2193条外部invoke边；dynamic_compose: 956类/112个Composer签名/170条外部invoke边；dynamic_opus: 1341类/92个Composer签名/190条外部invoke边。两版本当前登记采集记录一致；dynamic_java_moss: 134条定义/134条invoke边；dynamic_kotlin_moss: 382条定义/26条invoke边。定义、类数和调用边属于不同单位，不能换算覆盖率、未调用数量或运行主通道。Composer签名匹配计数不是UI样式分类，普通数据类也不证明另一条渲染栈。runtime_enabled仍为unknown；源码快照已固定689文件，但本轮module_source调用为0，未完成定位器/安装器正文评审或设备验证。",
+        "evidence_ids": [
+          "E002",
+          "E012"
+        ],
+        "path_reviews": [
+          {
+            "path": "dynamic_legacy",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：3227类、105个匹配Composer签名、2193条外部invoke边，fingerprint=d5217d0231ebb0b4a94090bd66a327cc2f0e8a8a9121a072c785b9dfe9ea93d5；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E002"
+            ]
+          },
+          {
+            "path": "dynamic_compose",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：956类、112个匹配Composer签名、170条外部invoke边，fingerprint=84a035d38f909be788d5247705201acb5c3b448b8600a2866ba23c786f064ba3；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E002"
+            ]
+          },
+          {
+            "path": "dynamic_opus",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：1341类、92个匹配Composer签名、190条外部invoke边，fingerprint=5f15905be8c735b1c22dfbd47211fdb23a9311aeec87e561902d7caadcacdd43；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E002",
+              "E012"
+            ]
+          }
+        ]
+      },
+      {
+        "page": "home",
+        "assessment": "本页登记静态摘要：home_legacy: 1004类/128个Composer签名/236条外部invoke边；home_new_frame: 196类/33个Composer签名/46条外部invoke边。两版本当前登记采集记录一致；登记协议区为空，不能推出无实际协议消费。定义、类数和调用边属于不同单位，不能换算覆盖率、未调用数量或运行主通道。Composer签名匹配计数不是UI样式分类，普通数据类也不证明另一条渲染栈。runtime_enabled仍为unknown；源码快照已固定689文件，但本轮module_source调用为0，未完成定位器/安装器正文评审或设备验证。",
+        "evidence_ids": [
+          "E003",
+          "E000"
+        ],
+        "path_reviews": [
+          {
+            "path": "home_legacy",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：1004类、128个匹配Composer签名、236条外部invoke边，fingerprint=aa99feb80290f6630a8290088a4c9e74fada2a1efee9836aff429fb5e2cff4a9；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E003"
+            ]
+          },
+          {
+            "path": "home_new_frame",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：196类、33个匹配Composer签名、46条外部invoke边，fingerprint=e3ea685642f274af8aeca95d7b99c2c8d40c0bda3fc1d8344fbb49de4a55a3d4；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E003",
+              "E013"
+            ]
+          }
+        ]
+      },
+      {
+        "page": "search",
+        "assessment": "本页登记静态摘要：search_native: 1674类/2个Composer签名/2789条外部invoke边；search_compose: 3149类/556个Composer签名/616条外部invoke边。两版本当前登记采集记录一致；search_java_moss: 24条定义/22条invoke边；search_kotlin_moss: 52条定义/18条invoke边。定义、类数和调用边属于不同单位，不能换算覆盖率、未调用数量或运行主通道。Composer签名匹配计数不是UI样式分类，普通数据类也不证明另一条渲染栈。runtime_enabled仍为unknown；源码快照已固定689文件，但本轮module_source调用为0，未完成定位器/安装器正文评审或设备验证。",
+        "evidence_ids": [
+          "E004",
+          "E000"
+        ],
+        "path_reviews": [
+          {
+            "path": "search_native",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：1674类、2个匹配Composer签名、2789条外部invoke边，fingerprint=481dae5054c9577e9f646595bc406622f046f998f0cbfe1fbb6dd02b8444c740；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E004"
+            ]
+          },
+          {
+            "path": "search_compose",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：3149类、556个匹配Composer签名、616条外部invoke边，fingerprint=6c663f2d20fafc071e527b799390cfbdb79d250ff1b073fba495840a0ac786e1；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E004",
+              "E014"
+            ]
+          }
+        ]
+      },
+      {
+        "page": "detail",
+        "assessment": "本页登记静态摘要：detail_legacy: 0类/0个Composer签名/0条外部invoke边；detail_theseus_ugc: 1953类/25个Composer签名/515条外部invoke边；detail_theseus_united: 4602类/98个Composer签名/4163条外部invoke边。两版本当前登记采集记录一致；detail_java_moss: 32条定义/35条invoke边；detail_kotlin_moss: 76条定义/10条invoke边。定义、类数和调用边属于不同单位，不能换算覆盖率、未调用数量或运行主通道。Composer签名匹配计数不是UI样式分类，普通数据类也不证明另一条渲染栈。runtime_enabled仍为unknown；源码快照已固定689文件，但本轮module_source调用为0，未完成定位器/安装器正文评审或设备验证。",
+        "evidence_ids": [
+          "E000",
+          "E005",
+          "E011"
+        ],
+        "path_reviews": [
+          {
+            "path": "detail_legacy",
+            "status": "absent",
+            "change": "目标与基线当前登记摘要一致：0类、0个匹配Composer签名、0条外部invoke边，fingerprint=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945；status保持absent。",
+            "impact": "当前规则没有匹配到该登记家族，不能推出页面功能消失、所有实际挂载点不存在或Hook必然无效；需区分规则边界与实际实现。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E000",
+              "E005"
+            ]
+          },
+          {
+            "path": "detail_theseus_ugc",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：1953类、25个匹配Composer签名、515条外部invoke边，fingerprint=c36f2a42930dc4782361f39a8b58afc94a19649469b9b6797f8ad2138d4984cc；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E000",
+              "E005",
+              "E012"
+            ]
+          },
+          {
+            "path": "detail_theseus_united",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：4602类、98个匹配Composer签名、4163条外部invoke边，fingerprint=83e1f0b1ede48a39a9bf5c8c7654481a5c08f067ddaacb373c21cf169b07f5fe；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E000",
+              "E005"
+            ]
+          }
+        ]
+      },
+      {
+        "page": "pgc",
+        "assessment": "本页登记静态摘要：pgc_legacy: 353类/0个Composer签名/401条外部invoke边；pgc_theseus: 2249类/131个Composer签名/742条外部invoke边。两版本当前登记采集记录一致；pgc_player_moss: 12条定义/3条invoke边；pgc_view_moss: 14条定义/7条invoke边。定义、类数和调用边属于不同单位，不能换算覆盖率、未调用数量或运行主通道。Composer签名匹配计数不是UI样式分类，普通数据类也不证明另一条渲染栈。runtime_enabled仍为unknown；源码快照已固定689文件，但本轮module_source调用为0，未完成定位器/安装器正文评审或设备验证。",
+        "evidence_ids": [
+          "E000",
+          "E006"
+        ],
+        "path_reviews": [
+          {
+            "path": "pgc_legacy",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：353类、0个匹配Composer签名、401条外部invoke边，fingerprint=58516e1deb4e63124df153e402f253f340fbc9f99e34a43606ac4c176ebfebeb；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E000",
+              "E006"
+            ]
+          },
+          {
+            "path": "pgc_theseus",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：2249类、131个匹配Composer签名、742条外部invoke边，fingerprint=e02d9f2747072662b44fd47822116e1d35c46efc5096dddedea9ee915428fe12；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E000",
+              "E006"
+            ]
+          }
+        ]
+      },
+      {
+        "page": "player",
+        "assessment": "本页登记静态摘要：player_java: 953类/0个Composer签名/3225条外部invoke边；player_kotlin: 7类/0个Composer签名/100条外部invoke边。两版本当前登记采集记录一致；player_java_moss: 18条定义/2条invoke边；player_kotlin_moss: 34条定义/3条invoke边。定义、类数和调用边属于不同单位，不能换算覆盖率、未调用数量或运行主通道。Composer签名匹配计数不是UI样式分类，普通数据类也不证明另一条渲染栈。runtime_enabled仍为unknown；源码快照已固定689文件，但本轮module_source调用为0，未完成定位器/安装器正文评审或设备验证。",
+        "evidence_ids": [
+          "E000",
+          "E007",
+          "E011"
+        ],
+        "path_reviews": [
+          {
+            "path": "player_java",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：953类、0个匹配Composer签名、3225条外部invoke边，fingerprint=4102698f3c1fdaab7ca6c3526b3d0ff77426ca433eaf8bd71fdde0d3824403bc；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E000",
+              "E007",
+              "E011"
+            ]
+          },
+          {
+            "path": "player_kotlin",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：7类、0个匹配Composer签名、100条外部invoke边，fingerprint=b275709b530b2d285814f47291544549ad6ce5359fca2f93a8a7c5cc8a9d7edc；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E000",
+              "E007"
+            ]
+          }
+        ]
+      },
+      {
+        "page": "danmaku",
+        "assessment": "本页登记静态摘要：danmaku_legacy: 0类/0个Composer签名/0条外部invoke边；danmaku_kotlin: 56类/1个Composer签名/9条外部invoke边。两版本当前登记采集记录一致；danmaku_java_moss: 22条定义/20条invoke边；danmaku_kotlin_moss: 46条定义/4条invoke边。定义、类数和调用边属于不同单位，不能换算覆盖率、未调用数量或运行主通道。Composer签名匹配计数不是UI样式分类，普通数据类也不证明另一条渲染栈。runtime_enabled仍为unknown；源码快照已固定689文件，但本轮module_source调用为0，未完成定位器/安装器正文评审或设备验证。",
+        "evidence_ids": [
+          "E000",
+          "E008"
+        ],
+        "path_reviews": [
+          {
+            "path": "danmaku_legacy",
+            "status": "absent",
+            "change": "目标与基线当前登记摘要一致：0类、0个匹配Composer签名、0条外部invoke边，fingerprint=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945；status保持absent。",
+            "impact": "当前规则没有匹配到该登记家族，不能推出页面功能消失、所有实际挂载点不存在或Hook必然无效；需区分规则边界与实际实现。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E000",
+              "E008"
+            ]
+          },
+          {
+            "path": "danmaku_kotlin",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：56类、1个匹配Composer签名、9条外部invoke边，fingerprint=f55e24e08dd891f8591d14fb9233e06a202bdfc5d566ed086334fa848bfab1cb；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E000",
+              "E008"
+            ]
+          }
+        ]
+      },
+      {
+        "page": "story",
+        "assessment": "本页登记静态摘要：story_native: 2958类/44个Composer签名/1380条外部invoke边；story_kotlin: 0类/0个Composer签名/0条外部invoke边。两版本当前登记采集记录一致；登记协议区为空，不能推出无实际协议消费。定义、类数和调用边属于不同单位，不能换算覆盖率、未调用数量或运行主通道。Composer签名匹配计数不是UI样式分类，普通数据类也不证明另一条渲染栈。runtime_enabled仍为unknown；源码快照已固定689文件，但本轮module_source调用为0，未完成定位器/安装器正文评审或设备验证。",
+        "evidence_ids": [
+          "E009",
+          "E011",
+          "E012",
+          "E013"
+        ],
+        "path_reviews": [
+          {
+            "path": "story_native",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：2958类、44个匹配Composer签名、1380条外部invoke边，fingerprint=6b74bce42db028676a9b876d8f332257e2f9b8ad604dcfce1b0841742d483e99；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E009"
+            ]
+          },
+          {
+            "path": "story_kotlin",
+            "status": "absent",
+            "change": "目标与基线当前登记摘要一致：0类、0个匹配Composer签名、0条外部invoke边，fingerprint=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945；status保持absent。",
+            "impact": "当前规则没有匹配到该登记家族，不能推出页面功能消失、所有实际挂载点不存在或Hook必然无效；需区分规则边界与实际实现。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E009"
+            ]
+          }
+        ]
+      },
+      {
+        "page": "mine",
+        "assessment": "本页登记静态摘要：mine_native: 324类/7个Composer签名/95条外部invoke边；mine_account_model: 132类/0个Composer签名/54条外部invoke边。两版本当前登记采集记录一致；登记协议区为空，不能推出无实际协议消费。定义、类数和调用边属于不同单位，不能换算覆盖率、未调用数量或运行主通道。Composer签名匹配计数不是UI样式分类，普通数据类也不证明另一条渲染栈。runtime_enabled仍为unknown；源码快照已固定689文件，但本轮module_source调用为0，未完成定位器/安装器正文评审或设备验证。",
+        "evidence_ids": [
+          "E010",
+          "E011",
+          "E012",
+          "E013"
+        ],
+        "path_reviews": [
+          {
+            "path": "mine_native",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：324类、7个匹配Composer签名、95条外部invoke边，fingerprint=cf69dfa72bd0aab4bb89f33ac7b5ad3e0483282d900389ec538da9133b8ae35d；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E010"
+            ]
+          },
+          {
+            "path": "mine_account_model",
+            "status": "static_invoke_observed",
+            "change": "目标与基线当前登记摘要一致：132类、0个匹配Composer签名、54条外部invoke边，fingerprint=d5370d6ef7f86f092837bbc4aaa634512a18266f46db9e0eb8d7dcb03a011996；status保持static_invoke_observed。",
+            "impact": "仅确认该登记家族在静态采集中可见。未读取对应模块绑定条件，不能确认定位器命中、安装覆盖、运行启用或策略效果；计数和命名均不能证明具体UI样式。",
+            "verification": "先从精确pinned源码中读取本路径相关定位器/安装器及公共注册契约，核类/方法签名、版本门控、生命周期与fallback；已有调用边先按唯一签名和caller归属核对。随后在授权环境记录实际加载路径、Hook回调和用户可见效果；存在可控实验分支时再做分支对照。",
+            "evidence_ids": [
+              "E010"
+            ]
+          }
+        ]
+      }
+    ],
+    "findings": [
+      {
+        "title": "9150300 与 9150200 八条登记路径指纹逐字相同、changes 为空，不能推出“适配通过”",
+        "page": "comment",
+        "level": "static_evidence",
+        "analysis": "评论五条与动态三条登记路径的采集计数、指纹在目标9150300与基线9150200之间一致。独立复核冻结priority-target/baseline确认class_records及invoke_edges逐项相同。E015/E016属于每家族最多2类的页面预取；E017/E018分别提供comment_compose两侧各5类抽样（sample_limit=5），抽样类的方法体摘要与签名一致，不能代表整族2417类。指纹实际包括类名、DEX file_id、字段/方法签名及method_bodies_sha256，不能以改名或DEX调序“相互抵消”解释不变。上述观察只覆盖已登记抽取面，不证明模块安装、运行启用或服务端视觉变体相同。",
+        "recommendation": "以 9150300 真机为基准，逐路径采集 Hook 安装与调用日志；对无变化路径仍按未知处理，不得默认沿用基线适配结论，也不得把指纹一致写成“已适配”。",
+        "alternatives": "变化可能位于未登记家族、资源表内部条目或运行/服务端配置；当前采集记录一致不能证明样式穷尽，也不能替代定位器、安装器和真机验证。",
+        "evidence_ids": [
+          "E015",
+          "E016",
+          "E017",
+          "E018"
+        ],
+        "finding_id": "F001"
+      },
+      {
+        "title": "评论与动态协议只到静态调用观测，module_coverage 均需安装器评审",
+        "page": "comment",
+        "level": "needs_runtime",
+        "analysis": "seed 中 comment_java_moss（50 定义/50 边）、comment_kotlin_moss（130 定义/26 边）、dynamic_java_moss（134/134）、dynamic_kotlin_moss（382/26）的 runtime_enabled 均为 unknown，且四条路径的 module_coverage 都是 requires_installer_review。定义数与调用边数单位不同，不能相除推导覆盖率；kotlin moss 定义多而边少，只能说明静态调用点稀疏，不能说明协议已被消费。共同协议是否有跨家族消费者、安装器/定位器是否有兜底，本轮均未读到。",
+        "recommendation": "优先核 HookEntry/VersionAdapter/VersionAdapterContract 的安装分支：确认这些协议 stub 与评论/动态家族是否被同一安装器注册，以及未命中时的 fallback 行为。",
+        "alternatives": "若安装器日志显示某协议 stub 从未被注册，则“需安装器评审”可升级为明确缺口；若真机日志显示协议方法被调用且 Hook 生效，则当前保守结论可放宽。",
+        "evidence_ids": [
+          "E001",
+          "E002"
+        ],
+        "finding_id": "F002"
+      },
+      {
+        "title": "Opus 家族静态同时存在 Compose 与普通类形态，是否并存渲染栈与覆盖归属均未确认",
+        "page": "dynamic",
+        "level": "candidate",
+        "analysis": "E012 抽样显示 dynamic_opus 家族中既有纯数据类（api/k、api/C、api/H），也有带 Compose 签名的方法（api/r.a(Modifier,Composer,int)V、api/i.d(Composer,int)V），说明该家族静态层面同时包含两类形态，可能对应多种渲染栈；但结果被截断、样本仅 5 个类，不能代表 1341 个类，也无法证明两条栈在真机并存或哪条被启用——未读方法体不能推断 Compose 调用点真正执行。E016 确认三条动态路径整体与基线同构且 runtime_enabled=unknown。OpusMoss/KOpusMoss 处于 unregistered_protocols，若模块依赖这些协议结构做定位，可能缺少对应消费者，跨家族消费者与兜底路径未验证。",
+        "recommendation": "对 api/r、api/i 等类用 decompile_class 读取完整方法体，确认 compose 调用点与调用者；真机 Opus 详情页验证 DynamicPurifyFeatureInstaller 是否命中，并抓取 OpusMoss/KOpusMoss 的协议消费方。",
+        "alternatives": "若完整读取后发现这些 compose 方法属未启用的可选模块，则“并存栈”推断应降级为静态存在但运行不激活；若真机 Opus 页仅走 legacy 栈，则 Opus 覆盖问题转为冗余而非缺失；若确定无任何模块消费者依赖 OpusMoss/KOpusMoss，则协议未登记的缺口等级应下调。",
+        "evidence_ids": [
+          "E012",
+          "E016"
+        ],
+        "finding_id": "F003"
+      },
+      {
+        "title": "search_kotlin_moss 已观测调用边全部落在 search_compose 聚合仓库层，跨家族覆盖边界未闭合",
+        "page": "search",
+        "level": "static_evidence",
+        "analysis": "E014摘要记录52条方法定义和18条外部invoke边，实际返回12/18条边样本（sample_limit=12），样本均标注search_compose，不是上限4，也不是返回全18条。定义条数与调用边数不是同一单位，不能用52−18推断34个未调用签名。Codex独立筛选冻结priority-target.json中的全部18条边，确认caller均归类search_compose，来自3个caller类、涉及9种唯一callee(owner,name,descriptor)；这仍不证明全部运行消费者或模块Hook覆盖。search_java_moss的静态消费者归属与模块共同通道需另核。",
+        "recommendation": "用 module_source 读取 KotlinMossChannel.kt 与 KotlinMossReplyBridge.kt，确认其挂载类/方法与上述三个 repository 类及 KSearchMoss 成员的对应关系；若挂载点只覆盖 searchAll 或只覆盖 native 侧，则在 compose 渲染切换时可能漏净化。另用 protocol_evidence 展开 search_java_moss 的调用者家族，确认是否存在 native 侧消费者。真机对同一关键词分别以 compose/native 渲染抓取返回结构，比较净化前后差异。",
+        "alternatives": "静态图不解析所有接口分发、反射和动态代理；归为search_compose的仓库也可能被多个UI消费。即便完整18条已采集边都属该家族，也不能推出native页面没有运行消费者。",
+        "evidence_ids": [
+          "E014",
+          "E004"
+        ],
+        "finding_id": "F004"
+      },
+      {
+        "title": "home_new_frame 的 HomeFrameViewModel 动作派发签名已观测，定位器覆盖与兜底仍未读取",
+        "page": "home",
+        "level": "needs_runtime",
+        "analysis": "E013(family_evidence, home_new_frame, target)给出类样本：tv.danmaku.bili.khome.widget.bubble.d/e/f/t 与 tv.danmaku.bili.khome.vm.HomeFrameViewModel$dispatchAction$1；后者 superclass 为 Lkotlin/coroutines/jvm/internal/SuspendLambda，fields 为 [\"$action\",\"LLo1/b;\"]、[\"label\",\"I\"]、[\"this$0\",\"Ltv/danmaku/bili/khome/vm/HomeFrameViewModel;\"]，methods 为 <init>(HomeFrameViewModel;LLo1/b;Continuation)、create、invoke、invokeSuspend。由此可推断新框架通过 SuspendLambda 包装 action 对象派发，但这是对签名的语义推断，不是对 method body 的直读。E013 摘要 total_classes=196、fingerprint e3ea6856…a3d4，与 E003 基线侧同指纹，属既有实现延续，本区间无新增类或调用边。HomeFrameTabLocator.kt 与 HomeFrameListHook.kt 的匹配条件、命中日志与回落分支本轮均未读取，module_coverage=requires_installer_review、runtime_enabled=unknown 保持不变。",
+        "recommendation": "用 module_source 读取 HomeFrameTabLocator.kt 与 HomeFrameListHook.kt，核对匹配条件是否包含 tv/danmaku/bili/khome/vm/HomeFrameViewModel 或 khome/widget/bubble 族，以及 $action:LLo1/b 是否被用作定位条件；同时读取 HookEntry.kt/VersionAdapter.kt 确认两家族是否经同一安装器注册。真机上(存在本地或服务端框架开关时)触发框架切换，记录定位器命中与未命中时的回落行为。",
+        "alternatives": "替代解释：(1) $action:LLo1/b 可能是被多个模块共享的通用 action 基类，不足以判定定位器脆弱；(2) 该 ViewModel 可能存在于 APK 但真机不加载(类计数包含未使用代码)，则 Hook 覆盖问题不成立；(3) 定位器若基于方法签名或注解而非类名，类名变更不影响命中。若真机日志显示稳定命中，本推断被推翻。",
+        "evidence_ids": [
+          "E013",
+          "E003"
+        ],
+        "finding_id": "F005"
+      },
+      {
+        "title": "登记家族采集记录未变，唯一资源文件变化为resources.arsc，内部页面归属未知",
+        "page": "home",
+        "level": "candidate",
+        "analysis": "home与search四条登记路径的计数与指纹在两版本间一致；独立核对冻结采集结果，class_records与invoke_edges均相同。priority-summary.json明确给出资源差异added=[]、removed=[]、changed=[resources.arsc]，scope为global_resources_not_yet_attributed_to_pages。外层文件路径及资源表类型已知，尚未解析的是资源表内部条目、含义和页面归属。不能据此认定新UI，也不能据登记家族不变认定所有样式已穷尽。",
+        "recommendation": "如需继续补证，应先比较resources.arsc内部资源entry与页面引用，再核对精确pinned模块安装器/定位器；服务端和真实页面分流仍需另行授权运行验证。",
+        "alternatives": "变化可能仅涉及资源表元信息，也可能影响具体资源entry；当前资料未定位内部变化。未登记家族和服务端/运行状态仍不在本次结构一致结论之内。",
+        "evidence_ids": [
+          "E003",
+          "E004",
+          "E000"
+        ],
+        "finding_id": "F006"
+      },
+      {
+        "title": "detail登记家族采集记录一致，模块安装器与实际注入版本尚未核对",
+        "page": "detail",
+        "level": "candidate",
+        "analysis": "E005中detail_legacy按当前规则匹配0类（absent），detail_theseus_ugc为1953类/25个Composer签名/515条外部边，detail_theseus_united为4602类/98个Composer签名/4163条边，目标与基线一致。absent不等于功能消失或所有实际挂载点不存在。detail_java_moss为32定义/35条边，detail_kotlin_moss为76定义/10条边，单位不能相减或换算覆盖率。源码快照已按SHA固定689文件；working_tree_dirty是整体工作树状态，不能推出选中Hook文件均未提交、过期或内容不可知。本轮模型没有调用module_source，因此未读取相关安装器/定位器正文，也未核对实际注入产物与快照的一致性，module_coverage继续requires_installer_review。",
+        "recommendation": "从精确pinned快照读取Detail相关安装器/定位器及公共注册契约，核目标类/签名、版本门控与fallback；协议caller可先筛现有冻结invoke_edges，运行注入版本与Hook效果另验。",
+        "alternatives": "已登记抽取规则可能遗漏改名或未登记实现，服务端或运行选择也可能改变可见页面；冻结源码可验不等于已经逐文件审读，更不等于安装在设备上的产物。",
+        "evidence_ids": [
+          "E005",
+          "E000"
+        ],
+        "finding_id": "F007"
+      },
+      {
+        "title": "PGC 两协议调用边少于定义数，消费者路径归属与模块定位器目标均未确认",
+        "page": "pgc",
+        "level": "needs_runtime",
+        "analysis": "E006记录pgc_legacy 353类/0个Composer签名/401条外部边、pgc_theseus 2249类/131个Composer签名/742条边，两侧计数和指纹一致。pgc_player_moss为12定义/3边，pgc_view_moss为14定义/7边；定义和边是不同单位，桥接方法影响定义集合，但不能推出定义数天然高于边数或业务入口未被消费。E006已保存pgc_player_moss的3/3 caller样本（external_or_unknown）及pgc_view_moss的4/7样本（pgc_theseus），不能说完全没有caller资料。0个匹配签名不证明纯View/Activity实现，131个也不证明整条路径只有Compose渲染。模块PgcAutoActivityPopupLocator等正文未读取，定位器目标和运行分支仍未知。",
+        "recommendation": "1) 用 protocol_evidence 重读 pgc_player_moss 与 pgc_view_moss 的完整调用方列表（含 caller_samples），逐个标注所属家族与路径，并区分业务入口与桥接/序列化桩。2) 用 module_source 读取 PgcAutoActivityPopupLocator.kt 与 PgcAutoActivityPopupPolicy.kt，记录其类名/方法签名匹配条件与兜底分支，判断命中 legacy 还是 theseus。3) 真机上在番剧/影视详情与播放页抓取弹窗相关 Activity 与定位器日志，并做单路径置空对照（对其中一条路径强制关闭，观察是否仍命中）。4) 未读到运行条件前保持 runtime_enabled=unknown，不因页面可用而改写 status。",
+        "alternatives": "静态调用者可能位于其它或未登记家族；接口分发和反射不完全可见。两组类静态存在不证明两套运行渲染栈同时启用，需模块源码及运行路径另证。",
+        "evidence_ids": [
+          "E006",
+          "E014"
+        ],
+        "finding_id": "F008"
+      },
+      {
+        "title": "player 页两条注册路径指纹与基线逐字节一致，本版本窗口内无可观测家族变化",
+        "page": "player",
+        "level": "static_evidence",
+        "analysis": "目标 9150300 与基线 9150200 的 player_java 指纹同为 4102698f3c1fdaab7ca6c3526b3d0ff77426ca433eaf8bd71fdde0d3824403bc（953 类 / 0 compose / 3225 外部调用边），player_kotlin 同为 b275709b530b2d285814f47291544549ad6ce5359fca2f93a8a7c5cc8a9d7edc（7 类 / 0 compose / 100 边）；changes 为空数组，resource_change_counts 仅 changed=1，未登记任何家族级增删。协议侧 player_java_moss 18 定义 / 2 实调用，player_kotlin_moss 34 定义 / 3 实调用，同样与基线一致。这说明该页没有结构级适配风险信号，但结构无变化也可能意味着变化发生在服务端开关控制的视觉层，静态不可见。",
+        "recommendation": "（1）真机安装模块，抓取 Player*Locator 解析日志，记录命中类名/方法签名与未命中项；（2）对 player_kotlin_moss 的 3 条实调用边做宿主回溯，确认模块 Kotlin Moss 解析点是否落在其中；（3）若安装器日志显示遍历类数与 953/7 明显偏离，需排查混淆改名导致定位器按名匹配失效。",
+        "alternatives": "指纹一致也可能掩盖两类情形：一是 DEX 重排/编译参数变化但方法体哈希恰好稳定，二是家族类集合未变而内部实现被替换但抽取粒度未捕捉。若能取得目标 APK 中同一批类的方法体哈希并与基线逐一比对、或安装器日志显示定位器失败，则当前‘无变化’推断应被推翻。",
+        "evidence_ids": [
+          "E000",
+          "E007"
+        ],
+        "finding_id": "F009"
+      },
+      {
+        "title": "danmaku登记家族格局未变，协议消费者与模块挂载点仍需核对",
+        "page": "danmaku",
+        "level": "needs_runtime",
+        "analysis": "E008显示danmaku_legacy按当前规则匹配0类，danmaku_kotlin为56类/1个Composer签名/9条外部边，目标和基线一致；这不是9150300新增的家族替换。danmaku_java_moss为22定义/20条invoke边，danmaku_kotlin_moss为46定义/4条边，不能由此计算覆盖率、未调用定义数或判定Java为运行主通道。1个Composer签名不足以量化Compose化程度；协议标识也不是已登记UI路径。模块安装器/策略正文没有被本轮模型读取，消费者归属、fallback和运行生效保持未知。",
+        "recommendation": "（1）将 danmaku_kotlin 的 56 类清单与 DanmakuPurifyFeatureInstaller 的 hook 目标集合逐项比对，输出命中/缺失清单与绑定签名；（2）回溯 danmaku_java_moss 的 20 条实调用边宿主类，判定其归属家族（Kotlin 家族或未登记调用者）；（3）用同一静态抽取规则对 danmaku_legacy 已知类名前缀在目标 APK 做定向检索，区分真 absent 与抽取口径缺失；（4）真机弹幕页对净化开关做 A/B，记录 DanmakuPurifyPolicy 分支命中与未命中时的兜底日志；（5）核对未映射候选 KotlinMossChannel/KotlinMossReplyBridge/HookEntry 是否参与弹幕路径分发，避免漏算覆盖。",
+        "alternatives": "若真机日志显示净化策略分支正常命中且样式生效，则“挂载点存疑”推断被推翻；若定向检索能在目标 APK 中找到 legacy 家族类，则 absent 属抽取口径缺失而非家族消失；若安装器日志显示定位器遍历到的类名与静态家族不一致，则可能是混淆改名导致家族归并错误；若 danmaku_kotlin_moss 的 4 条实调用边宿主不在 56 类集合内，则 Kotlin Moss 消费者可能位于未登记家族。",
+        "evidence_ids": [
+          "E000",
+          "E008"
+        ],
+        "finding_id": "F010"
+      },
+      {
+        "title": "story/mine 两侧登记家族摘要与指纹逐位相同，本版本差异在静态家族层不可见",
+        "page": "story",
+        "level": "static_evidence",
+        "analysis": "story_native、story_kotlin、mine_native、mine_account_model在两侧的登记家族摘要与指纹一致；独立核对当前冻结class_records和invoke_edges亦一致。story_kotlin的0类只表示当前登记规则未匹配，不证明功能或所有Kotlin实现消失。唯一资源文件变化已知为resources.arsc，内部entry和页面归属尚未解析。上述静态观察不能推出安装器匹配、运行适配通过或服务端样式相同。",
+        "recommendation": "把本单元结论限定为“story/mine 登记家族静态层面未观测到变化”，不进入适配通过判定；后续版本对比优先按资源条目与模块解析点变化触发，而非仅靠家族指纹是否变化触发。",
+        "alternatives": "未登记家族、资源表内部变化和运行/服务端选择仍可能改变体验。当前登记采集记录一致不代表所有页面实现已枚举，也不证明已安装模块与冻结源码一致。",
+        "evidence_ids": [
+          "E009",
+          "E010"
+        ],
+        "finding_id": "F011"
+      },
+      {
+        "title": "story/mine协议登记为空，相关未登记协议仍是待核caller候选",
+        "page": "story",
+        "level": "candidate",
+        "analysis": "E009/E010的story与mine登记protocol字典为空；未知协议名单中存在StoryMoss、KMineMoss、MineMoss、AccountInterfaceV1Moss等候选，但单凭名字不能证明其caller属于story/mine。应先核冻结caller归属再决定是否补登记或扩展Hook面。E011/E012/E013属于其它页家族，没有已证消费关系，不能充当本页协议或样式证据。story_kotlin的absent仅是登记规则下未观察到，保持candidate边界。",
+        "recommendation": "先补登记 story/mine 侧 MOSS 协议清单并确认实际调用边归属路径，再决定是否把 Kotlin MOSS 通道纳入覆盖范围；在确认调用边归属前不新增针对 absent 族的 Hook 目标。",
+        "alternatives": "若 protocol_evidence 能证明 StoryMoss 或 KMineMoss 的调用边来自 story/mine 家族自身类，则当前“未登记缺口”可升级为已确认消费面；反之若确认调用边均来自其它家族，则本页协议面确为空而非漏登记。",
+        "evidence_ids": [
+          "E009",
+          "E010"
+        ],
+        "finding_id": "F012"
+      }
+    ],
+    "next_steps": [
+      "优先用精确pinned源码补齐关键定位器/安装器与公共注册契约的正文证据；按文件SHA和选中行范围记录实际读取覆盖。",
+      "利用已有冻结invoke_edges按唯一方法签名和caller家族核对协议消费，禁止定义数减边数或相除推断覆盖率。",
+      "如需解释资源差异，继续定位resources.arsc内部变化entry与页面引用；外层文件路径已经明确。",
+      "未登记宿主UI、服务端视觉变体、宽屏/平板路由和运行启用仍是边界；在授权设备上分别核安装、调用与效果。"
+    ],
+    "review": {
+      "pages": [
+        {
+          "page": "comment",
+          "assessment": "复核以 fresh_refresh 重新读取评论页证据（E015）。E015 显示 comment_legacy_v2（581类/734边）、comment_native_legacy（156类/177边）、comment_native_next（45类/46边）、comment_native_exp3（60类/59边）、comment_compose（2417类/274 compose方法/918边）五条路径在目标与基线两侧的类数、compose_methods、外部调用边、fingerprint 逐字一致，evidence 均为 static_invoke_observed，runtime_enabled=unknown、module_coverage=requires_installer_review；协议 comment_java_moss（50定义/50边）、comment_kotlin_moss（130定义/26边）仅静态观测，定义数与边数单位不同，不得相除推导覆盖率。本轮另独立复读 comment_compose 双侧（E017 目标 / E018 基线）：total_classes 均 2417，5 个抽样类的类名、method_bodies_sha256、方法签名与 fields 逐字一致，未检出结构差异。但抽样仅每家族 2 类上限，读到的类是 kntr/common/comment 下 service/store/imageviewer 小类（多为 0-2 方法、无 Compose 签名），不能代表 2417 类整体，CommentComposeCopyBridge / CommentComposePurifyBridge / CommentComposeViewAccess 实际命中类名与调用点仍未确认。5 条 path_reviews 的 status 逐字沿用 static_invoke_observed。",
+          "evidence_ids": [
+            "E015",
+            "E017",
+            "E018",
+            "E011"
+          ]
+        },
+        {
+          "page": "dynamic",
+          "assessment": "复核以 fresh_refresh 重新读取动态页证据（E016）。E016 显示 dynamic_legacy（3227类/105 compose/2193边）、dynamic_compose（956类/112 compose/170边）、dynamic_opus（1341类/92 compose/190边）三条路径的同类计数与 fingerprint 与基线逐字一致，evidence 均为 static_invoke_observed，runtime_enabled=unknown、module_coverage=requires_installer_review；协议 dynamic_java_moss（134定义/134边）、dynamic_kotlin_moss（382定义/26边）亦仅静态观测，定义数与边数单位不同，禁止相除推导覆盖率。E012 抽样显示 dynamic_opus 目标侧同时出现纯数据类（api/k、api/C、api/H）与带 Compose 签名的方法（api/r.a(Modifier,Composer,int)V、api/i.d(Composer,int)V），但样本仅 5 类且被截断，不能外推到 1341 个类，也不能断言哪条栈在真机启用。OpusMoss/KOpusMoss 处于 unregistered_protocols，跨家族消费者与兜底未确认。本轮额外尝试对 dynamic_opus 双侧按名重读时只读额度耗尽，未取得独立复读，记为缺口。3 条 path_reviews 的 status 逐字沿用 static_invoke_observed。",
+          "evidence_ids": [
+            "E016",
+            "E012"
+          ]
+        },
+        {
+          "page": "home",
+          "assessment": "复核指派页 home。E003 预取两侧对 home_legacy(1004 类/128 compose 方法/236 外部调用边/指纹 aa99feb8…f4a9)与 home_new_frame(196 类/33 compose 方法/46 外部调用边/指纹 e3ea6856…a3d4)给出逐字相同的摘要，两 APK 尺寸同为 220423137、证书一致，changes 为空，仅 resource_change_counts.changed=1 未细化路径——这只能支持“本区间静态结构零变化”，不支持样式穷尽或适配通过。预取 limits 明确 class samples per family 仅两份，草稿引用的 khome.widget.bubble 族与 khome.vm.HomeFrameViewModel$dispatchAction$1 确实出自 E013 深挖样本($action:LLo1/b、this$0:HomeFrameViewModel、create/invoke/invokeSuspend)，但该样本在基线侧同指纹同方法体哈希，属既有实现。草稿把 khome.widget.bubble/khome.vm 描述为“类样本落在…”尚可，而“由 ViewModel 协程派发动作驱动”是对字段/方法签名的合理语义推断而非直读行为，报告中已按推断层级表述。home 登记的两条路径均保持逐字的 static_invoke_observed，未被改写为通过；module_coverage=requires_installer_review、runtime_enabled=unknown 与 complete_coverage=false 与静态矩阵一致。遗漏项：宽屏/平板分支与服务端开关无静态判据；未映射候选 HookEntry/VersionAdapter/HostBottomBar* 对 home 两家族的实际绑定未读，故不能推断 Hook 覆盖。",
+          "evidence_ids": [
+            "E003",
+            "E013",
+            "E000"
+          ]
+        },
+        {
+          "page": "search",
+          "assessment": "复核指派页 search。E004 两侧对 search_native(1674 类/2 compose 方法/2789 外部调用边)与 search_compose(3149 类/556 compose 方法/616 外部调用边)给出逐字相同的指纹与计数，search_java_moss(24 定义/22 边)与 search_kotlin_moss(52 定义/18 边)两侧亦同，runtime_enabled 全为 unknown，因此静态层面同样无法支撑新样式出现或适配通过。E014 深挖确认 search_kotlin_moss 的 18 条实际调用边全部来自 search_compose 家族，调用者 Lkntr/app/search/aggregate/repository/b;、Lkntr/app/search/comic/repository/b;、Lkntr/app/search/repository/o;，绑定 <init>(KCallOptions) 与 searchOGV 等 KSearchMoss 成员——这是调用边可见性，不等价于真机调用或模块 Hook 命中。E004 的 caller_samples 采样上限为四条，草稿断言“全部来自 compose”依据 E014 的 18/18 而非抽样推断，可接受；但 search_java_moss 的 22 条边调用者家族未被读取，草稿正确标注为未知。search 页两条路径 status 与静态矩阵逐字一致。遗漏项：SearchHomeRecommendLocator/SearchPurifyFeatureInstaller 与 KotlinMossChannel/KotlinMossReplyBridge 的实际挂载点未读，“compose 渲染切换时可能漏净化”仅为待验证假设。",
+          "evidence_ids": [
+            "E004",
+            "E014",
+            "E000"
+          ]
+        },
+        {
+          "page": "detail",
+          "assessment": "复核确认：E005 是本轮重新取证的 detail 页面证据（target 与 baseline 两侧），三个登记路径的汇总值逐字一致——detail_legacy 两侧均为 classes=0/compose=0/edges=0，指纹 4f53cda1…（空集哈希），evidence=absent；detail_theseus_ugc 两侧 1953/25/515，指纹 c36f2a42…；detail_theseus_united 两侧 4602/98/4163，指纹 83e1f0b1…；协议 detail_java_moss 32/35、detail_kotlin_moss 76/10 亦两侧一致。故草稿“结构零变化、无新样式证据”的断言成立，且其保留 absent 语义（不等于页面功能消失）、拒绝相除推导覆盖率、未凭指纹不变宣称适配通过，措辞合规。可改进之处：草稿在 detail_legacy 的 impact 中写“模块中针对 legacy 详情页的 Hook…将无目标可挂”，倾向性偏强；absent 只说明静态抽取视野内无该类样本，若 legacy 视图由服务端下发或抽取口径未覆盖前缀，则模块侧仍可能存在注解式绑定，应降级为“静态锚点缺失、需运行期确认”。另草稿对 detail_java_moss 35 条与 detail_kotlin_moss 10 条调用边的宿主路径归属未列为本页的显式缺口，而这直接决定协议级 Hook 落在 ugc 还是 united，应在剩余缺口中补上。模块侧 Detail*Installer/Policy 与 HostDetailSurfaces 的类名绑定本轮未读取，源码快照 working_tree_dirty=true，故 module_coverage 维持 requires_installer_review。静态审查完成，非适配验收。",
+          "evidence_ids": [
+            "E005",
+            "E000"
+          ]
+        },
+        {
+          "page": "pgc",
+          "assessment": "复核确认：E006 为本轮重新取证的 PGC 页面证据，两侧逐字一致——pgc_legacy 353 类/0 compose/401 边，指纹 58516e1d…；pgc_theseus 2249 类/131 compose/742 边，指纹 e02d9f27…；协议 pgc_player_moss 12 定义/3 调用边、pgc_view_moss 14 定义/7 调用边亦两侧相同。草稿保留 static_invoke_observed、把两路径表述为并存栈候选而非新样式、并明确“定义数与调用边数不同单位不可相除”，均与证据相符。需收紧的两点：(1) 草稿用 pgc_legacy 的 compose_methods=0 推断“仍为旧原生(View/Activity)实现”，这属于从计数到实现范式的推断，混淆重排或 Compose 调用被内联/改写都可能造成计数为 0，应表述为“未见 Compose 方法计数，家族构成待类样本确认”；(2) 草稿称 PgcAutoActivityPopupLocator 的定位目标与路径对应关系未展开——正确，但应把它落为明确缺口：该定位器是本页唯一被点名的模块侧组件，其匹配条件决定弹窗 Hook 命中 legacy 还是 theseus。合并两栈时模块是否同时注册两套安装器与兜底分支均未读到，module_coverage 维持 requires_installer_review，runtime_enabled 维持 unknown；服务端 A/B 视觉变体在无结构变化时静态不可见，不得宣称样式已穷尽。",
+          "evidence_ids": [
+            "E006",
+            "E000"
+          ]
+        },
+        {
+          "page": "player",
+          "assessment": "复核后维持：player 页两条登记路径 player_java / player_kotlin 的证据级别均为 static_invoke_observed，且 E007 目标侧与基线侧 summary 逐字一致（player_java 953 类 / 0 compose / 3225 外部调用边 / 指纹 4102698f…4403bc；player_kotlin 7 类 / 0 compose / 100 边 / 指纹 b275709b…d7edc），changes 为空数组。该证据只支持“本版本窗口内无结构性变化”，不支持任何适配通过结论。协议侧 player_java_moss 18 定义 / 2 实调用、player_kotlin_moss 34 定义 / 3 实调用，定义数与调用边数单位不同，不可相除推覆盖率；实调用边少也可能来自接口分发、反射或混淆后调用点未解析，不等于功能缺失。player_kotlin 仅 7 类属极小样本，不能代表整套 Kotlin 播放器实现，须声明抽样限制。模块侧源码快照含 PlayerBufferLocator/PlayerSpeedLocator/SponsorPlayerLocator/PlayerPopupPromotionLocator 与对应 FeatureInstaller/Policy，形态如定位器+安装器+策略，但本次复核未读取其匹配条件与方法签名绑定，故 hook 目标是否命中 9150300 的类集合仍属未知，module_coverage 维持 requires_installer_review。路径条目状态逐字沿用矩阵 evidence 值，未改写为通过。",
+          "evidence_ids": [
+            "E000",
+            "E007"
+          ]
+        },
+        {
+          "page": "danmaku",
+          "assessment": "复核后维持：danmaku_legacy 在目标与基线双侧均 absent（0 类 / 0 边，指纹 4f53cda1…2b945 为空集常量哈希），danmaku_kotlin 双侧 static_invoke_observed（56 类 / 1 compose 方法 / 9 外部调用边 / 指纹 f55e24e0…1cb）。因两侧一致，这属既有格局而非 9150300 引入的家族替换，不能解读为旧原生家族被删除导致功能消失；absent 也不等于弹幕页功能消失，且不排除抽取口径未覆盖该家族。协议侧 danmaku_java_moss 22 定义 / 20 实调用与 danmaku_kotlin_moss 46 定义 / 4 实调用不对称，提示调用密度差异，但协议标识不是登记路径，不能把 20 条调用边换算为 danmaku_kotlin 的覆盖证据；1 个 compose 方法亦不足以断言 Compose 化程度。模块侧 DanmakuPurifyFeatureInstaller / DanmakuPurifyPolicy 存在，但复核未读到其目标家族、兜底分支与运行条件（源码快照 source_dirty=true 且存在 HookEntry、VersionAdapter、KotlinMossChannel 等未映射候选），故挂载点仍为未知，维持 requires_installer_review。路径状态逐字沿用矩阵 evidence 值。",
+          "evidence_ids": [
+            "E000",
+            "E008"
+          ]
+        },
+        {
+          "page": "story",
+          "assessment": "复核确认：本单元仅覆盖 story 登记两路径。目标 9150300 与基线 9150200 在 story_native（2958 类/44 Compose 方法/1380 外部调用边/指纹 6b74bce4…83e99）与 story_kotlin（0/0/0/空指纹 4f53cda1…）上逐项一致，两侧 protocols 均为空字典，evidence 逐字为 static_invoke_observed 与 absent（E009）。预取边界为每族两个类样本、每协议四个调用者样本、运行时未知，因此该类样本不能代表整套 story 实现，摘要一致也不能排除服务端 A/B 视觉变体（无结构变化时静态不可见）。story_kotlin 的 absent 仅表示本取样口径下未观察到该族，混淆改名、DEX 重排或迁移入 story_native 均未排除，不等于页面 Kotlin 样式消失。froot 侧 F011/F012 的处置见 findings。",
+          "evidence_ids": [
+            "E009",
+            "E011",
+            "E012",
+            "E013"
+          ]
+        },
+        {
+          "page": "mine",
+          "assessment": "复核确认：mine_native（324 类/7 Compose 方法/95 外部调用边/指纹 cf69dfa7…8ae35d）与 mine_account_model（132/0/54/指纹 d5370d6e…a011996）在目标与基线两侧逐项一致，evidence 均为 static_invoke_observed，runtime_enabled=unknown、module_coverage=requires_installer_review（E010）。两侧 mine.protocols 为空，而上下文登记了 KMineMoss、MineMoss、AccountInterfaceV1Moss 等未登记协议，说明协议消费面尚未登记而非确认无消费。E011/E012/E013 的类样本 file_id 为 21/19/24，属 comment/dynamic/home 家族，未被证明由 mine 路径消费，不得登记为 mine 的已确认样式。模块侧仅由 source_files 列出 MineComponentFilterFeatureInstaller、MineComponentSnapshot、MineVipFeatureInstaller、MineComponentSnapshotStore/QueryClient/QueryContract/HostBridge、HostMineReadingCard 等文件，本回复核未读取其内容，且快照 working_tree_dirty=true，故不能推断这些 Hook 的解析字段与本版本 mine 类结构对齐，也不宣称生效。froot 侧 F011/F012 的处置见 findings。",
+          "evidence_ids": [
+            "E010",
+            "E011",
+            "E012",
+            "E013"
+          ]
+        }
+      ],
+      "findings": [
+        {
+          "finding_id": "F001",
+          "disposition": "revised",
+          "reason": "断言方向正确且证据支持：E015（评论）与 E016（动态）两侧八条路径的计数与 fingerprint 逐字一致，changes 为空，resource_change_counts 仅 changed=1，确实不能推出适配通过；本轮新增独立取证 E017/E018 在 comment_compose 抽样类级 method_bodies_sha256 与签名上亦逐字一致。原分析将 comment 与 dynamic 合并陈述且未说明抽样限制，属可精化而非错误；修订明确逐页归属与抽样约束，level 保持 static_evidence。",
+          "evidence_ids": [
+            "E015",
+            "E016",
+            "E017",
+            "E018"
+          ],
+          "revision": {
+            "title": "9150300 与 9150200 八条登记路径指纹逐字相同、changes 为空，不能推出“适配通过”",
+            "analysis": "E015 显示评论五条路径的类数、compose_methods、外部调用边与 fingerprint 与基线完全一致；E016 显示动态三条路径同样一致；changes 为空数组，resource_change_counts 仅 changed=1；本轮独立复读 comment_compose 两侧（E017 目标 / E018 基线）可见 5 个抽样类的类名、method_bodies_sha256 与方法签名逐字一致。这指向样本区间差异极小，而非新样式出现。两点限制必须保留：其一，抽样为每家族 2 类上限且结果被截断，不能代表整族实现；其二，指纹一致可能由混淆改名、DEX 重排、编译器变化互相抵消造成，也可能是同一构建产物。反向同样成立——指纹未变排除不掉服务端 A/B 下发的视觉/渲染变体，这类变体常无结构差异，静态不可见。因此“无变化”既不支持适配通过，也不支持已适配结论。",
+            "recommendation": "以 9150300 真机为基准，逐路径采集 Hook 安装与调用日志；对无变化路径仍按未知处理，不得默认沿用基线适配结论，也不得把指纹一致写成“已适配”。",
+            "alternatives": "若后续发现 fingerprint 相同但方法体哈希或调用点行号变化，则存在被指纹掩盖的实际改动，当前“无变化”推断需撤销；若真机确认某路径完全未安装 Hook，则“无变化”不影响该路径仍需修复；若服务端 A/B 造成视觉差异而无结构变化，静态侧无法排除，须标注为运行期验证项。",
+            "level": "static_evidence"
+          }
+        },
+        {
+          "finding_id": "F002",
+          "disposition": "retained",
+          "reason": "断言与证据一致且表述克制：四条协议（comment_java_moss 50/50、comment_kotlin_moss 130/26、dynamic_java_moss 134/134、dynamic_kotlin_moss 382/26）runtime_enabled 均为 unknown，module_coverage 均为 requires_installer_review；分析已正确指出定义数与调用边数单位不同、禁止相除推导覆盖率，未把定义多边少误读为协议已消费。E015、E016 及本轮 E017/E018 均不含安装器注册日志，故“需安装器评审”结论成立，保留原样。",
+          "evidence_ids": [
+            "E015",
+            "E016",
+            "E017"
+          ]
+        },
+        {
+          "finding_id": "F003",
+          "disposition": "revised",
+          "reason": "核心断言成立：E012 抽样确证 dynamic_opus 目标侧同时出现纯数据类（api/k、api/C、api/H）与带 Compose 签名的方法（api/r.a(Modifier,Composer,int)V、api/i.d(Composer,int)V），且 OpusMoss/KOpusMoss 处于 unregistered_protocols。但原分析将“两条渲染栈并存”说得偏实，而抽样仅 5 类且截断、方法体未读，实际只能确证静态层面同时存在两类形态；本轮对 dynamic_opus 双侧按名重读时额度耗尽，未取得独立复读，应显式记为缺口。修订把并存栈表述收窄为候选观察，level 保持 candidate。",
+          "evidence_ids": [
+            "E012",
+            "E016"
+          ],
+          "revision": {
+            "title": "Opus 家族静态同时存在 Compose 与普通类形态，是否并存渲染栈与覆盖归属均未确认",
+            "analysis": "E012 抽样显示 dynamic_opus 家族中既有纯数据类（api/k、api/C、api/H），也有带 Compose 签名的方法（api/r.a(Modifier,Composer,int)V、api/i.d(Composer,int)V），说明该家族静态层面同时包含两类形态，可能对应多种渲染栈；但结果被截断、样本仅 5 个类，不能代表 1341 个类，也无法证明两条栈在真机并存或哪条被启用——未读方法体不能推断 Compose 调用点真正执行。E016 确认三条动态路径整体与基线同构且 runtime_enabled=unknown。OpusMoss/KOpusMoss 处于 unregistered_protocols，若模块依赖这些协议结构做定位，可能缺少对应消费者，跨家族消费者与兜底路径未验证。",
+            "recommendation": "对 api/r、api/i 等类用 decompile_class 读取完整方法体，确认 compose 调用点与调用者；真机 Opus 详情页验证 DynamicPurifyFeatureInstaller 是否命中，并抓取 OpusMoss/KOpusMoss 的协议消费方。",
+            "alternatives": "若完整读取后发现这些 compose 方法属未启用的可选模块，则“并存栈”推断应降级为静态存在但运行不激活；若真机 Opus 页仅走 legacy 栈，则 Opus 覆盖问题转为冗余而非缺失；若确定无任何模块消费者依赖 OpusMoss/KOpusMoss，则协议未登记的缺口等级应下调。",
+            "level": "candidate"
+          }
+        },
+        {
+          "finding_id": "F004",
+          "disposition": "revised",
+          "reason": "证据核对：E014 摘要中 definitions=52、actual_invoke_edges=18，caller_samples 上限 4 条、可见者全为 search_compose，且带 total_callers=18 与逐条 caller_samples，草稿“18/18 来自 compose 三仓库类”有据，可保留。但草稿表述“全部来自”源自被截断结果的可见样本，宜改写为“在已返回的 18 条调用边记录中均为 compose 家族”，并在 alternatives 中明确若接口分发/动态代理未解析，native 侧仍可能有未解析消费者。另 level 应为 static_evidence(调用边静态可见，真机启用未知)，原文正确，仅补充限定语。",
+          "evidence_ids": [
+            "E014",
+            "E004"
+          ],
+          "revision": {
+            "title": "search_kotlin_moss 已观测调用边全部落在 search_compose 聚合仓库层，跨家族覆盖边界未闭合",
+            "analysis": "E014(protocol_evidence, search_kotlin_moss, target)返回 definitions=52、actual_invoke_edges=18、total_callers=18，caller_samples(上限 4 条)全部属于 search_compose 家族：Lkntr/app/search/aggregate/repository/b;、Lkntr/app/search/comic/repository/b;、Lkntr/app/search/repository/o;，绑定 <init>(Lkntr/base/moss/api/KCallOptions;…) 与 searchAll/searchOGV/searchComic/searchAddReserve/searchDelReserve/searchReserveCancel 等 KSearchMoss 成员。据此只能陈述“在已返回的调用边记录中未见 search_native 消费者”，52 个定义中其余 34 个签名的消费者归属仍未知。E004 中 search_java_moss(24 定义/22 边)的调用者家族未被展开，Java/Kotlin 双 Moss 的分工无法静态判定。调用边可见不等于真机调用，也不证明模块 Hook 对返回结构生效。",
+            "recommendation": "用 module_source 读取 KotlinMossChannel.kt 与 KotlinMossReplyBridge.kt，确认其挂载类/方法与上述三个 repository 类及 KSearchMoss 成员的对应关系；若挂载点只覆盖 searchAll 或只覆盖 native 侧，则在 compose 渲染切换时可能漏净化。另用 protocol_evidence 展开 search_java_moss 的调用者家族，确认是否存在 native 侧消费者。真机对同一关键词分别以 compose/native 渲染抓取返回结构，比较净化前后差异。",
+            "alternatives": "替代解释：(1) 该聚合仓库可能同时被 native 与 compose 复用，18 条边只是采样/可达性偏差；(2) Kotlin Moss 可能存在未被预取或被接口分发隐藏的第四个消费者类，静态调用图不解析接口调用与动态代理；(3) 若 module_source 显示模块通过统一 Moss 通道而非按类名挂载，跨家族覆盖担忧可消除；(4) 若真机抓取显示两种渲染返回结构一致，本推断被推翻。",
+            "level": "static_evidence"
+          }
+        },
+        {
+          "finding_id": "F005",
+          "disposition": "revised",
+          "reason": "E013 确实给出 home_new_frame 的 5 个类样本，含 HomeFrameViewModel$dispatchAction$1，字段 $action:LLo1/b、this$0:HomeFrameViewModel，方法 create/invoke/invokeSuspend，草稿对字段/方法签名的转述准确。但“由 ViewModel 协程派发 action 驱动界面”是把字段与方法签名的语义外推，属推断而非直读实现；且该样本在基线侧同指纹，不构成新增样式。更关键的是，草稿断言“定位器兜底未验证”成立，但未读 HomeFrameTabLocator/HomeFrameListHook 就推测“定位串写死在旧类名上”，应降为待验证假设并明确未读源码范围(预取仅 2 个类样本/家族，且未映射候选 HookEntry/VersionAdapter 未读)。level 保持 needs_runtime 恰当，修订措辞。",
+          "evidence_ids": [
+            "E013",
+            "E003"
+          ],
+          "revision": {
+            "title": "home_new_frame 的 HomeFrameViewModel 动作派发签名已观测，定位器覆盖与兜底仍未读取",
+            "analysis": "E013(family_evidence, home_new_frame, target)给出类样本：tv.danmaku.bili.khome.widget.bubble.d/e/f/t 与 tv.danmaku.bili.khome.vm.HomeFrameViewModel$dispatchAction$1；后者 superclass 为 Lkotlin/coroutines/jvm/internal/SuspendLambda，fields 为 [\"$action\",\"LLo1/b;\"]、[\"label\",\"I\"]、[\"this$0\",\"Ltv/danmaku/bili/khome/vm/HomeFrameViewModel;\"]，methods 为 <init>(HomeFrameViewModel;LLo1/b;Continuation)、create、invoke、invokeSuspend。由此可推断新框架通过 SuspendLambda 包装 action 对象派发，但这是对签名的语义推断，不是对 method body 的直读。E013 摘要 total_classes=196、fingerprint e3ea6856…a3d4，与 E003 基线侧同指纹，属既有实现延续，本区间无新增类或调用边。HomeFrameTabLocator.kt 与 HomeFrameListHook.kt 的匹配条件、命中日志与回落分支本轮均未读取，module_coverage=requires_installer_review、runtime_enabled=unknown 保持不变。",
+            "recommendation": "用 module_source 读取 HomeFrameTabLocator.kt 与 HomeFrameListHook.kt，核对匹配条件是否包含 tv/danmaku/bili/khome/vm/HomeFrameViewModel 或 khome/widget/bubble 族，以及 $action:LLo1/b 是否被用作定位条件；同时读取 HookEntry.kt/VersionAdapter.kt 确认两家族是否经同一安装器注册。真机上(存在本地或服务端框架开关时)触发框架切换，记录定位器命中与未命中时的回落行为。",
+            "alternatives": "替代解释：(1) $action:LLo1/b 可能是被多个模块共享的通用 action 基类，不足以判定定位器脆弱；(2) 该 ViewModel 可能存在于 APK 但真机不加载(类计数包含未使用代码)，则 Hook 覆盖问题不成立；(3) 定位器若基于方法签名或注解而非类名，类名变更不影响命中。若真机日志显示稳定命中，本推断被推翻。",
+            "level": "needs_runtime"
+          }
+        },
+        {
+          "finding_id": "F006",
+          "disposition": "revised",
+          "reason": "E003/E004 两侧、E000 种子均已核对：四个登记家族计数与指纹逐字相同，changes=[]，两 APK 尺寸同为 220423137、证书同哈希，resource_change_counts 仅 1 处 changed 但未给出路径与类型，草稿对证据的引用准确无误。但本条属泛化方法论提醒，与 F004/F005 的具体路径分析不同层级，且草稿未把“changed=1 路径未知”写进具体补证任务的前置条件。修订为更聚焦的版本：明确 1 处 changed 资源路径未知、预取两侧样本上限、以及不得据指纹不变反推服务端样式穷尽；level 保持 candidate。",
+          "evidence_ids": [
+            "E003",
+            "E004",
+            "E000"
+          ],
+          "revision": {
+            "title": "四路径静态零变化，但 changed=1 资源路径与混淆/DEX 重排干扰均未排除",
+            "analysis": "E003 与 E004 两侧显示 home_legacy(1004/128/236, aa99feb8…f4a9)、home_new_frame(196/33/46, e3ea6856…a3d4)、search_native(1674/2/2789, 481dae50…c740)、search_compose(3149/556/616, 6c663f2d…86e1)的指纹、类数、compose 方法数、外部调用边数在 9150200 与 9150300 上逐字相同；E000 显示两包尺寸同为 220423137 且证书 sha256 一致，changes 为空数组，resource_change_counts 记录 added=0/removed=0/changed=1。证据支持“本区间无结构性新家族”，但不支持“所有样式已穷尽”：changed=1 的具体资源路径与类型未在预取中给出；两个 APK 的 DEX 重排或包装层变动若未触及被抽样家族，也不会体现为家族指纹变化；服务端 A/B 视觉变体在无结构变化时静态不可见。故不能把指纹不变当作适配通过。",
+            "recommendation": "最小补证任务：(1) 解析该 changed=1 资源的完整路径与类型，判断是否落在首页/搜索相关资源(布局、图集、strings)；(2) 对两版本分别抽取资源表与资源引用差异，排除资源改名掩盖；(3) 真机在同一版本上切换服务端实验开关，观察首页与搜索页是否出现未登记样式，并按运行期证据补登记。",
+            "alternatives": "替代解释：(1) 若 changed 资源正是首页/搜索样式相关，则存在需补登记的静态未见家族；(2) 若两 APK 除版本元信息外完全同类(尺寸与证书均一致)，则零变化解释更可信；(3) 资源改名/复用或混淆改名可能掩盖真实差异，指纹不变也可能是采样家族之外的代码被改动所致。",
+            "level": "candidate"
+          }
+        },
+        {
+          "finding_id": "F007",
+          "disposition": "revised",
+          "reason": "证据支持核心断言：E005 中 detail_legacy（absent，空集指纹 4f53cda1…）、detail_theseus_ugc（c36f2a42…）、detail_theseus_united（83e1f0b1…）在 target 与 baseline 两侧逐字一致，changes 为空，resource_change_counts 仅 1 项 changed，故“无新样式引入”与“源码 dirty 导致覆盖结论不可下”成立，level=candidate 恰当。但原文两处需收紧：(1) 把指纹一致直接说成“指向同构构建或混淆重排未改变家族归类”过强，指纹不变只能说明本抽取口径下归类稳定，混淆改名/DEX 重排在两侧同样稳定时会给出相同指纹，不能反向证明无改名；(2) 缺少对协议调用边宿主路径的交代，而 detail_java_moss 35 边/detail_kotlin_moss 10 边究竟落在 ugc 还是 united 直接决定协议级 Hook 的挂载面。修订后保留原 finding_id 与证据。",
+          "evidence_ids": [
+            "E005",
+            "E000"
+          ],
+          "revision": {
+            "title": "detail 三条路径与基线结构逐字一致，无新样式证据，但模块源码为未提交状态、协议调用边归属未知",
+            "analysis": "E005（本轮重新取证，target/baseline 双侧）显示三个登记路径的汇总值完全一致：detail_legacy 两侧 absent（classes=0、compose_methods=0、external_invoke_edges=0，指纹 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945，空集哈希）；detail_theseus_ugc 两侧 1953/25/515，指纹 c36f2a42930dc4782361f39a8b58afc94a19649469b9b6797f8ad2138d4984cc；detail_theseus_united 两侧 4602/98/4163，指纹 83e1f0b1ede48a39a9bf5c8c7654481a5c08f067ddaacb373c21cf169b07f5fe。changes 为空，资源仅 1 项 changed。该区间内无任何结构变化可解释为“新样式/新路径”。需注意指纹不变只说明本抽取口径下家族归类稳定，混淆改名或 DEX 重排若在两侧同样稳定，仍会给出相同指纹，因此不能由指纹相同反推“未发生混淆改名”。协议侧 detail_java_moss（32 定义/35 调用边）与 detail_kotlin_moss（76 定义/10 调用边）runtime_enabled 均为 unknown，且这 35/10 条调用边的宿主类归属 ugc 还是 united 本轮未取，属实质缺口。模块侧仅登记了 source_files 候选（DetailModulePurify*、DetailUnitedModulePurify*、HostDetailSurfaces 等），本轮未读取其类名/方法签名绑定；且源码快照 working_tree_dirty=true、source_tree_sha256=37745f8f…，未提交改动可能正落在这些 Hook 解析逻辑上，故模块对三路径的定位器是否仍与 9150300 类样本吻合保持未知。静态调用存在不证明路径在真机启用，也不证明 Hook 生效。",
+            "recommendation": "1) 用 protocol_evidence 重读 detail_java_moss 与 detail_kotlin_moss 的完整调用方列表，逐个标注宿主类所属路径（ugc / united / 未归类），输出两协议各自的实际消费者清单。2) 按文件哈希（不清理工作树）逐个读取 Detail*Installer/Policy、DetailUnitedModulePurify*、HostDetailSurfaces，记录其匹配的类名、方法签名与兜底分支。3) 真机上分别进入普通 UGC 详情与合集/联合投稿详情、番剧详情，采集模块 Hook 命中日志，与上述绑定逐条比对；对 detail_legacy 记录实际加载的 Activity/Fragment 与类加载列表，区分“抽取口径未覆盖”与“实现确实不存在”。4) 保留 status=absent，不得因真机可见页面而改写。",
+            "alternatives": "替代解释一：detail_legacy 的 absent 是抽取口径（类名前缀/包名限定）未覆盖而非实现消失，需用已知 legacy 类名定向检索同一 APK 验证。替代解释二：三路径指纹一致源自模块所依赖的类样本恰好未被本次编译改动触及，而实际页面渲染已由服务端配置切换到其它未登记实现，静态不可见。替代解释三：若真机日志显示 ugc 与 united 两路径均有命中且行为与 9150200 一致，“覆盖未知”可下调；若命中类名与源码快照绑定不符，则说明快照不能代表实际注入版本，须以运行期为准。",
+            "level": "candidate"
+          }
+        },
+        {
+          "finding_id": "F008",
+          "disposition": "revised",
+          "reason": "E006 支持核心事实：pgc_player_moss 12 定义/3 调用边、pgc_view_moss 14 定义/7 调用边，runtime_enabled=unknown，两条 PGC 路径均 static_invoke_observed，故“调用边少于定义数、消费者路径归属未确认”成立，needs_runtime 恰当，且草稿正确声明两口径不可相除。但原文分析将低调用边主要归因于“新增定义尚未被调用/调用方在未读取类中”，遗漏了第三类同样重要的替代解释：定义侧包含 <init>、$default、序列化桩等桥接方法（参见同形态的 search_kotlin_moss 签名列表 E014），定义数本身包含大量非业务入口，调用边低可能只是口径构成差异而非消费缺失；同时原文未点出 PgcAutoActivityPopupLocator 是本页唯一被点名的模块侧定位组件，应作为独立待验证对象。另 E006 的 caller_samples 本轮未见，调用方家族无法从该证据得出，须在补证任务中明说。修订后保留原 finding_id。",
+          "evidence_ids": [
+            "E006",
+            "E014"
+          ],
+          "revision": {
+            "title": "PGC 两协议调用边少于定义数，消费者路径归属与模块定位器目标均未确认",
+            "analysis": "E006（本轮重新取证，target/baseline 双侧一致）显示 pgc_legacy 353 类/0 compose 方法/401 外部调用边（指纹 58516e1d…）、pgc_theseus 2249 类/131 compose 方法/742 边（指纹 e02d9f27…），二者均 static_invoke_observed、runtime_enabled=unknown、module_coverage=requires_installer_review。协议 pgc_player_moss 为 12 定义/3 调用边，pgc_view_moss 为 14 定义/7 调用边；定义数与调用边数单位不同，禁止相除推导覆盖率。调用边偏低的解释至少有三种，本轮不可择一：(a) 部分定义尚未被任何页面类调用；(b) 调用方位于本抽取范围外的类；(c) 定义侧本身就包含 <init>、$default、序列化桩等桥接方法——同形态的 search_kotlin_moss 签名列表（E014）即含 <clinit>/<init>/searchAddReserve$default 等多个非业务入口，说明定义数天然高于可观测调用边。本轮 E006 的 caller_samples 未取到，故调用方家族归属完全未知，无法判断消费者落在 pgc_legacy 还是 pgc_theseus。模块侧本页仅登记了 PgcAutoActivityPopupLocator.kt 与 PgcAutoActivityPopup*Installer/Policy，其匹配条件（针对旧原生 Activity 还是 theseus 页面）本轮未读取，而这直接决定弹窗 Hook 的命中面。pgc_legacy 的 compose_methods=0 只表示未见 Compose 方法计数，不足以断言实现范式的种类。",
+            "recommendation": "1) 用 protocol_evidence 重读 pgc_player_moss 与 pgc_view_moss 的完整调用方列表（含 caller_samples），逐个标注所属家族与路径，并区分业务入口与桥接/序列化桩。2) 用 module_source 读取 PgcAutoActivityPopupLocator.kt 与 PgcAutoActivityPopupPolicy.kt，记录其类名/方法签名匹配条件与兜底分支，判断命中 legacy 还是 theseus。3) 真机上在番剧/影视详情与播放页抓取弹窗相关 Activity 与定位器日志，并做单路径置空对照（对其中一条路径强制关闭，观察是否仍命中）。4) 未读到运行条件前保持 runtime_enabled=unknown，不因页面可用而改写 status。",
+            "alternatives": "替代解释一：调用边偏低纯粹由定义侧桥接方法构成造成，业务入口实际已被充分调用，则缺口可归为口径问题而非消费缺失。替代解释二：调用方集中在未登记家族（unregistered_protocols 中已列 KPlayerMoss/PlayerMoss 等），说明协议被跨家族消费，模块覆盖评估需扩展范围。替代解释三：两栈并非并存，而是 pgc_legacy 仅为历史类残留、真机恒走 theseus，则 legacy 侧净化逻辑为空转，需真机路径日志证实或证伪。",
+            "level": "needs_runtime"
+          }
+        },
+        {
+          "finding_id": "F009",
+          "disposition": "retained",
+          "reason": "E007 目标与基线两侧 summary 逐字一致，changes=[]，证据确实支持“player 两条路径在本版本窗口内无可观测家族级变化”这一静态断言；analysis 已正确声明结构无变化不代表运行期适配，且指出服务端视觉 A/B 静态不可见，未出现“适配通过”措辞。recommendation 中的真机定位器日志、Kotlin Moss 调用边宿主回溯、类数偏离排查均可复核执行。保留，仅补一条精确引用证据编号（E007 即 player 页预取目标/基线双侧证据）。",
+          "evidence_ids": [
+            "E000",
+            "E007"
+          ]
+        },
+        {
+          "finding_id": "F010",
+          "disposition": "revised",
+          "reason": "核心事实（danmaku_legacy 双侧 absent、danmaku_kotlin 双侧 static_invoke_observed 且指纹一致、两侧格局一致非本版本变化、定义数与调用边数单位不同不可相除、净化 Hook 目标家族未读到）均被 E008 支持。但原 analysis 引用 E011 是 comment_compose 家族证据（2417 类 / 274 compose / 918 边），与 danmaku 页无直接关系，属跨页错引；且原文对 Java/Kotlin Moss 调用密度差的因果表述（“暗示 Java 侧 Moss 才是实际被消费的通道”）超出静态证据可支撑范围。修订为仅用 E000/E008 支撑，将调用密度差异降级为待验证线索，并明确 delta 处 1 个 compose 方法不足以断言 Compose 化程度。",
+          "evidence_ids": [
+            "E000",
+            "E008"
+          ],
+          "revision": {
+            "title": "danmaku_legacy 双侧 absent、Kotlin 家族承压，模块净化 Hook 挂载点仍需按家族核对",
+            "analysis": "danmaku_legacy 在目标与基线均为 absent（0 类 / 0 边，指纹 4f53cda1…2b945 为空集常量哈希），danmaku_kotlin 为 static_invoke_observed（56 类 / 1 compose 方法 / 9 外部调用边 / 指纹 f55e24e0…1cb），两侧指纹与计数一致，说明这是本版本窗口之前已确立的格局，而非 9150300 新增变化；absent 也不等于弹幕页功能消失，且不排除抽取口径未覆盖该家族。协议侧 danmaku_java_moss 为 22 定义 / 20 实调用，danmaku_kotlin_moss 为 46 定义 / 4 实调用，调用密度存在差异，可为后续定位 Java 侧 Moss 消费者的线索；但定义数与调用边数单位不同，禁止相除推导覆盖率，协议标识也不是登记路径，不能把 20 条调用边直接记作 danmaku_kotlin 的覆盖证据，实调用边偏少同样可能来自接口分发、反射或混淆后调用点未解析。danmaku_kotlin 仅 1 个 compose 方法，不足以断言该路径的 Compose 化程度。模块源码快照含 DanmakuPurifyFeatureInstaller 与 DanmakuPurifyPolicy，但其目标家族、兜底分支与激活条件在本次复核中未读到（source_dirty=true，且存在 HookEntry、VersionAdapter、KotlinMossChannel 等未映射候选文件），故挂载点仍属未知，module_coverage 维持 requires_installer_review。",
+            "recommendation": "（1）将 danmaku_kotlin 的 56 类清单与 DanmakuPurifyFeatureInstaller 的 hook 目标集合逐项比对，输出命中/缺失清单与绑定签名；（2）回溯 danmaku_java_moss 的 20 条实调用边宿主类，判定其归属家族（Kotlin 家族或未登记调用者）；（3）用同一静态抽取规则对 danmaku_legacy 已知类名前缀在目标 APK 做定向检索，区分真 absent 与抽取口径缺失；（4）真机弹幕页对净化开关做 A/B，记录 DanmakuPurifyPolicy 分支命中与未命中时的兜底日志；（5）核对未映射候选 KotlinMossChannel/KotlinMossReplyBridge/HookEntry 是否参与弹幕路径分发，避免漏算覆盖。",
+            "alternatives": "若真机日志显示净化策略分支正常命中且样式生效，则“挂载点存疑”推断被推翻；若定向检索能在目标 APK 中找到 legacy 家族类，则 absent 属抽取口径缺失而非家族消失；若安装器日志显示定位器遍历到的类名与静态家族不一致，则可能是混淆改名导致家族归并错误；若 danmaku_kotlin_moss 的 4 条实调用边宿主不在 56 类集合内，则 Kotlin Moss 消费者可能位于未登记家族。",
+            "level": "needs_runtime"
+          }
+        },
+        {
+          "finding_id": "F011",
+          "disposition": "revised",
+          "reason": "核心断言成立且证据充分：E009 显示 story_native/story_kotlin 两侧摘要与指纹逐字相同、story_kotlin 为 absent；E010 显示 mine_native/mine_account_model 两侧摘要与指纹逐字相同，均支持“目标与基线在本单元登记家族层面无结构性差异，指纹不变不能推导适配通过”的结论。但草稿 analysis/recommendation 中夹带了超出 story/mine 证据的表述：草稿在 analysis 中未引用但 next_steps 里混入了 comment/dynamic/home/search 的计数，本单元不应把其它单元家族计数当作 story/mine 的证据；此外 E013 是 home_new_frame 家族证据，与 story/mine 两页无消费关系，作为 F011 的支撑证据不成立，应从 evidence_ids 中删除。修订补丁限定页面范围、删除无关证据引用，其余断言保留，等级维持 static_evidence。",
+          "evidence_ids": [
+            "E009",
+            "E010"
+          ],
+          "revision": {
+            "title": "story/mine 两侧登记家族摘要与指纹逐位相同，本版本差异在静态家族层不可见",
+            "analysis": "目标 9150300 与基线 9150200 在 story/mine 四条登记路径上计数与指纹完全相同：story_native 2958/44/1380（E009）、story_kotlin 0/0/0 空指纹（E009）、mine_native 324/7/95（E010）、mine_account_model 132/0/54（E010），四族 fingerprint 逐字一致。样本级 resource_change_counts 仅 changed=1、added=removed=0，未见类增删，但该条目细分归属未确认落在 story/mine 相关资源上。这只说明本取样口径下登记家族未见结构变化，既不能确认适配通过，也不能排除服务端 A/B 下发样式与混淆参数调整未落到结构层；注意调用边数与方法定义数不是同一单位，本轮未做任何覆盖率推导。",
+            "recommendation": "把本单元结论限定为“story/mine 登记家族静态层面未观测到变化”，不进入适配通过判定；后续版本对比优先按资源条目与模块解析点变化触发，而非仅靠家族指纹是否变化触发。",
+            "alternatives": "若后续拿到该版本变更说明、渠道包差异或可用的运行期 A/B 分流配置，可推翻“本区间无结构变化”的推断；若深挖发现模块依赖的类被改名但被计入同一指纹集合，也可推翻静态无变化的读法。",
+            "level": "static_evidence"
+          }
+        },
+        {
+          "finding_id": "F012",
+          "disposition": "revised",
+          "reason": "断言方向正确：story_kotlin 的 absent（E009）不能推导功能消失，story/mine 两侧 protocols 为空而上下文登记 StoryMoss/KMineMoss/MineMoss/AccountInterfaceV1Moss 等未登记协议，E010 亦确认 mine 侧无协议登记，支持“协议消费面未登记/未确认”而非“无消费”的结论。但草稿有两处越界：一是把 comment_compose（E011）、dynamic_opus（E012）、home_new_frame（E013）当作 story/mine 的候选样式证据，这三族 file_id 为 21/19/24，未被证明由 story/mine 路径消费，逻辑上不构成本页待选 MOSS 面；二是草稿列出 KotlinMossChannel.kt/KotlinMossReplyBridge.kt 等未映射文件并暗示其可能服务 story/mine，这些仅来自 source_files 清单，本回复核未读取内容，属未验证推断。修订补丁删除其它页家族引用与未读源码推断，保留“未登记协议即缺口、需先补登记再决定覆盖范围”的主张，等级由 needs_runtime 改为 candidate，因当前仅有“协议区为空”这一静态缺口，尚未定位 story/mine 自身协议消费点。",
+          "evidence_ids": [
+            "E009",
+            "E010"
+          ],
+          "revision": {
+            "title": "story_kotlin 为 absent 且 story/mine 协议区为空，MOSS 消费面未登记",
+            "analysis": "story_kotlin 预取 evidence 逐字为 absent（0 类/0 Compose 方法/0 调用边/空指纹），仅说明该族在当前取样口径下未被观察到（E009），不能推导该族样式或功能消失，改名并入 story_native 或 DEX 重排仍未排除。同时目标与基线两侧 story.protocols 与 mine.protocols 均为空字典（E009/E010），而上下文列出 StoryMoss、KMineMoss、MineMoss、AccountInterfaceV1Moss、KOpusMoss 等未登记协议，说明这两页的协议消费面尚未登记，而非确认无 MOSS 消费。其它页家族的类样本不能作为本页协议面的证据，其 file_id 归属不同，未被证明由 story/mine 消费。",
+            "recommendation": "先补登记 story/mine 侧 MOSS 协议清单并确认实际调用边归属路径，再决定是否把 Kotlin MOSS 通道纳入覆盖范围；在确认调用边归属前不新增针对 absent 族的 Hook 目标。",
+            "alternatives": "若 protocol_evidence 能证明 StoryMoss 或 KMineMoss 的调用边来自 story/mine 家族自身类，则当前“未登记缺口”可升级为已确认消费面；反之若确认调用边均来自其它家族，则本页协议面确为空而非漏登记。",
+            "level": "candidate"
+          }
+        }
+      ],
+      "remaining_gaps": [
+        "[1] 动态侧独立复读未完成：对 dynamic_opus 双侧按名重读时只读额度耗尽（Read-only tool budget exhausted），dynamic_compose / dynamic_legacy 亦未逐家族复读；动态三路径结论主要依据 E016（fresh_refresh）与 E012，建议下轮以 family_evidence 对 dynamic_opus 双侧重读。\n[2] comment_compose 抽样仅覆盖每家族 2 类上限中的 5 个小类（kntr/common/comment service/store/imageviewer），无 Compose 签名样本；CommentComposeCopyBridge / CommentComposePurifyBridge / CommentComposeViewAccess 的真实解析点仍未验证，需对桥接类做 decompile_class 定向复核。",
+        "[3] 五条评论路径与三条动态路径的安装器注册与 fallback 均未读到，module_coverage 仍为 requires_installer_review；HookEntry / VersionAdapter / VersionAdapterContract 等未映射候选是否承担多路径分发未确认。\n[4] comment_native_exp3、comment_native_next、dynamic_compose、dynamic_opus 的服务端开关/实验分桶条件未读取，无法判断这些家族当前是否启用；无结构变化时服务端 A/B 视觉变体静态不可见，不能宣称样式已穷尽。",
+        "[5] 动态页 OpusMoss / KOpusMoss 及评论侧共同协议是否被跨家族消费者使用未确认，缺少调用边到家族的标注与兜底路径说明。\n[6] 未评估宽屏/平板布局对评论与动态页路径选择的影响（未读到运行条件，记为未知）。",
+        "[7] source_dirty=true 的工作树改动未按文件哈希追溯，无法判断被修改文件是否涉及评论/动态 Hook 解析逻辑；追溯时应只读比对，不清工作树。\n[8] home 与 search 的宽屏/平板分支、服务端开关与 A/B 分桶均无静态判据，runtime_enabled=unknown，需真机验证后补证。",
+        "[9] search_java_moss 的 22 条实际调用边调用者家族未展开，是否存在 search_native 侧消费者仍未知。\n[10] 多路径页面服务端开关导致的视觉差异在无结构变化时静态不可见，不可宣称样式已穷尽。",
+        "[11] HomeFrameTabLocator.kt/HomeFrameListHook.kt 与 SearchHomeRecommendLocator.kt/SearchPurifyFeatureInstaller.kt 的实际匹配条件未读取，模块绑定深度仍属 requires_installer_review。\n[12] resource_change_counts 中 changed=1 的具体资源路径与类型未获取，无法判断是否与首页/搜索相关。",
+        "[13] 未映射候选 HookEntry.kt、VersionAdapter.kt、VersionAdapterContract.kt、KotlinMossChannel.kt、KotlinMossReplyBridge.kt 对 home/search 家族的注册与兜底顺序未读。\n[14] source_snapshot 为 working_tree_dirty=true 的冻结工作树快照，未按文件哈希追溯改动是否触及 home/search Hook 逻辑。",
+        "[15] detail_java_moss（32 定义/35 调用边）与 detail_kotlin_moss（76 定义/10 调用边）的调用方宿主类未取到，无法判断协议消费者属于 detail_theseus_ugc、detail_theseus_united 还是未归类家族；需用 protocol_evidence 重读并逐条标注路径。\n[16] detail_legacy 的 absent 未区分“抽取口径未覆盖类名前缀”与“实现确实不存在”；需用已知 legacy 类名在 9150300 的 base.apk 做定向检索，并在真机记录进入 UGC/联合投稿详情时加载的 Activity/Fragment。",
+        "[17] 模块侧 Detail*Installer/Policy、DetailUnitedModulePurify*、HostDetailSurfaces、PgcAutoActivityPopupLocator 的类名/方法签名绑定未读取，三路径的 module_coverage 仍为 requires_installer_review。\n[18] 源码快照 working_tree_dirty=true、source_tree_sha256=37745f8f…，未提交改动是否落在 detail/pgc 的 Hook 解析逻辑上未确认；须按文件哈希逐文件追溯，不清理工作树。",
+        "[19] pgc_player_moss 与 pgc_view_moss 的 caller_samples 本轮未见，调用方家族归属未知；需重读协议证据并区分业务入口与 <init>/$default/序列化桩等桥接方法。\n[20] PgcAutoActivityPopupLocator 的匹配条件未读取，无法判断弹窗 Hook 命中 pgc_legacy 还是 pgc_theseus，也未确认模块是否同时注册两套安装器及缺一时的兜底行为。",
+        "[21] pgc_legacy 的 compose_methods=0 只能说明未见 Compose 方法计数，不足以断言“旧原生 View/Activity 实现”；需类样本或反编译佐证后再表述实现范式。\n[22] detail/pgc 相关路径在平板/宽屏布局与服务端开关下的分支未读取，运行条件未知；服务端 A/B 视觉变体在无结构变化时静态不可见，不得宣称样式已穷尽。",
+        "[23] resource_change_counts 中那 1 项 changed 资源的路径与类型未确认，尚不能判断是否落在 detail/pgc 相关资源。\n[24] 未映射多路径候选（HookEntry.kt、VersionAdapter.kt、VersionAdapterContract.kt、HostThreadGuard.kt 等）是否承担 detail/pgc 的版本门控与路径分发未核对，可能影响 module_coverage 判定。",
+        "[25] danmaku_kotlin 的 56 类清单与 DanmakuPurifyFeatureInstaller / DanmakuPurifyPolicy 的 hook 目标集合尚未做逐项比对，命中率与绑定签名未知（F010 依赖的前置补证）。\n[26] danmaku_legacy 双侧 absent 尚未用同一抽取规则做类名前缀定向检索排除，无法区分“真无家族”与“抽取口径缺失”。",
+        "[27] danmaku_java_moss 的 20 条实调用边宿主类未回溯，无法判断其是否落在 danmaku_kotlin 家族或存在未归类调用者。\n[28] player 侧 PlayerBufferLocator/PlayerSpeedLocator/SponsorPlayerLocator/PlayerPopupPromotionLocator 的匹配条件（类名、方法签名、版本门控与兜底分支）未读取，hook 目标与 9150300 实际类集合的命中情况属未知。",
+        "[29] player_kotlin_moss 的 3 条实调用边宿主类未回溯，无法确认是否落在模块 KotlinMossChannel/KotlinMossReplyBridge 的解析范围内。\n[30] 未映射多路径候选 HookEntry.kt、VersionAdapter.kt、VersionAdapterContract.kt、KotlinMossChannel.kt、KotlinMossReplyBridge.kt 是否承担 player/danmaku 的安装分发与兜底，本轮未读取，module_coverage 无法收口。",
+        "[31] 源码快照 source_dirty=true（source_tree_sha256=37745f8f…），上述 Hook 文件的实际注入版本是否与快照一致未按文件哈希追溯。\n[32] player/danmaku 在宽屏/平板与服务端开关下的并存路径与切换条件未读到运行条件，保持未知。",
+        "[33] resource_change_counts 中那 1 处 changed 资源路径与类型未核对，无法判断是否落在播放器/弹幕相关资源。\n[34] story/mine 两侧 protocols 均为空，StoryMoss、KMineMoss、MineMoss、AccountInterfaceV1Moss 等未登记协议尚未确认实际调用者家族归属，无法判断是真无消费还是漏登记（E009/E010）。",
+        "[35] story_kotlin 的 absent 属取样口径未观察，未用 family_evidence 补取可能被改名的 kntr/story、kotlin 通道等候选族名，改名并入 story_native 的可能性尚未排除。\n[36] 模块侧 MineComponentFilterFeatureInstaller.kt、MineComponentSnapshot.kt、MineVipFeatureInstaller.kt、MineComponentSnapshotQueryContract.kt 等仅出现在 source_files 清单，本回复核未读取其匹配的类名/字段名/方法签名，无法核对是否与 mine_native/mine_account_model 结构对齐；且快照 working_tree_dirty=true，需按文件哈希追溯。",
+        "[37] HookEntry.kt、VersionAdapter.kt、VersionAdapterContract.kt、KotlinMossChannel.kt、KotlinMossReplyBridge.kt 等未映射多路径候选文件是否承担 story/mine 的多路径分发与兜底，尚未读取确认。\n[38] resource_change_counts 中 changed=1 的资源条目类型与路径未细化，无法判断是否落在 story/mine 相关资源；服务端 A/B 无结构变化时静态不可见，本轮未穷尽样式。",
+        "[39] 真机验证缺失：runtime_enabled 全为 unknown，未在已安装模块上采集 story 与 mine 家族的类加载、Hook 回调与快照查询/宿主桥调用日志，模块 Hook 是否命中不得推断。"
+      ],
+      "status": "completed"
+    }
+  },
+  "review_status": "completed",
+  "review": {
+    "pages": [
+      {
+        "page": "comment",
+        "assessment": "复核以 fresh_refresh 重新读取评论页证据（E015）。E015 显示 comment_legacy_v2（581类/734边）、comment_native_legacy（156类/177边）、comment_native_next（45类/46边）、comment_native_exp3（60类/59边）、comment_compose（2417类/274 compose方法/918边）五条路径在目标与基线两侧的类数、compose_methods、外部调用边、fingerprint 逐字一致，evidence 均为 static_invoke_observed，runtime_enabled=unknown、module_coverage=requires_installer_review；协议 comment_java_moss（50定义/50边）、comment_kotlin_moss（130定义/26边）仅静态观测，定义数与边数单位不同，不得相除推导覆盖率。本轮另独立复读 comment_compose 双侧（E017 目标 / E018 基线）：total_classes 均 2417，5 个抽样类的类名、method_bodies_sha256、方法签名与 fields 逐字一致，未检出结构差异。但抽样仅每家族 2 类上限，读到的类是 kntr/common/comment 下 service/store/imageviewer 小类（多为 0-2 方法、无 Compose 签名），不能代表 2417 类整体，CommentComposeCopyBridge / CommentComposePurifyBridge / CommentComposeViewAccess 实际命中类名与调用点仍未确认。5 条 path_reviews 的 status 逐字沿用 static_invoke_observed。",
+        "evidence_ids": [
+          "E015",
+          "E017",
+          "E018",
+          "E011"
+        ]
+      },
+      {
+        "page": "dynamic",
+        "assessment": "复核以 fresh_refresh 重新读取动态页证据（E016）。E016 显示 dynamic_legacy（3227类/105 compose/2193边）、dynamic_compose（956类/112 compose/170边）、dynamic_opus（1341类/92 compose/190边）三条路径的同类计数与 fingerprint 与基线逐字一致，evidence 均为 static_invoke_observed，runtime_enabled=unknown、module_coverage=requires_installer_review；协议 dynamic_java_moss（134定义/134边）、dynamic_kotlin_moss（382定义/26边）亦仅静态观测，定义数与边数单位不同，禁止相除推导覆盖率。E012 抽样显示 dynamic_opus 目标侧同时出现纯数据类（api/k、api/C、api/H）与带 Compose 签名的方法（api/r.a(Modifier,Composer,int)V、api/i.d(Composer,int)V），但样本仅 5 类且被截断，不能外推到 1341 个类，也不能断言哪条栈在真机启用。OpusMoss/KOpusMoss 处于 unregistered_protocols，跨家族消费者与兜底未确认。本轮额外尝试对 dynamic_opus 双侧按名重读时只读额度耗尽，未取得独立复读，记为缺口。3 条 path_reviews 的 status 逐字沿用 static_invoke_observed。",
+        "evidence_ids": [
+          "E016",
+          "E012"
+        ]
+      },
+      {
+        "page": "home",
+        "assessment": "复核指派页 home。E003 预取两侧对 home_legacy(1004 类/128 compose 方法/236 外部调用边/指纹 aa99feb8…f4a9)与 home_new_frame(196 类/33 compose 方法/46 外部调用边/指纹 e3ea6856…a3d4)给出逐字相同的摘要，两 APK 尺寸同为 220423137、证书一致，changes 为空，仅 resource_change_counts.changed=1 未细化路径——这只能支持“本区间静态结构零变化”，不支持样式穷尽或适配通过。预取 limits 明确 class samples per family 仅两份，草稿引用的 khome.widget.bubble 族与 khome.vm.HomeFrameViewModel$dispatchAction$1 确实出自 E013 深挖样本($action:LLo1/b、this$0:HomeFrameViewModel、create/invoke/invokeSuspend)，但该样本在基线侧同指纹同方法体哈希，属既有实现。草稿把 khome.widget.bubble/khome.vm 描述为“类样本落在…”尚可，而“由 ViewModel 协程派发动作驱动”是对字段/方法签名的合理语义推断而非直读行为，报告中已按推断层级表述。home 登记的两条路径均保持逐字的 static_invoke_observed，未被改写为通过；module_coverage=requires_installer_review、runtime_enabled=unknown 与 complete_coverage=false 与静态矩阵一致。遗漏项：宽屏/平板分支与服务端开关无静态判据；未映射候选 HookEntry/VersionAdapter/HostBottomBar* 对 home 两家族的实际绑定未读，故不能推断 Hook 覆盖。",
+        "evidence_ids": [
+          "E003",
+          "E013",
+          "E000"
+        ]
+      },
+      {
+        "page": "search",
+        "assessment": "复核指派页 search。E004 两侧对 search_native(1674 类/2 compose 方法/2789 外部调用边)与 search_compose(3149 类/556 compose 方法/616 外部调用边)给出逐字相同的指纹与计数，search_java_moss(24 定义/22 边)与 search_kotlin_moss(52 定义/18 边)两侧亦同，runtime_enabled 全为 unknown，因此静态层面同样无法支撑新样式出现或适配通过。E014 深挖确认 search_kotlin_moss 的 18 条实际调用边全部来自 search_compose 家族，调用者 Lkntr/app/search/aggregate/repository/b;、Lkntr/app/search/comic/repository/b;、Lkntr/app/search/repository/o;，绑定 <init>(KCallOptions) 与 searchOGV 等 KSearchMoss 成员——这是调用边可见性，不等价于真机调用或模块 Hook 命中。E004 的 caller_samples 采样上限为四条，草稿断言“全部来自 compose”依据 E014 的 18/18 而非抽样推断，可接受；但 search_java_moss 的 22 条边调用者家族未被读取，草稿正确标注为未知。search 页两条路径 status 与静态矩阵逐字一致。遗漏项：SearchHomeRecommendLocator/SearchPurifyFeatureInstaller 与 KotlinMossChannel/KotlinMossReplyBridge 的实际挂载点未读，“compose 渲染切换时可能漏净化”仅为待验证假设。",
+        "evidence_ids": [
+          "E004",
+          "E014",
+          "E000"
+        ]
+      },
+      {
+        "page": "detail",
+        "assessment": "复核确认：E005 是本轮重新取证的 detail 页面证据（target 与 baseline 两侧），三个登记路径的汇总值逐字一致——detail_legacy 两侧均为 classes=0/compose=0/edges=0，指纹 4f53cda1…（空集哈希），evidence=absent；detail_theseus_ugc 两侧 1953/25/515，指纹 c36f2a42…；detail_theseus_united 两侧 4602/98/4163，指纹 83e1f0b1…；协议 detail_java_moss 32/35、detail_kotlin_moss 76/10 亦两侧一致。故草稿“结构零变化、无新样式证据”的断言成立，且其保留 absent 语义（不等于页面功能消失）、拒绝相除推导覆盖率、未凭指纹不变宣称适配通过，措辞合规。可改进之处：草稿在 detail_legacy 的 impact 中写“模块中针对 legacy 详情页的 Hook…将无目标可挂”，倾向性偏强；absent 只说明静态抽取视野内无该类样本，若 legacy 视图由服务端下发或抽取口径未覆盖前缀，则模块侧仍可能存在注解式绑定，应降级为“静态锚点缺失、需运行期确认”。另草稿对 detail_java_moss 35 条与 detail_kotlin_moss 10 条调用边的宿主路径归属未列为本页的显式缺口，而这直接决定协议级 Hook 落在 ugc 还是 united，应在剩余缺口中补上。模块侧 Detail*Installer/Policy 与 HostDetailSurfaces 的类名绑定本轮未读取，源码快照 working_tree_dirty=true，故 module_coverage 维持 requires_installer_review。静态审查完成，非适配验收。",
+        "evidence_ids": [
+          "E005",
+          "E000"
+        ]
+      },
+      {
+        "page": "pgc",
+        "assessment": "复核确认：E006 为本轮重新取证的 PGC 页面证据，两侧逐字一致——pgc_legacy 353 类/0 compose/401 边，指纹 58516e1d…；pgc_theseus 2249 类/131 compose/742 边，指纹 e02d9f27…；协议 pgc_player_moss 12 定义/3 调用边、pgc_view_moss 14 定义/7 调用边亦两侧相同。草稿保留 static_invoke_observed、把两路径表述为并存栈候选而非新样式、并明确“定义数与调用边数不同单位不可相除”，均与证据相符。需收紧的两点：(1) 草稿用 pgc_legacy 的 compose_methods=0 推断“仍为旧原生(View/Activity)实现”，这属于从计数到实现范式的推断，混淆重排或 Compose 调用被内联/改写都可能造成计数为 0，应表述为“未见 Compose 方法计数，家族构成待类样本确认”；(2) 草稿称 PgcAutoActivityPopupLocator 的定位目标与路径对应关系未展开——正确，但应把它落为明确缺口：该定位器是本页唯一被点名的模块侧组件，其匹配条件决定弹窗 Hook 命中 legacy 还是 theseus。合并两栈时模块是否同时注册两套安装器与兜底分支均未读到，module_coverage 维持 requires_installer_review，runtime_enabled 维持 unknown；服务端 A/B 视觉变体在无结构变化时静态不可见，不得宣称样式已穷尽。",
+        "evidence_ids": [
+          "E006",
+          "E000"
+        ]
+      },
+      {
+        "page": "player",
+        "assessment": "复核后维持：player 页两条登记路径 player_java / player_kotlin 的证据级别均为 static_invoke_observed，且 E007 目标侧与基线侧 summary 逐字一致（player_java 953 类 / 0 compose / 3225 外部调用边 / 指纹 4102698f…4403bc；player_kotlin 7 类 / 0 compose / 100 边 / 指纹 b275709b…d7edc），changes 为空数组。该证据只支持“本版本窗口内无结构性变化”，不支持任何适配通过结论。协议侧 player_java_moss 18 定义 / 2 实调用、player_kotlin_moss 34 定义 / 3 实调用，定义数与调用边数单位不同，不可相除推覆盖率；实调用边少也可能来自接口分发、反射或混淆后调用点未解析，不等于功能缺失。player_kotlin 仅 7 类属极小样本，不能代表整套 Kotlin 播放器实现，须声明抽样限制。模块侧源码快照含 PlayerBufferLocator/PlayerSpeedLocator/SponsorPlayerLocator/PlayerPopupPromotionLocator 与对应 FeatureInstaller/Policy，形态如定位器+安装器+策略，但本次复核未读取其匹配条件与方法签名绑定，故 hook 目标是否命中 9150300 的类集合仍属未知，module_coverage 维持 requires_installer_review。路径条目状态逐字沿用矩阵 evidence 值，未改写为通过。",
+        "evidence_ids": [
+          "E000",
+          "E007"
+        ]
+      },
+      {
+        "page": "danmaku",
+        "assessment": "复核后维持：danmaku_legacy 在目标与基线双侧均 absent（0 类 / 0 边，指纹 4f53cda1…2b945 为空集常量哈希），danmaku_kotlin 双侧 static_invoke_observed（56 类 / 1 compose 方法 / 9 外部调用边 / 指纹 f55e24e0…1cb）。因两侧一致，这属既有格局而非 9150300 引入的家族替换，不能解读为旧原生家族被删除导致功能消失；absent 也不等于弹幕页功能消失，且不排除抽取口径未覆盖该家族。协议侧 danmaku_java_moss 22 定义 / 20 实调用与 danmaku_kotlin_moss 46 定义 / 4 实调用不对称，提示调用密度差异，但协议标识不是登记路径，不能把 20 条调用边换算为 danmaku_kotlin 的覆盖证据；1 个 compose 方法亦不足以断言 Compose 化程度。模块侧 DanmakuPurifyFeatureInstaller / DanmakuPurifyPolicy 存在，但复核未读到其目标家族、兜底分支与运行条件（源码快照 source_dirty=true 且存在 HookEntry、VersionAdapter、KotlinMossChannel 等未映射候选），故挂载点仍为未知，维持 requires_installer_review。路径状态逐字沿用矩阵 evidence 值。",
+        "evidence_ids": [
+          "E000",
+          "E008"
+        ]
+      },
+      {
+        "page": "story",
+        "assessment": "复核确认：本单元仅覆盖 story 登记两路径。目标 9150300 与基线 9150200 在 story_native（2958 类/44 Compose 方法/1380 外部调用边/指纹 6b74bce4…83e99）与 story_kotlin（0/0/0/空指纹 4f53cda1…）上逐项一致，两侧 protocols 均为空字典，evidence 逐字为 static_invoke_observed 与 absent（E009）。预取边界为每族两个类样本、每协议四个调用者样本、运行时未知，因此该类样本不能代表整套 story 实现，摘要一致也不能排除服务端 A/B 视觉变体（无结构变化时静态不可见）。story_kotlin 的 absent 仅表示本取样口径下未观察到该族，混淆改名、DEX 重排或迁移入 story_native 均未排除，不等于页面 Kotlin 样式消失。froot 侧 F011/F012 的处置见 findings。",
+        "evidence_ids": [
+          "E009",
+          "E011",
+          "E012",
+          "E013"
+        ]
+      },
+      {
+        "page": "mine",
+        "assessment": "复核确认：mine_native（324 类/7 Compose 方法/95 外部调用边/指纹 cf69dfa7…8ae35d）与 mine_account_model（132/0/54/指纹 d5370d6e…a011996）在目标与基线两侧逐项一致，evidence 均为 static_invoke_observed，runtime_enabled=unknown、module_coverage=requires_installer_review（E010）。两侧 mine.protocols 为空，而上下文登记了 KMineMoss、MineMoss、AccountInterfaceV1Moss 等未登记协议，说明协议消费面尚未登记而非确认无消费。E011/E012/E013 的类样本 file_id 为 21/19/24，属 comment/dynamic/home 家族，未被证明由 mine 路径消费，不得登记为 mine 的已确认样式。模块侧仅由 source_files 列出 MineComponentFilterFeatureInstaller、MineComponentSnapshot、MineVipFeatureInstaller、MineComponentSnapshotStore/QueryClient/QueryContract/HostBridge、HostMineReadingCard 等文件，本回复核未读取其内容，且快照 working_tree_dirty=true，故不能推断这些 Hook 的解析字段与本版本 mine 类结构对齐，也不宣称生效。froot 侧 F011/F012 的处置见 findings。",
+        "evidence_ids": [
+          "E010",
+          "E011",
+          "E012",
+          "E013"
+        ]
+      }
+    ],
+    "findings": [
+      {
+        "finding_id": "F001",
+        "disposition": "revised",
+        "reason": "断言方向正确且证据支持：E015（评论）与 E016（动态）两侧八条路径的计数与 fingerprint 逐字一致，changes 为空，resource_change_counts 仅 changed=1，确实不能推出适配通过；本轮新增独立取证 E017/E018 在 comment_compose 抽样类级 method_bodies_sha256 与签名上亦逐字一致。原分析将 comment 与 dynamic 合并陈述且未说明抽样限制，属可精化而非错误；修订明确逐页归属与抽样约束，level 保持 static_evidence。",
+        "evidence_ids": [
+          "E015",
+          "E016",
+          "E017",
+          "E018"
+        ],
+        "revision": {
+          "title": "9150300 与 9150200 八条登记路径指纹逐字相同、changes 为空，不能推出“适配通过”",
+          "analysis": "E015 显示评论五条路径的类数、compose_methods、外部调用边与 fingerprint 与基线完全一致；E016 显示动态三条路径同样一致；changes 为空数组，resource_change_counts 仅 changed=1；本轮独立复读 comment_compose 两侧（E017 目标 / E018 基线）可见 5 个抽样类的类名、method_bodies_sha256 与方法签名逐字一致。这指向样本区间差异极小，而非新样式出现。两点限制必须保留：其一，抽样为每家族 2 类上限且结果被截断，不能代表整族实现；其二，指纹一致可能由混淆改名、DEX 重排、编译器变化互相抵消造成，也可能是同一构建产物。反向同样成立——指纹未变排除不掉服务端 A/B 下发的视觉/渲染变体，这类变体常无结构差异，静态不可见。因此“无变化”既不支持适配通过，也不支持已适配结论。",
+          "recommendation": "以 9150300 真机为基准，逐路径采集 Hook 安装与调用日志；对无变化路径仍按未知处理，不得默认沿用基线适配结论，也不得把指纹一致写成“已适配”。",
+          "alternatives": "若后续发现 fingerprint 相同但方法体哈希或调用点行号变化，则存在被指纹掩盖的实际改动，当前“无变化”推断需撤销；若真机确认某路径完全未安装 Hook，则“无变化”不影响该路径仍需修复；若服务端 A/B 造成视觉差异而无结构变化，静态侧无法排除，须标注为运行期验证项。",
+          "level": "static_evidence"
+        }
+      },
+      {
+        "finding_id": "F002",
+        "disposition": "retained",
+        "reason": "断言与证据一致且表述克制：四条协议（comment_java_moss 50/50、comment_kotlin_moss 130/26、dynamic_java_moss 134/134、dynamic_kotlin_moss 382/26）runtime_enabled 均为 unknown，module_coverage 均为 requires_installer_review；分析已正确指出定义数与调用边数单位不同、禁止相除推导覆盖率，未把定义多边少误读为协议已消费。E015、E016 及本轮 E017/E018 均不含安装器注册日志，故“需安装器评审”结论成立，保留原样。",
+        "evidence_ids": [
+          "E015",
+          "E016",
+          "E017"
+        ]
+      },
+      {
+        "finding_id": "F003",
+        "disposition": "revised",
+        "reason": "核心断言成立：E012 抽样确证 dynamic_opus 目标侧同时出现纯数据类（api/k、api/C、api/H）与带 Compose 签名的方法（api/r.a(Modifier,Composer,int)V、api/i.d(Composer,int)V），且 OpusMoss/KOpusMoss 处于 unregistered_protocols。但原分析将“两条渲染栈并存”说得偏实，而抽样仅 5 类且截断、方法体未读，实际只能确证静态层面同时存在两类形态；本轮对 dynamic_opus 双侧按名重读时额度耗尽，未取得独立复读，应显式记为缺口。修订把并存栈表述收窄为候选观察，level 保持 candidate。",
+        "evidence_ids": [
+          "E012",
+          "E016"
+        ],
+        "revision": {
+          "title": "Opus 家族静态同时存在 Compose 与普通类形态，是否并存渲染栈与覆盖归属均未确认",
+          "analysis": "E012 抽样显示 dynamic_opus 家族中既有纯数据类（api/k、api/C、api/H），也有带 Compose 签名的方法（api/r.a(Modifier,Composer,int)V、api/i.d(Composer,int)V），说明该家族静态层面同时包含两类形态，可能对应多种渲染栈；但结果被截断、样本仅 5 个类，不能代表 1341 个类，也无法证明两条栈在真机并存或哪条被启用——未读方法体不能推断 Compose 调用点真正执行。E016 确认三条动态路径整体与基线同构且 runtime_enabled=unknown。OpusMoss/KOpusMoss 处于 unregistered_protocols，若模块依赖这些协议结构做定位，可能缺少对应消费者，跨家族消费者与兜底路径未验证。",
+          "recommendation": "对 api/r、api/i 等类用 decompile_class 读取完整方法体，确认 compose 调用点与调用者；真机 Opus 详情页验证 DynamicPurifyFeatureInstaller 是否命中，并抓取 OpusMoss/KOpusMoss 的协议消费方。",
+          "alternatives": "若完整读取后发现这些 compose 方法属未启用的可选模块，则“并存栈”推断应降级为静态存在但运行不激活；若真机 Opus 页仅走 legacy 栈，则 Opus 覆盖问题转为冗余而非缺失；若确定无任何模块消费者依赖 OpusMoss/KOpusMoss，则协议未登记的缺口等级应下调。",
+          "level": "candidate"
+        }
+      },
+      {
+        "finding_id": "F004",
+        "disposition": "revised",
+        "reason": "证据核对：E014 摘要中 definitions=52、actual_invoke_edges=18，caller_samples 上限 4 条、可见者全为 search_compose，且带 total_callers=18 与逐条 caller_samples，草稿“18/18 来自 compose 三仓库类”有据，可保留。但草稿表述“全部来自”源自被截断结果的可见样本，宜改写为“在已返回的 18 条调用边记录中均为 compose 家族”，并在 alternatives 中明确若接口分发/动态代理未解析，native 侧仍可能有未解析消费者。另 level 应为 static_evidence(调用边静态可见，真机启用未知)，原文正确，仅补充限定语。",
+        "evidence_ids": [
+          "E014",
+          "E004"
+        ],
+        "revision": {
+          "title": "search_kotlin_moss 已观测调用边全部落在 search_compose 聚合仓库层，跨家族覆盖边界未闭合",
+          "analysis": "E014(protocol_evidence, search_kotlin_moss, target)返回 definitions=52、actual_invoke_edges=18、total_callers=18，caller_samples(上限 4 条)全部属于 search_compose 家族：Lkntr/app/search/aggregate/repository/b;、Lkntr/app/search/comic/repository/b;、Lkntr/app/search/repository/o;，绑定 <init>(Lkntr/base/moss/api/KCallOptions;…) 与 searchAll/searchOGV/searchComic/searchAddReserve/searchDelReserve/searchReserveCancel 等 KSearchMoss 成员。据此只能陈述“在已返回的调用边记录中未见 search_native 消费者”，52 个定义中其余 34 个签名的消费者归属仍未知。E004 中 search_java_moss(24 定义/22 边)的调用者家族未被展开，Java/Kotlin 双 Moss 的分工无法静态判定。调用边可见不等于真机调用，也不证明模块 Hook 对返回结构生效。",
+          "recommendation": "用 module_source 读取 KotlinMossChannel.kt 与 KotlinMossReplyBridge.kt，确认其挂载类/方法与上述三个 repository 类及 KSearchMoss 成员的对应关系；若挂载点只覆盖 searchAll 或只覆盖 native 侧，则在 compose 渲染切换时可能漏净化。另用 protocol_evidence 展开 search_java_moss 的调用者家族，确认是否存在 native 侧消费者。真机对同一关键词分别以 compose/native 渲染抓取返回结构，比较净化前后差异。",
+          "alternatives": "替代解释：(1) 该聚合仓库可能同时被 native 与 compose 复用，18 条边只是采样/可达性偏差；(2) Kotlin Moss 可能存在未被预取或被接口分发隐藏的第四个消费者类，静态调用图不解析接口调用与动态代理；(3) 若 module_source 显示模块通过统一 Moss 通道而非按类名挂载，跨家族覆盖担忧可消除；(4) 若真机抓取显示两种渲染返回结构一致，本推断被推翻。",
+          "level": "static_evidence"
+        }
+      },
+      {
+        "finding_id": "F005",
+        "disposition": "revised",
+        "reason": "E013 确实给出 home_new_frame 的 5 个类样本，含 HomeFrameViewModel$dispatchAction$1，字段 $action:LLo1/b、this$0:HomeFrameViewModel，方法 create/invoke/invokeSuspend，草稿对字段/方法签名的转述准确。但“由 ViewModel 协程派发 action 驱动界面”是把字段与方法签名的语义外推，属推断而非直读实现；且该样本在基线侧同指纹，不构成新增样式。更关键的是，草稿断言“定位器兜底未验证”成立，但未读 HomeFrameTabLocator/HomeFrameListHook 就推测“定位串写死在旧类名上”，应降为待验证假设并明确未读源码范围(预取仅 2 个类样本/家族，且未映射候选 HookEntry/VersionAdapter 未读)。level 保持 needs_runtime 恰当，修订措辞。",
+        "evidence_ids": [
+          "E013",
+          "E003"
+        ],
+        "revision": {
+          "title": "home_new_frame 的 HomeFrameViewModel 动作派发签名已观测，定位器覆盖与兜底仍未读取",
+          "analysis": "E013(family_evidence, home_new_frame, target)给出类样本：tv.danmaku.bili.khome.widget.bubble.d/e/f/t 与 tv.danmaku.bili.khome.vm.HomeFrameViewModel$dispatchAction$1；后者 superclass 为 Lkotlin/coroutines/jvm/internal/SuspendLambda，fields 为 [\"$action\",\"LLo1/b;\"]、[\"label\",\"I\"]、[\"this$0\",\"Ltv/danmaku/bili/khome/vm/HomeFrameViewModel;\"]，methods 为 <init>(HomeFrameViewModel;LLo1/b;Continuation)、create、invoke、invokeSuspend。由此可推断新框架通过 SuspendLambda 包装 action 对象派发，但这是对签名的语义推断，不是对 method body 的直读。E013 摘要 total_classes=196、fingerprint e3ea6856…a3d4，与 E003 基线侧同指纹，属既有实现延续，本区间无新增类或调用边。HomeFrameTabLocator.kt 与 HomeFrameListHook.kt 的匹配条件、命中日志与回落分支本轮均未读取，module_coverage=requires_installer_review、runtime_enabled=unknown 保持不变。",
+          "recommendation": "用 module_source 读取 HomeFrameTabLocator.kt 与 HomeFrameListHook.kt，核对匹配条件是否包含 tv/danmaku/bili/khome/vm/HomeFrameViewModel 或 khome/widget/bubble 族，以及 $action:LLo1/b 是否被用作定位条件；同时读取 HookEntry.kt/VersionAdapter.kt 确认两家族是否经同一安装器注册。真机上(存在本地或服务端框架开关时)触发框架切换，记录定位器命中与未命中时的回落行为。",
+          "alternatives": "替代解释：(1) $action:LLo1/b 可能是被多个模块共享的通用 action 基类，不足以判定定位器脆弱；(2) 该 ViewModel 可能存在于 APK 但真机不加载(类计数包含未使用代码)，则 Hook 覆盖问题不成立；(3) 定位器若基于方法签名或注解而非类名，类名变更不影响命中。若真机日志显示稳定命中，本推断被推翻。",
+          "level": "needs_runtime"
+        }
+      },
+      {
+        "finding_id": "F006",
+        "disposition": "revised",
+        "reason": "E003/E004 两侧、E000 种子均已核对：四个登记家族计数与指纹逐字相同，changes=[]，两 APK 尺寸同为 220423137、证书同哈希，resource_change_counts 仅 1 处 changed 但未给出路径与类型，草稿对证据的引用准确无误。但本条属泛化方法论提醒，与 F004/F005 的具体路径分析不同层级，且草稿未把“changed=1 路径未知”写进具体补证任务的前置条件。修订为更聚焦的版本：明确 1 处 changed 资源路径未知、预取两侧样本上限、以及不得据指纹不变反推服务端样式穷尽；level 保持 candidate。",
+        "evidence_ids": [
+          "E003",
+          "E004",
+          "E000"
+        ],
+        "revision": {
+          "title": "四路径静态零变化，但 changed=1 资源路径与混淆/DEX 重排干扰均未排除",
+          "analysis": "E003 与 E004 两侧显示 home_legacy(1004/128/236, aa99feb8…f4a9)、home_new_frame(196/33/46, e3ea6856…a3d4)、search_native(1674/2/2789, 481dae50…c740)、search_compose(3149/556/616, 6c663f2d…86e1)的指纹、类数、compose 方法数、外部调用边数在 9150200 与 9150300 上逐字相同；E000 显示两包尺寸同为 220423137 且证书 sha256 一致，changes 为空数组，resource_change_counts 记录 added=0/removed=0/changed=1。证据支持“本区间无结构性新家族”，但不支持“所有样式已穷尽”：changed=1 的具体资源路径与类型未在预取中给出；两个 APK 的 DEX 重排或包装层变动若未触及被抽样家族，也不会体现为家族指纹变化；服务端 A/B 视觉变体在无结构变化时静态不可见。故不能把指纹不变当作适配通过。",
+          "recommendation": "最小补证任务：(1) 解析该 changed=1 资源的完整路径与类型，判断是否落在首页/搜索相关资源(布局、图集、strings)；(2) 对两版本分别抽取资源表与资源引用差异，排除资源改名掩盖；(3) 真机在同一版本上切换服务端实验开关，观察首页与搜索页是否出现未登记样式，并按运行期证据补登记。",
+          "alternatives": "替代解释：(1) 若 changed 资源正是首页/搜索样式相关，则存在需补登记的静态未见家族；(2) 若两 APK 除版本元信息外完全同类(尺寸与证书均一致)，则零变化解释更可信；(3) 资源改名/复用或混淆改名可能掩盖真实差异，指纹不变也可能是采样家族之外的代码被改动所致。",
+          "level": "candidate"
+        }
+      },
+      {
+        "finding_id": "F007",
+        "disposition": "revised",
+        "reason": "证据支持核心断言：E005 中 detail_legacy（absent，空集指纹 4f53cda1…）、detail_theseus_ugc（c36f2a42…）、detail_theseus_united（83e1f0b1…）在 target 与 baseline 两侧逐字一致，changes 为空，resource_change_counts 仅 1 项 changed，故“无新样式引入”与“源码 dirty 导致覆盖结论不可下”成立，level=candidate 恰当。但原文两处需收紧：(1) 把指纹一致直接说成“指向同构构建或混淆重排未改变家族归类”过强，指纹不变只能说明本抽取口径下归类稳定，混淆改名/DEX 重排在两侧同样稳定时会给出相同指纹，不能反向证明无改名；(2) 缺少对协议调用边宿主路径的交代，而 detail_java_moss 35 边/detail_kotlin_moss 10 边究竟落在 ugc 还是 united 直接决定协议级 Hook 的挂载面。修订后保留原 finding_id 与证据。",
+        "evidence_ids": [
+          "E005",
+          "E000"
+        ],
+        "revision": {
+          "title": "detail 三条路径与基线结构逐字一致，无新样式证据，但模块源码为未提交状态、协议调用边归属未知",
+          "analysis": "E005（本轮重新取证，target/baseline 双侧）显示三个登记路径的汇总值完全一致：detail_legacy 两侧 absent（classes=0、compose_methods=0、external_invoke_edges=0，指纹 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945，空集哈希）；detail_theseus_ugc 两侧 1953/25/515，指纹 c36f2a42930dc4782361f39a8b58afc94a19649469b9b6797f8ad2138d4984cc；detail_theseus_united 两侧 4602/98/4163，指纹 83e1f0b1ede48a39a9bf5c8c7654481a5c08f067ddaacb373c21cf169b07f5fe。changes 为空，资源仅 1 项 changed。该区间内无任何结构变化可解释为“新样式/新路径”。需注意指纹不变只说明本抽取口径下家族归类稳定，混淆改名或 DEX 重排若在两侧同样稳定，仍会给出相同指纹，因此不能由指纹相同反推“未发生混淆改名”。协议侧 detail_java_moss（32 定义/35 调用边）与 detail_kotlin_moss（76 定义/10 调用边）runtime_enabled 均为 unknown，且这 35/10 条调用边的宿主类归属 ugc 还是 united 本轮未取，属实质缺口。模块侧仅登记了 source_files 候选（DetailModulePurify*、DetailUnitedModulePurify*、HostDetailSurfaces 等），本轮未读取其类名/方法签名绑定；且源码快照 working_tree_dirty=true、source_tree_sha256=37745f8f…，未提交改动可能正落在这些 Hook 解析逻辑上，故模块对三路径的定位器是否仍与 9150300 类样本吻合保持未知。静态调用存在不证明路径在真机启用，也不证明 Hook 生效。",
+          "recommendation": "1) 用 protocol_evidence 重读 detail_java_moss 与 detail_kotlin_moss 的完整调用方列表，逐个标注宿主类所属路径（ugc / united / 未归类），输出两协议各自的实际消费者清单。2) 按文件哈希（不清理工作树）逐个读取 Detail*Installer/Policy、DetailUnitedModulePurify*、HostDetailSurfaces，记录其匹配的类名、方法签名与兜底分支。3) 真机上分别进入普通 UGC 详情与合集/联合投稿详情、番剧详情，采集模块 Hook 命中日志，与上述绑定逐条比对；对 detail_legacy 记录实际加载的 Activity/Fragment 与类加载列表，区分“抽取口径未覆盖”与“实现确实不存在”。4) 保留 status=absent，不得因真机可见页面而改写。",
+          "alternatives": "替代解释一：detail_legacy 的 absent 是抽取口径（类名前缀/包名限定）未覆盖而非实现消失，需用已知 legacy 类名定向检索同一 APK 验证。替代解释二：三路径指纹一致源自模块所依赖的类样本恰好未被本次编译改动触及，而实际页面渲染已由服务端配置切换到其它未登记实现，静态不可见。替代解释三：若真机日志显示 ugc 与 united 两路径均有命中且行为与 9150200 一致，“覆盖未知”可下调；若命中类名与源码快照绑定不符，则说明快照不能代表实际注入版本，须以运行期为准。",
+          "level": "candidate"
+        }
+      },
+      {
+        "finding_id": "F008",
+        "disposition": "revised",
+        "reason": "E006 支持核心事实：pgc_player_moss 12 定义/3 调用边、pgc_view_moss 14 定义/7 调用边，runtime_enabled=unknown，两条 PGC 路径均 static_invoke_observed，故“调用边少于定义数、消费者路径归属未确认”成立，needs_runtime 恰当，且草稿正确声明两口径不可相除。但原文分析将低调用边主要归因于“新增定义尚未被调用/调用方在未读取类中”，遗漏了第三类同样重要的替代解释：定义侧包含 <init>、$default、序列化桩等桥接方法（参见同形态的 search_kotlin_moss 签名列表 E014），定义数本身包含大量非业务入口，调用边低可能只是口径构成差异而非消费缺失；同时原文未点出 PgcAutoActivityPopupLocator 是本页唯一被点名的模块侧定位组件，应作为独立待验证对象。另 E006 的 caller_samples 本轮未见，调用方家族无法从该证据得出，须在补证任务中明说。修订后保留原 finding_id。",
+        "evidence_ids": [
+          "E006",
+          "E014"
+        ],
+        "revision": {
+          "title": "PGC 两协议调用边少于定义数，消费者路径归属与模块定位器目标均未确认",
+          "analysis": "E006（本轮重新取证，target/baseline 双侧一致）显示 pgc_legacy 353 类/0 compose 方法/401 外部调用边（指纹 58516e1d…）、pgc_theseus 2249 类/131 compose 方法/742 边（指纹 e02d9f27…），二者均 static_invoke_observed、runtime_enabled=unknown、module_coverage=requires_installer_review。协议 pgc_player_moss 为 12 定义/3 调用边，pgc_view_moss 为 14 定义/7 调用边；定义数与调用边数单位不同，禁止相除推导覆盖率。调用边偏低的解释至少有三种，本轮不可择一：(a) 部分定义尚未被任何页面类调用；(b) 调用方位于本抽取范围外的类；(c) 定义侧本身就包含 <init>、$default、序列化桩等桥接方法——同形态的 search_kotlin_moss 签名列表（E014）即含 <clinit>/<init>/searchAddReserve$default 等多个非业务入口，说明定义数天然高于可观测调用边。本轮 E006 的 caller_samples 未取到，故调用方家族归属完全未知，无法判断消费者落在 pgc_legacy 还是 pgc_theseus。模块侧本页仅登记了 PgcAutoActivityPopupLocator.kt 与 PgcAutoActivityPopup*Installer/Policy，其匹配条件（针对旧原生 Activity 还是 theseus 页面）本轮未读取，而这直接决定弹窗 Hook 的命中面。pgc_legacy 的 compose_methods=0 只表示未见 Compose 方法计数，不足以断言实现范式的种类。",
+          "recommendation": "1) 用 protocol_evidence 重读 pgc_player_moss 与 pgc_view_moss 的完整调用方列表（含 caller_samples），逐个标注所属家族与路径，并区分业务入口与桥接/序列化桩。2) 用 module_source 读取 PgcAutoActivityPopupLocator.kt 与 PgcAutoActivityPopupPolicy.kt，记录其类名/方法签名匹配条件与兜底分支，判断命中 legacy 还是 theseus。3) 真机上在番剧/影视详情与播放页抓取弹窗相关 Activity 与定位器日志，并做单路径置空对照（对其中一条路径强制关闭，观察是否仍命中）。4) 未读到运行条件前保持 runtime_enabled=unknown，不因页面可用而改写 status。",
+          "alternatives": "替代解释一：调用边偏低纯粹由定义侧桥接方法构成造成，业务入口实际已被充分调用，则缺口可归为口径问题而非消费缺失。替代解释二：调用方集中在未登记家族（unregistered_protocols 中已列 KPlayerMoss/PlayerMoss 等），说明协议被跨家族消费，模块覆盖评估需扩展范围。替代解释三：两栈并非并存，而是 pgc_legacy 仅为历史类残留、真机恒走 theseus，则 legacy 侧净化逻辑为空转，需真机路径日志证实或证伪。",
+          "level": "needs_runtime"
+        }
+      },
+      {
+        "finding_id": "F009",
+        "disposition": "retained",
+        "reason": "E007 目标与基线两侧 summary 逐字一致，changes=[]，证据确实支持“player 两条路径在本版本窗口内无可观测家族级变化”这一静态断言；analysis 已正确声明结构无变化不代表运行期适配，且指出服务端视觉 A/B 静态不可见，未出现“适配通过”措辞。recommendation 中的真机定位器日志、Kotlin Moss 调用边宿主回溯、类数偏离排查均可复核执行。保留，仅补一条精确引用证据编号（E007 即 player 页预取目标/基线双侧证据）。",
+        "evidence_ids": [
+          "E000",
+          "E007"
+        ]
+      },
+      {
+        "finding_id": "F010",
+        "disposition": "revised",
+        "reason": "核心事实（danmaku_legacy 双侧 absent、danmaku_kotlin 双侧 static_invoke_observed 且指纹一致、两侧格局一致非本版本变化、定义数与调用边数单位不同不可相除、净化 Hook 目标家族未读到）均被 E008 支持。但原 analysis 引用 E011 是 comment_compose 家族证据（2417 类 / 274 compose / 918 边），与 danmaku 页无直接关系，属跨页错引；且原文对 Java/Kotlin Moss 调用密度差的因果表述（“暗示 Java 侧 Moss 才是实际被消费的通道”）超出静态证据可支撑范围。修订为仅用 E000/E008 支撑，将调用密度差异降级为待验证线索，并明确 delta 处 1 个 compose 方法不足以断言 Compose 化程度。",
+        "evidence_ids": [
+          "E000",
+          "E008"
+        ],
+        "revision": {
+          "title": "danmaku_legacy 双侧 absent、Kotlin 家族承压，模块净化 Hook 挂载点仍需按家族核对",
+          "analysis": "danmaku_legacy 在目标与基线均为 absent（0 类 / 0 边，指纹 4f53cda1…2b945 为空集常量哈希），danmaku_kotlin 为 static_invoke_observed（56 类 / 1 compose 方法 / 9 外部调用边 / 指纹 f55e24e0…1cb），两侧指纹与计数一致，说明这是本版本窗口之前已确立的格局，而非 9150300 新增变化；absent 也不等于弹幕页功能消失，且不排除抽取口径未覆盖该家族。协议侧 danmaku_java_moss 为 22 定义 / 20 实调用，danmaku_kotlin_moss 为 46 定义 / 4 实调用，调用密度存在差异，可为后续定位 Java 侧 Moss 消费者的线索；但定义数与调用边数单位不同，禁止相除推导覆盖率，协议标识也不是登记路径，不能把 20 条调用边直接记作 danmaku_kotlin 的覆盖证据，实调用边偏少同样可能来自接口分发、反射或混淆后调用点未解析。danmaku_kotlin 仅 1 个 compose 方法，不足以断言该路径的 Compose 化程度。模块源码快照含 DanmakuPurifyFeatureInstaller 与 DanmakuPurifyPolicy，但其目标家族、兜底分支与激活条件在本次复核中未读到（source_dirty=true，且存在 HookEntry、VersionAdapter、KotlinMossChannel 等未映射候选文件），故挂载点仍属未知，module_coverage 维持 requires_installer_review。",
+          "recommendation": "（1）将 danmaku_kotlin 的 56 类清单与 DanmakuPurifyFeatureInstaller 的 hook 目标集合逐项比对，输出命中/缺失清单与绑定签名；（2）回溯 danmaku_java_moss 的 20 条实调用边宿主类，判定其归属家族（Kotlin 家族或未登记调用者）；（3）用同一静态抽取规则对 danmaku_legacy 已知类名前缀在目标 APK 做定向检索，区分真 absent 与抽取口径缺失；（4）真机弹幕页对净化开关做 A/B，记录 DanmakuPurifyPolicy 分支命中与未命中时的兜底日志；（5）核对未映射候选 KotlinMossChannel/KotlinMossReplyBridge/HookEntry 是否参与弹幕路径分发，避免漏算覆盖。",
+          "alternatives": "若真机日志显示净化策略分支正常命中且样式生效，则“挂载点存疑”推断被推翻；若定向检索能在目标 APK 中找到 legacy 家族类，则 absent 属抽取口径缺失而非家族消失；若安装器日志显示定位器遍历到的类名与静态家族不一致，则可能是混淆改名导致家族归并错误；若 danmaku_kotlin_moss 的 4 条实调用边宿主不在 56 类集合内，则 Kotlin Moss 消费者可能位于未登记家族。",
+          "level": "needs_runtime"
+        }
+      },
+      {
+        "finding_id": "F011",
+        "disposition": "revised",
+        "reason": "核心断言成立且证据充分：E009 显示 story_native/story_kotlin 两侧摘要与指纹逐字相同、story_kotlin 为 absent；E010 显示 mine_native/mine_account_model 两侧摘要与指纹逐字相同，均支持“目标与基线在本单元登记家族层面无结构性差异，指纹不变不能推导适配通过”的结论。但草稿 analysis/recommendation 中夹带了超出 story/mine 证据的表述：草稿在 analysis 中未引用但 next_steps 里混入了 comment/dynamic/home/search 的计数，本单元不应把其它单元家族计数当作 story/mine 的证据；此外 E013 是 home_new_frame 家族证据，与 story/mine 两页无消费关系，作为 F011 的支撑证据不成立，应从 evidence_ids 中删除。修订补丁限定页面范围、删除无关证据引用，其余断言保留，等级维持 static_evidence。",
+        "evidence_ids": [
+          "E009",
+          "E010"
+        ],
+        "revision": {
+          "title": "story/mine 两侧登记家族摘要与指纹逐位相同，本版本差异在静态家族层不可见",
+          "analysis": "目标 9150300 与基线 9150200 在 story/mine 四条登记路径上计数与指纹完全相同：story_native 2958/44/1380（E009）、story_kotlin 0/0/0 空指纹（E009）、mine_native 324/7/95（E010）、mine_account_model 132/0/54（E010），四族 fingerprint 逐字一致。样本级 resource_change_counts 仅 changed=1、added=removed=0，未见类增删，但该条目细分归属未确认落在 story/mine 相关资源上。这只说明本取样口径下登记家族未见结构变化，既不能确认适配通过，也不能排除服务端 A/B 下发样式与混淆参数调整未落到结构层；注意调用边数与方法定义数不是同一单位，本轮未做任何覆盖率推导。",
+          "recommendation": "把本单元结论限定为“story/mine 登记家族静态层面未观测到变化”，不进入适配通过判定；后续版本对比优先按资源条目与模块解析点变化触发，而非仅靠家族指纹是否变化触发。",
+          "alternatives": "若后续拿到该版本变更说明、渠道包差异或可用的运行期 A/B 分流配置，可推翻“本区间无结构变化”的推断；若深挖发现模块依赖的类被改名但被计入同一指纹集合，也可推翻静态无变化的读法。",
+          "level": "static_evidence"
+        }
+      },
+      {
+        "finding_id": "F012",
+        "disposition": "revised",
+        "reason": "断言方向正确：story_kotlin 的 absent（E009）不能推导功能消失，story/mine 两侧 protocols 为空而上下文登记 StoryMoss/KMineMoss/MineMoss/AccountInterfaceV1Moss 等未登记协议，E010 亦确认 mine 侧无协议登记，支持“协议消费面未登记/未确认”而非“无消费”的结论。但草稿有两处越界：一是把 comment_compose（E011）、dynamic_opus（E012）、home_new_frame（E013）当作 story/mine 的候选样式证据，这三族 file_id 为 21/19/24，未被证明由 story/mine 路径消费，逻辑上不构成本页待选 MOSS 面；二是草稿列出 KotlinMossChannel.kt/KotlinMossReplyBridge.kt 等未映射文件并暗示其可能服务 story/mine，这些仅来自 source_files 清单，本回复核未读取内容，属未验证推断。修订补丁删除其它页家族引用与未读源码推断，保留“未登记协议即缺口、需先补登记再决定覆盖范围”的主张，等级由 needs_runtime 改为 candidate，因当前仅有“协议区为空”这一静态缺口，尚未定位 story/mine 自身协议消费点。",
+        "evidence_ids": [
+          "E009",
+          "E010"
+        ],
+        "revision": {
+          "title": "story_kotlin 为 absent 且 story/mine 协议区为空，MOSS 消费面未登记",
+          "analysis": "story_kotlin 预取 evidence 逐字为 absent（0 类/0 Compose 方法/0 调用边/空指纹），仅说明该族在当前取样口径下未被观察到（E009），不能推导该族样式或功能消失，改名并入 story_native 或 DEX 重排仍未排除。同时目标与基线两侧 story.protocols 与 mine.protocols 均为空字典（E009/E010），而上下文列出 StoryMoss、KMineMoss、MineMoss、AccountInterfaceV1Moss、KOpusMoss 等未登记协议，说明这两页的协议消费面尚未登记，而非确认无 MOSS 消费。其它页家族的类样本不能作为本页协议面的证据，其 file_id 归属不同，未被证明由 story/mine 消费。",
+          "recommendation": "先补登记 story/mine 侧 MOSS 协议清单并确认实际调用边归属路径，再决定是否把 Kotlin MOSS 通道纳入覆盖范围；在确认调用边归属前不新增针对 absent 族的 Hook 目标。",
+          "alternatives": "若 protocol_evidence 能证明 StoryMoss 或 KMineMoss 的调用边来自 story/mine 家族自身类，则当前“未登记缺口”可升级为已确认消费面；反之若确认调用边均来自其它家族，则本页协议面确为空而非漏登记。",
+          "level": "candidate"
+        }
+      }
+    ],
+    "remaining_gaps": [
+      "[1] 动态侧独立复读未完成：对 dynamic_opus 双侧按名重读时只读额度耗尽（Read-only tool budget exhausted），dynamic_compose / dynamic_legacy 亦未逐家族复读；动态三路径结论主要依据 E016（fresh_refresh）与 E012，建议下轮以 family_evidence 对 dynamic_opus 双侧重读。\n[2] comment_compose 抽样仅覆盖每家族 2 类上限中的 5 个小类（kntr/common/comment service/store/imageviewer），无 Compose 签名样本；CommentComposeCopyBridge / CommentComposePurifyBridge / CommentComposeViewAccess 的真实解析点仍未验证，需对桥接类做 decompile_class 定向复核。",
+      "[3] 五条评论路径与三条动态路径的安装器注册与 fallback 均未读到，module_coverage 仍为 requires_installer_review；HookEntry / VersionAdapter / VersionAdapterContract 等未映射候选是否承担多路径分发未确认。\n[4] comment_native_exp3、comment_native_next、dynamic_compose、dynamic_opus 的服务端开关/实验分桶条件未读取，无法判断这些家族当前是否启用；无结构变化时服务端 A/B 视觉变体静态不可见，不能宣称样式已穷尽。",
+      "[5] 动态页 OpusMoss / KOpusMoss 及评论侧共同协议是否被跨家族消费者使用未确认，缺少调用边到家族的标注与兜底路径说明。\n[6] 未评估宽屏/平板布局对评论与动态页路径选择的影响（未读到运行条件，记为未知）。",
+      "[7] source_dirty=true 的工作树改动未按文件哈希追溯，无法判断被修改文件是否涉及评论/动态 Hook 解析逻辑；追溯时应只读比对，不清工作树。\n[8] home 与 search 的宽屏/平板分支、服务端开关与 A/B 分桶均无静态判据，runtime_enabled=unknown，需真机验证后补证。",
+      "[9] search_java_moss 的 22 条实际调用边调用者家族未展开，是否存在 search_native 侧消费者仍未知。\n[10] 多路径页面服务端开关导致的视觉差异在无结构变化时静态不可见，不可宣称样式已穷尽。",
+      "[11] HomeFrameTabLocator.kt/HomeFrameListHook.kt 与 SearchHomeRecommendLocator.kt/SearchPurifyFeatureInstaller.kt 的实际匹配条件未读取，模块绑定深度仍属 requires_installer_review。\n[12] resource_change_counts 中 changed=1 的具体资源路径与类型未获取，无法判断是否与首页/搜索相关。",
+      "[13] 未映射候选 HookEntry.kt、VersionAdapter.kt、VersionAdapterContract.kt、KotlinMossChannel.kt、KotlinMossReplyBridge.kt 对 home/search 家族的注册与兜底顺序未读。\n[14] source_snapshot 为 working_tree_dirty=true 的冻结工作树快照，未按文件哈希追溯改动是否触及 home/search Hook 逻辑。",
+      "[15] detail_java_moss（32 定义/35 调用边）与 detail_kotlin_moss（76 定义/10 调用边）的调用方宿主类未取到，无法判断协议消费者属于 detail_theseus_ugc、detail_theseus_united 还是未归类家族；需用 protocol_evidence 重读并逐条标注路径。\n[16] detail_legacy 的 absent 未区分“抽取口径未覆盖类名前缀”与“实现确实不存在”；需用已知 legacy 类名在 9150300 的 base.apk 做定向检索，并在真机记录进入 UGC/联合投稿详情时加载的 Activity/Fragment。",
+      "[17] 模块侧 Detail*Installer/Policy、DetailUnitedModulePurify*、HostDetailSurfaces、PgcAutoActivityPopupLocator 的类名/方法签名绑定未读取，三路径的 module_coverage 仍为 requires_installer_review。\n[18] 源码快照 working_tree_dirty=true、source_tree_sha256=37745f8f…，未提交改动是否落在 detail/pgc 的 Hook 解析逻辑上未确认；须按文件哈希逐文件追溯，不清理工作树。",
+      "[19] pgc_player_moss 与 pgc_view_moss 的 caller_samples 本轮未见，调用方家族归属未知；需重读协议证据并区分业务入口与 <init>/$default/序列化桩等桥接方法。\n[20] PgcAutoActivityPopupLocator 的匹配条件未读取，无法判断弹窗 Hook 命中 pgc_legacy 还是 pgc_theseus，也未确认模块是否同时注册两套安装器及缺一时的兜底行为。",
+      "[21] pgc_legacy 的 compose_methods=0 只能说明未见 Compose 方法计数，不足以断言“旧原生 View/Activity 实现”；需类样本或反编译佐证后再表述实现范式。\n[22] detail/pgc 相关路径在平板/宽屏布局与服务端开关下的分支未读取，运行条件未知；服务端 A/B 视觉变体在无结构变化时静态不可见，不得宣称样式已穷尽。",
+      "[23] resource_change_counts 中那 1 项 changed 资源的路径与类型未确认，尚不能判断是否落在 detail/pgc 相关资源。\n[24] 未映射多路径候选（HookEntry.kt、VersionAdapter.kt、VersionAdapterContract.kt、HostThreadGuard.kt 等）是否承担 detail/pgc 的版本门控与路径分发未核对，可能影响 module_coverage 判定。",
+      "[25] danmaku_kotlin 的 56 类清单与 DanmakuPurifyFeatureInstaller / DanmakuPurifyPolicy 的 hook 目标集合尚未做逐项比对，命中率与绑定签名未知（F010 依赖的前置补证）。\n[26] danmaku_legacy 双侧 absent 尚未用同一抽取规则做类名前缀定向检索排除，无法区分“真无家族”与“抽取口径缺失”。",
+      "[27] danmaku_java_moss 的 20 条实调用边宿主类未回溯，无法判断其是否落在 danmaku_kotlin 家族或存在未归类调用者。\n[28] player 侧 PlayerBufferLocator/PlayerSpeedLocator/SponsorPlayerLocator/PlayerPopupPromotionLocator 的匹配条件（类名、方法签名、版本门控与兜底分支）未读取，hook 目标与 9150300 实际类集合的命中情况属未知。",
+      "[29] player_kotlin_moss 的 3 条实调用边宿主类未回溯，无法确认是否落在模块 KotlinMossChannel/KotlinMossReplyBridge 的解析范围内。\n[30] 未映射多路径候选 HookEntry.kt、VersionAdapter.kt、VersionAdapterContract.kt、KotlinMossChannel.kt、KotlinMossReplyBridge.kt 是否承担 player/danmaku 的安装分发与兜底，本轮未读取，module_coverage 无法收口。",
+      "[31] 源码快照 source_dirty=true（source_tree_sha256=37745f8f…），上述 Hook 文件的实际注入版本是否与快照一致未按文件哈希追溯。\n[32] player/danmaku 在宽屏/平板与服务端开关下的并存路径与切换条件未读到运行条件，保持未知。",
+      "[33] resource_change_counts 中那 1 处 changed 资源路径与类型未核对，无法判断是否落在播放器/弹幕相关资源。\n[34] story/mine 两侧 protocols 均为空，StoryMoss、KMineMoss、MineMoss、AccountInterfaceV1Moss 等未登记协议尚未确认实际调用者家族归属，无法判断是真无消费还是漏登记（E009/E010）。",
+      "[35] story_kotlin 的 absent 属取样口径未观察，未用 family_evidence 补取可能被改名的 kntr/story、kotlin 通道等候选族名，改名并入 story_native 的可能性尚未排除。\n[36] 模块侧 MineComponentFilterFeatureInstaller.kt、MineComponentSnapshot.kt、MineVipFeatureInstaller.kt、MineComponentSnapshotQueryContract.kt 等仅出现在 source_files 清单，本回复核未读取其匹配的类名/字段名/方法签名，无法核对是否与 mine_native/mine_account_model 结构对齐；且快照 working_tree_dirty=true，需按文件哈希追溯。",
+      "[37] HookEntry.kt、VersionAdapter.kt、VersionAdapterContract.kt、KotlinMossChannel.kt、KotlinMossReplyBridge.kt 等未映射多路径候选文件是否承担 story/mine 的多路径分发与兜底，尚未读取确认。\n[38] resource_change_counts 中 changed=1 的资源条目类型与路径未细化，无法判断是否落在 story/mine 相关资源；服务端 A/B 无结构变化时静态不可见，本轮未穷尽样式。",
+      "[39] 真机验证缺失：runtime_enabled 全为 unknown，未在已安装模块上采集 story 与 mine 家族的类加载、Hook 回调与快照查询/宿主桥调用日志，模块 Hook 是否命中不得推断。"
+    ],
+    "status": "completed"
+  },
+  "read_tool_calls": 6,
+  "model_requests": 19,
+  "cached_responses_reused": 0,
+  "new_model_requests": 16,
+  "imported_units": 0,
+  "imported_review_units": 0,
+  "reused_units": 0,
+  "merged_items": {
+    "next_steps_unique": 55,
+    "next_steps_merged": 11,
+    "remaining_gaps_unique": 39,
+    "remaining_gaps_merged": 20
+  },
+  "usage_unknown": true,
+  "checkpoint": {
+    "binding_sha256": "1062f297fed80810a28b19a75ab4c3a2206bf9a8320ac1cfcc968cc2fb5d39fb",
+    "completed_units": 10,
+    "resume_blocked": false
+  },
+  "codex_review": {
+    "schema": 1,
+    "revision": "review1",
+    "author": "Codex independent frozen-source review",
+    "source_run": 38754554941,
+    "original_artifact_sha256": "sha256:39ef5cb00ccb5ca43b37ae0fabc8507f78e9bde4589ada2399a843b3620d66e1",
+    "original_files_sha256": {
+      "ai-analysis.json": "cc93249caa430294c11d2de75030fdb4bc1703b2230f17021b24c4922c7f330a",
+      "ai-draft.json": "59e1e78fbeb860569e01d63821f2b019d0aa10ff864d774a80452191b01b6019",
+      "ai-review.json": "55211d56bf083350839782dccc550900707a2641accc9460b0276fbc1466b6dd",
+      "ai-evidence.json": "ee3f196f1bbe46319c562b6c52edee934944ec6bdd689dfd8572c607be598507",
+      "priority-summary.json": "f7e5cf05e677a26c181ce2f3e08f4885a87815901887b9a6788b71f56df9493d",
+      "priority-target.json": "9f30a87f7b1c6954a89627f17d4a1bc162be89946f6ba700e329dbf48cf7b29f",
+      "priority-baseline.json": "f0d9680c9a8de749465c2590e2d8444e850c6e64ec648ac526e2007d3f824a02"
+    },
+    "original_draft_and_review_files_unchanged": true,
+    "model_attempts_and_accounting_unchanged": true,
+    "new_model_requests_by_this_correction": 0,
+    "original_ai_dispositions_preserved": {
+      "revised": 10,
+      "retained": 2
+    },
+    "correction_manifest": "primary-wire-finding-corrections.json",
+    "modified_finding_text_fields": [
+      {
+        "finding_id": "F001",
+        "field": "analysis"
+      },
+      {
+        "finding_id": "F001",
+        "field": "alternatives"
+      },
+      {
+        "finding_id": "F004",
+        "field": "analysis"
+      },
+      {
+        "finding_id": "F004",
+        "field": "alternatives"
+      },
+      {
+        "finding_id": "F006",
+        "field": "title"
+      },
+      {
+        "finding_id": "F006",
+        "field": "analysis"
+      },
+      {
+        "finding_id": "F006",
+        "field": "recommendation"
+      },
+      {
+        "finding_id": "F006",
+        "field": "alternatives"
+      },
+      {
+        "finding_id": "F007",
+        "field": "title"
+      },
+      {
+        "finding_id": "F007",
+        "field": "analysis"
+      },
+      {
+        "finding_id": "F007",
+        "field": "recommendation"
+      },
+      {
+        "finding_id": "F007",
+        "field": "alternatives"
+      },
+      {
+        "finding_id": "F008",
+        "field": "analysis"
+      },
+      {
+        "finding_id": "F008",
+        "field": "alternatives"
+      },
+      {
+        "finding_id": "F010",
+        "field": "title"
+      },
+      {
+        "finding_id": "F010",
+        "field": "analysis"
+      },
+      {
+        "finding_id": "F011",
+        "field": "analysis"
+      },
+      {
+        "finding_id": "F011",
+        "field": "alternatives"
+      },
+      {
+        "finding_id": "F012",
+        "field": "title"
+      },
+      {
+        "finding_id": "F012",
+        "field": "analysis"
+      }
+    ],
+    "page_narratives": "Codex replaced page assessments/path explanations with explicitly bounded frozen observations; original AI text remains in unchanged source artifact.",
+    "review_record_scope": "Original model review retained verbatim, including its historical remaining_gaps; use Codex remaining_boundaries for corrected current limits.",
+    "remaining_boundaries": [
+      "No model module_source body reads; 689 is verified source inventory, not installer coverage.",
+      "resources.arsc internal entries and page attribution unparsed.",
+      "Unregistered UI/server/runtime branches not exhaustively enumerated.",
+      "Installed module identity, runtime Hook activation and visible effects unverified."
+    ],
+    "not_device_or_new_model_acceptance": true
+  }
+}

@@ -1,0 +1,444 @@
+{
+  "schema": 1,
+  "status": "independently_reviewed_corrections_proposed",
+  "parent_run": 38754554941,
+  "original_artifact_sha256": "sha256:39ef5cb00ccb5ca43b37ae0fabc8507f78e9bde4589ada2399a843b3620d66e1",
+  "scope": "local frozen JSON and canonical contract review; no model/network/APK analysis",
+  "not_runtime_acceptance": true,
+  "original_files_sha256": {
+    "ai-analysis.json": "cc93249caa430294c11d2de75030fdb4bc1703b2230f17021b24c4922c7f330a",
+    "ai-draft.json": "59e1e78fbeb860569e01d63821f2b019d0aa10ff864d774a80452191b01b6019",
+    "ai-review.json": "55211d56bf083350839782dccc550900707a2641accc9460b0276fbc1466b6dd",
+    "ai-evidence.json": "ee3f196f1bbe46319c562b6c52edee934944ec6bdd689dfd8572c607be598507",
+    "priority-summary.json": "f7e5cf05e677a26c181ce2f3e08f4885a87815901887b9a6788b71f56df9493d",
+    "priority-target.json": "9f30a87f7b1c6954a89627f17d4a1bc162be89946f6ba700e329dbf48cf7b29f",
+    "priority-baseline.json": "f0d9680c9a8de749465c2590e2d8444e850c6e64ec648ac526e2007d3f824a02"
+  },
+  "original_files_unchanged": true,
+  "registered_pages": 10,
+  "registered_paths": 25,
+  "findings_count": 12,
+  "review_dispositions": {
+    "revised": 10,
+    "retained": 2
+  },
+  "tool_reads": {
+    "page_evidence": 12,
+    "family_evidence": 5,
+    "protocol_evidence": 1
+  },
+  "module_source_model_reads": 0,
+  "source_catalog_records": 689,
+  "source_catalog_is_not_model_source_read_coverage": true,
+  "frozen_class_records_equal": true,
+  "frozen_invoke_edges_equal": true,
+  "known_resource_changes": {
+    "added": [],
+    "removed": [],
+    "changed": [
+      "resources.arsc"
+    ],
+    "scope": "global_resources_not_yet_attributed_to_pages"
+  },
+  "F004_independent_counts": {
+    "definition_count": 52,
+    "invoke_edges": 18,
+    "tool_returned_edges": 12,
+    "tool_sample_limit": 12,
+    "full_frozen_caller_classes": 3,
+    "full_frozen_callee_signatures": 9,
+    "full_frozen_caller_families": [
+      "search_compose"
+    ],
+    "never_subtract_definitions_minus_edges": true
+  },
+  "findings": [
+    {
+      "finding_id": "F001",
+      "page": "comment",
+      "disposition": "revised",
+      "title": "9150300 与 9150200 八条登记路径指纹逐字相同、changes 为空，不能推出“适配通过”",
+      "assembled_evidence_ids": [
+        "E001",
+        "E002"
+      ],
+      "validated_review_evidence_ids": [
+        "E015",
+        "E016",
+        "E017",
+        "E018"
+      ],
+      "corrected_assembly_evidence_ids": [
+        "E015",
+        "E016",
+        "E017",
+        "E018"
+      ],
+      "citation_update_needed": true,
+      "text_review": [
+        {
+          "issue": "page prefetch 与 family evidence 样本上限混淆",
+          "verified": "page_evidence每族2类；E017/E018的family_evidence各返回5类、sample_limit=5。",
+          "proposed_text": "E015/E016为每家族2类的页面预取；E017/E018分别提供comment_compose两侧各5类抽样，不能代表整族2417类。"
+        },
+        {
+          "issue": "指纹变化相互抵消不是当前实现的有效解释",
+          "verified": "指纹计算输入包含class、file_id、字段/方法签名和method_bodies_sha256；冻结两侧class_records与invoke_edges逐项完全相同。",
+          "proposed_text": "在当前抽取口径覆盖的登记家族内，类记录及调用边完全一致；这个结论不覆盖未登记家族、资源表内部条目、运行开关或服务端视觉变化。"
+        }
+      ]
+    },
+    {
+      "finding_id": "F002",
+      "page": "comment",
+      "disposition": "retained",
+      "title": "评论与动态协议只到静态调用观测，module_coverage 均需安装器评审",
+      "assembled_evidence_ids": [
+        "E001",
+        "E002"
+      ],
+      "validated_review_evidence_ids": [
+        "E015",
+        "E016",
+        "E017"
+      ],
+      "corrected_assembly_evidence_ids": [
+        "E001",
+        "E002"
+      ],
+      "citation_update_needed": false,
+      "text_review": [
+        {
+          "issue": "retained；统计单位声明正确",
+          "verified": "定义数与调用边数不是同一单位；runtime_enabled仍为unknown。",
+          "proposed_text": null
+        }
+      ]
+    },
+    {
+      "finding_id": "F003",
+      "page": "dynamic",
+      "disposition": "revised",
+      "title": "Opus 家族静态同时存在 Compose 与普通类形态，是否并存渲染栈与覆盖归属均未确认",
+      "assembled_evidence_ids": [
+        "E002",
+        "E012"
+      ],
+      "validated_review_evidence_ids": [
+        "E012",
+        "E016"
+      ],
+      "corrected_assembly_evidence_ids": [
+        "E012",
+        "E016"
+      ],
+      "citation_update_needed": true,
+      "text_review": [
+        {
+          "issue": "finding已降为candidate，但dynamic页assessment仍把普通数据类当成旧View渲染栈",
+          "verified": "E012只证明抽样中同时存在普通数据类和Compose签名，未读实现，未证运行启用。",
+          "proposed_text": "抽样同时存在普通数据类与Compose签名；不能据此确认两套渲染栈并存或其运行选择。"
+        }
+      ]
+    },
+    {
+      "finding_id": "F004",
+      "page": "search",
+      "disposition": "revised",
+      "title": "search_kotlin_moss 已观测调用边全部落在 search_compose 聚合仓库层，跨家族覆盖边界未闭合",
+      "assembled_evidence_ids": [
+        "E014",
+        "E004"
+      ],
+      "validated_review_evidence_ids": [
+        "E014",
+        "E004"
+      ],
+      "corrected_assembly_evidence_ids": [
+        "E014",
+        "E004"
+      ],
+      "citation_update_needed": false,
+      "text_review": [
+        {
+          "issue": "52定义与18边直接相减；E014样本数写错",
+          "verified": "definitions=52，actual_invoke_edges=18；E014 caller_samples=12、sample_limit=12，不是4，也不是返回全18条。冻结全量18边的caller家族均为search_compose，3个caller类，涉及9种唯一callee(owner,name,descriptor)。",
+          "proposed_text": "E014摘要记录52条定义和18条外部invoke边，本次工具实际返回12/18条边样本（sample_limit=12），样本均标注为search_compose。定义条数与调用边数不是同一单位，不能用52−18推断34个未调用签名。独立读取冻结priority-target.json全量18条边确认其caller均归类search_compose，来自3个caller类、涉及9种唯一callee签名；这仍不证明所有运行消费者或模块Hook覆盖。"
+        }
+      ]
+    },
+    {
+      "finding_id": "F005",
+      "page": "home",
+      "disposition": "revised",
+      "title": "home_new_frame 的 HomeFrameViewModel 动作派发签名已观测，定位器覆盖与兜底仍未读取",
+      "assembled_evidence_ids": [
+        "E013",
+        "E003"
+      ],
+      "validated_review_evidence_ids": [
+        "E013",
+        "E003"
+      ],
+      "corrected_assembly_evidence_ids": [
+        "E013",
+        "E003"
+      ],
+      "citation_update_needed": false,
+      "text_review": [
+        {
+          "issue": "finding中的签名推断已限定，overview/home assessment仍有实现驱动的确定表述",
+          "verified": "E013提供字段、继承关系与方法签名，未读取method body或模块locator。",
+          "proposed_text": "该字段/签名组合可提出协程派发action的候选解释，具体驱动行为与模块定位条件仍未读取验证。"
+        }
+      ]
+    },
+    {
+      "finding_id": "F006",
+      "page": "home",
+      "disposition": "revised",
+      "title": "四路径静态零变化，但 changed=1 资源路径与混淆/DEX 重排干扰均未排除",
+      "assembled_evidence_ids": [
+        "E003",
+        "E004",
+        "E000"
+      ],
+      "validated_review_evidence_ids": [
+        "E003",
+        "E004",
+        "E000"
+      ],
+      "corrected_assembly_evidence_ids": [
+        "E003",
+        "E004",
+        "E000"
+      ],
+      "citation_update_needed": false,
+      "text_review": [
+        {
+          "issue": "外层资源变化路径已知，并非路径与类型完全未知",
+          "verified": "冻结priority-summary.json.resource_changes.changed精确为[resources.arsc]。",
+          "proposed_text": "已知唯一变化资源文件为resources.arsc；资源表内部哪些entry变化及其页面归属尚未解析，因此不能直接归因为新UI。"
+        },
+        {
+          "issue": "静态指纹保守边界需使用实际采集语义",
+          "verified": "两侧采集class_records和invoke_edges完全一致；不等于包内所有类或样式被枚举。",
+          "proposed_text": "登记家族在已采集结构中未见变化；未登记家族、资源和运行控制仍是盲区。"
+        }
+      ]
+    },
+    {
+      "finding_id": "F007",
+      "page": "detail",
+      "disposition": "revised",
+      "title": "detail 三条路径与基线结构逐字一致，无新样式证据，但模块源码为未提交状态、协议调用边归属未知",
+      "assembled_evidence_ids": [
+        "E000",
+        "E005"
+      ],
+      "validated_review_evidence_ids": [
+        "E005",
+        "E000"
+      ],
+      "corrected_assembly_evidence_ids": [
+        "E005",
+        "E000"
+      ],
+      "citation_update_needed": true,
+      "text_review": [
+        {
+          "issue": "dirty源码不等于内容不可知；当前主要缺口是未实际读取安装器及未核运行注入版本",
+          "verified": "689记录已固定SHA，journal没有module_source调用。",
+          "proposed_text": "源码是可按哈希验真的冻结dirty工作树；本轮没有读取这些安装器/定位器正文，也没有安装产物与运行版本的一致性证据，故module_coverage仍需评审。"
+        }
+      ]
+    },
+    {
+      "finding_id": "F008",
+      "page": "pgc",
+      "disposition": "revised",
+      "title": "PGC 两协议调用边少于定义数，消费者路径归属与模块定位器目标均未确认",
+      "assembled_evidence_ids": [
+        "E006"
+      ],
+      "validated_review_evidence_ids": [
+        "E006",
+        "E014"
+      ],
+      "corrected_assembly_evidence_ids": [
+        "E006",
+        "E014"
+      ],
+      "citation_update_needed": true,
+      "text_review": [
+        {
+          "issue": "定义数天然高于边数不成立；PGC已有部分caller证据",
+          "verified": "任一被调用方法可产生多条边，不能建立定义数量与边数的天然大小关系。E006实际保留pgc_player_moss 3/3样本（external_or_unknown），pgc_view_moss 4/7样本（pgc_theseus）。",
+          "proposed_text": "桥接/默认参数方法会改变定义集合构成，但不能据此断言定义数天然高于调用边。E006中已有部分caller样本，完整消费归属与模块安装器仍未逐项核对。"
+        },
+        {
+          "issue": "PGC页级0个Compose方法即旧View实现的断言未随review收紧",
+          "verified": "0仅表示未匹配到Composer签名；131个匹配也不证明整条路径只有Compose渲染。",
+          "proposed_text": "pgc_legacy未见匹配的Compose方法签名，pgc_theseus存在此类签名；实现范式与运行选择仍需类体和运行证据。"
+        }
+      ]
+    },
+    {
+      "finding_id": "F009",
+      "page": "player",
+      "disposition": "retained",
+      "title": "player 页两条注册路径指纹与基线逐字节一致，本版本窗口内无可观测家族变化",
+      "assembled_evidence_ids": [
+        "E000",
+        "E007"
+      ],
+      "validated_review_evidence_ids": [
+        "E000",
+        "E007"
+      ],
+      "corrected_assembly_evidence_ids": [
+        "E000",
+        "E007"
+      ],
+      "citation_update_needed": false,
+      "text_review": [
+        {
+          "issue": "retained finding边界正确，但player assessment仍将34定义/3边解读为大量无人调用",
+          "verified": "定义数与边数不能直接比较出未调用方法数量；player_kotlin=7是当前登记规则匹配的全族类数，不是本次只抽7类的含义。",
+          "proposed_text": "当前登记的player_kotlin家族匹配7类；协议34条定义与3条边不能推出大面积未调用或Hook定位失败，应按唯一方法签名与caller归属核对。"
+        }
+      ]
+    },
+    {
+      "finding_id": "F010",
+      "page": "danmaku",
+      "disposition": "revised",
+      "title": "danmaku_legacy 双侧 absent、Kotlin 家族承压，模块净化 Hook 挂载点仍需按家族核对",
+      "assembled_evidence_ids": [
+        "E000",
+        "E008",
+        "E011"
+      ],
+      "validated_review_evidence_ids": [
+        "E000",
+        "E008"
+      ],
+      "corrected_assembly_evidence_ids": [
+        "E000",
+        "E008"
+      ],
+      "citation_update_needed": true,
+      "text_review": [
+        {
+          "issue": "已验证review引用应替换旧草稿跨页E011；页级Java主通道断言仍过强",
+          "verified": "E011属于comment_compose，与danmaku无已证消费关系。20条Java协议边与4条Kotlin协议边不证明运行主通道。",
+          "proposed_text": "仅按E000/E008记录两协议的静态边数；消费者归属和运行主通道均未确认。不能将登记族absent升级为模块无挂载点或Hook完全无效。"
+        }
+      ]
+    },
+    {
+      "finding_id": "F011",
+      "page": "story",
+      "disposition": "revised",
+      "title": "story/mine 两侧登记家族摘要与指纹逐位相同，本版本差异在静态家族层不可见",
+      "assembled_evidence_ids": [
+        "E009",
+        "E010",
+        "E013"
+      ],
+      "validated_review_evidence_ids": [
+        "E009",
+        "E010"
+      ],
+      "corrected_assembly_evidence_ids": [
+        "E009",
+        "E010"
+      ],
+      "citation_update_needed": true,
+      "text_review": [
+        {
+          "issue": "已验证review要求删除home_new_frame的E013，旧最终finding仍保留；资源边界亦需更正",
+          "verified": "本条有效页证据为E009/E010；resources.arsc外层路径已知。",
+          "proposed_text": "以story/mine登记家族的冻结观察为界；唯一资源文件变化为resources.arsc，内部entry归属未知；不能把其它页家族或服务端样式纳入已证范围。"
+        }
+      ]
+    },
+    {
+      "finding_id": "F012",
+      "page": "story",
+      "disposition": "revised",
+      "title": "story_kotlin 为 absent 且 story/mine 协议区为空，MOSS 消费面未登记",
+      "assembled_evidence_ids": [
+        "E009",
+        "E010",
+        "E011",
+        "E012",
+        "E013"
+      ],
+      "validated_review_evidence_ids": [
+        "E009",
+        "E010"
+      ],
+      "corrected_assembly_evidence_ids": [
+        "E009",
+        "E010"
+      ],
+      "citation_update_needed": true,
+      "text_review": [
+        {
+          "issue": "已验证review要求删除E011/E012/E013；协议名字本身也不能证明story/mine消费面",
+          "verified": "story/mine登记protocol字典为空，未知协议目录存在相关名称，但caller到页面映射尚未验证。",
+          "proposed_text": "登记表中story/mine协议区为空，未知协议名单中存在待核对候选；单凭名称不能证明这些协议由story/mine消费，应先核caller归属再决定补登记，保持candidate。"
+        }
+      ]
+    }
+  ],
+  "assembly_scope_limitations": [
+    "Current original final pages and overview are unchanged copies of the draft, even when review.page assessments explain corrections.",
+    "No module_source body was requested by the model; source was verified/catalogued but installer/locator review remains unperformed.",
+    "All registered paths are structurally covered; unregistered host UI, resource table entries and runtime/server variants remain outside complete-coverage claims."
+  ],
+  "bounded_source_prefetch_design": {
+    "status": "design_only_not_implemented",
+    "selection_version": "proposed explicit source-prefetch-v1",
+    "page_candidates": {
+      "comment": "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/adapter/CommentClassicStyleLocator.kt",
+      "dynamic": "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/feature/DynamicPurifyFeatureInstaller.kt",
+      "home": "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/feature/HomeFrameTabLocator.kt",
+      "search": "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/feature/SearchPurifyFeatureInstaller.kt",
+      "detail": "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/feature/DetailUnitedModulePurifyFeatureInstaller.kt",
+      "pgc": "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/adapter/PgcAutoActivityPopupLocator.kt",
+      "player": "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/adapter/PlayerBufferLocator.kt",
+      "danmaku": "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/feature/DanmakuPurifyFeatureInstaller.kt",
+      "story": "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/feature/StoryPurifyFeatureInstaller.kt",
+      "mine": "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/feature/MineComponentFilterFeatureInstaller.kt"
+    },
+    "common_contracts": [
+      "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/HookEntry.kt",
+      "Bilibili_Innocent_Lab/app/src/main/java/com/Bilibili_Innocent_Lab/xposedmodule/hook/VersionAdapterContract.kt"
+    ],
+    "selection_scope": "One reviewed explicit candidate per page plus two common contracts; this samples installer/locator coverage, not every feature.",
+    "source_rows_cap": 12,
+    "journal_budget": {
+      "initial_page_reads": 10,
+      "fresh_comment_dynamic_reads": 2,
+      "model_read_budget_unchanged": 6,
+      "deterministic_source_rows": 12,
+      "planned_total": 30,
+      "hard_max": 32,
+      "reserved_rows": 2
+    },
+    "excerpt_budget": {
+      "per_page_file_max_characters": 2000,
+      "per_common_contract_max_characters": 1500,
+      "per_two_page_unit_max_characters": 7000,
+      "full_manifest_max_characters": 24000
+    },
+    "excerpt_policy": "Exact pinned context only; bounded line windows around approved declaration/install/lookup anchors; never silently use latest working tree; missing anchors record unavailable; explicit lines/truncated/sha256/selection version; no filename-only coverage inference.",
+    "privacy": "Private excerpts travel only in model context; public journal records exact path/SHA/ranges/truncation, never source bodies.",
+    "binding": "Bind deterministic selection manifest digest and excerpt policy into fresh-run input identity; actual request hash includes excerpts.",
+    "model_requests": "No added POST solely for prefetch; evidence available in existing draft and independent review calls. Token/time impact must be measured, not declared free.",
+    "legacy_recovery": "No injection into legacy bound runs. Missing prefetch descriptor uses legacy behavior; preserve all IDs, prefixes, counters and original_review_start. New mode needs version-aware initial-prefix and replay checks before release.",
+    "replay_hazard": "Current _rebuild treats non-page reads as model tools and assumes initial journal contains page reads only. Deterministic module_source rows require an authenticated server-prefetch manifest and server_read replay; otherwise they would incorrectly spend the six model slots or fail prefix checks. Do not change legacy interpretation implicitly."
+  }
+}
