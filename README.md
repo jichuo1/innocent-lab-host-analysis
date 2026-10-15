@@ -4,6 +4,7 @@
 
 | 样本 | 分析结论 | AI | 源码快照 / UTC / 时效 | 报告 | 完整证据 |
 |---|---|---|---|---|---|
+| 9.15.0 / 9150300 | AI_ANALYSIS_FAILED | failed | c38121abb94b / 2026-10-15T10:53:46.454029Z / historical_static_evidence_new_source | [查看](samples/9150300/c07cf0a3b838ecbc926d0a11c377e7fcb45c92b8aba7ee01d32cd2729b6a6110/runs/38725765969-a1/report.md) | — |
 | 9.15.0 / 9150300 | AI_ANALYSIS_FAILED | failed | c7430a97b36e / 2026-10-13T13:30:21.513701Z / published_unverified_worktree | [查看](samples/9150300/c07cf0a3b838ecbc926d0a11c377e7fcb45c92b8aba7ee01d32cd2729b6a6110/runs/38716769106-a1/report.md) | — |
 | 9.15.0 / 9150200 | REVIEW_REQUIRED | completed | legacy / 未知 / legacy_unverified | [查看](samples/9150200/a9b70a6ffb66ed3c074ce32faa53dcbfa48d6a8cb2c80ece6921f227d178a1cd/runs/38307385951-a1/report.md) | [下载](https://github.com/jichuo1/innocent-lab-host-analysis/releases/tag/analysis-9150200-a9b70a6ffb66-38307385951-a1) |
 | 9.15.0 / 9150200 | REVIEW_REQUIRED | completed | legacy / 未知 / legacy_unverified | [查看](samples/9150200/a9b70a6ffb66ed3c074ce32faa53dcbfa48d6a8cb2c80ece6921f227d178a1cd/runs/38305512429-a1/report.md) | [下载](https://github.com/jichuo1/innocent-lab-host-analysis/releases/tag/analysis-9150200-a9b70a6ffb66-38305512429-a1) |
