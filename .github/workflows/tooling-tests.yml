@@ -1,10 +1,10 @@
 name: Analysis tooling tests
 on:
   pull_request:
-    paths: ['tools/hostlab/**/*.py', '.github/workflows/host-analysis.yml', '.github/workflows/tooling-tests.yml']
+    paths: ['tools/hostlab/**/*.py', 'tools/hostlab/examples/*.json', 'tools/hostlab/requirements*.txt', '.github/workflows/host-analysis.yml', '.github/workflows/tooling-tests.yml']
   push:
     branches: [main]
-    paths: ['tools/hostlab/**/*.py', '.github/workflows/host-analysis.yml', '.github/workflows/tooling-tests.yml']
+    paths: ['tools/hostlab/**/*.py', 'tools/hostlab/examples/*.json', 'tools/hostlab/requirements*.txt', '.github/workflows/host-analysis.yml', '.github/workflows/tooling-tests.yml']
 permissions:
   contents: read
 jobs:

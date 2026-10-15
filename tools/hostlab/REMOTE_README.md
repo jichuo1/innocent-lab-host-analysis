@@ -6,7 +6,7 @@
 触发任务需要 Actions write 权限；使用你自己的 gh auth login，不共享管理员凭据。
 Windows 双击 setup-remote.cmd；若装有 Codex CLI，会注册 hostlab-remote。
 其它 AI 客户端：command 填独立环境 python 的绝对路径，args 只填 remote_mcp.py 的绝对路径。
-重新加载客户端或开启新会话后使用四个 MCP 工具。
+重新加载客户端或开启新会话后查看可用 MCP 工具，旧四个入口保持兼容。
 
 - submit_job(9140200, "query", "SELECT file_id,class,name,proto FROM methods WHERE name='getUrlsMap'")
 - job_status(返回的 request_id)
@@ -63,5 +63,5 @@ Call `submit_job(version_code=1, operation="inventory")`, then use `job_status` 
 
 ## 批量计划与可选 DexSQL
 
-更新并重新加载 MCP 后有六个工具；新增 `plan_analysis(request)` 与 `submit_analysis(version_code, request, ...)`。
+更新并重新加载 MCP 后有十一项工具，包括单样本 plan/submit 和多版本 plan/submit/advance/status/result。
 相关查询一批共用一次下载与后端会话，保留 SQLite 方言和 JADX 路径。完整请求示例、去重/未知提交行为与限额见 [DEXSQL.md](DEXSQL.md)。

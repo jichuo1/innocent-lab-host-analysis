@@ -1,0 +1,106 @@
+{
+  "schema": 1,
+  "backend": "dexsql",
+  "threads": 2,
+  "timeout_seconds": 180,
+  "tasks": [
+    {
+      "id": "url_map_hook_candidates",
+      "operation": "query",
+      "dialect": "dexsql",
+      "limit": 100,
+      "sql": "SELECT file_id,descriptor,opcode_count FROM methods WHERE class_descriptor='Lcom/bapis/bilibili/main/community/reply/v1/Content;' AND name IN ('getUrls','getUrlsMap') AND param_count=0 AND return_descriptor='Ljava/util/Map;' AND method_kind IS NOT NULL AND opcode_count>0 ORDER BY file_id,method_idx"
+    },
+    {
+      "id": "url_schema_hook_candidate",
+      "operation": "locate",
+      "kind": "method",
+      "name": "getAppUrlSchema",
+      "owner": "Lcom/bapis/bilibili/main/community/reply/v1/Url;"
+    },
+    {
+      "id": "url_map_field",
+      "operation": "locate",
+      "kind": "field",
+      "name": "urls_",
+      "owner": "Lcom/bapis/bilibili/main/community/reply/v1/Content;"
+    },
+    {
+      "id": "map_callers",
+      "operation": "refs",
+      "kind": "method",
+      "target": "Lcom/bapis/bilibili/main/community/reply/v1/Content;->getUrlsMap()Ljava/util/Map;",
+      "limit": 1000
+    },
+    {
+      "id": "legacy_map_callers",
+      "operation": "refs",
+      "kind": "method",
+      "target": "Lcom/bapis/bilibili/main/community/reply/v1/Content;->getUrls()Ljava/util/Map;",
+      "limit": 1000
+    },
+    {
+      "id": "map_field_consumers",
+      "operation": "refs",
+      "kind": "field",
+      "target": "Lcom/bapis/bilibili/main/community/reply/v1/Content;->urls_:Lcom/google/protobuf/MapFieldLite;",
+      "limit": 1000
+    },
+    {
+      "id": "content_type_consumers",
+      "operation": "refs",
+      "kind": "type",
+      "target": "Lcom/bapis/bilibili/main/community/reply/v1/Content;",
+      "limit": 1000
+    },
+    {
+      "id": "map_getter_smali",
+      "operation": "decode",
+      "method": "Lcom/bapis/bilibili/main/community/reply/v1/Content;->getUrlsMap()Ljava/util/Map;"
+    },
+    {
+      "id": "map_storage_smali",
+      "operation": "decode",
+      "method": "Lcom/bapis/bilibili/main/community/reply/v1/Content;->internalGetUrls()Lcom/google/protobuf/MapFieldLite;"
+    },
+    {
+      "id": "discover_content_shapes",
+      "operation": "query",
+      "dialect": "dexsql",
+      "limit": 1000,
+      "sql": "SELECT file_id,class_descriptor AS descriptor,count(*) AS matching_members FROM methods WHERE method_kind IS NOT NULL AND opcode_count>0 AND name IN ('getMessage','getUrlsMap') AND param_count=0 GROUP BY file_id,class_descriptor HAVING sum(CASE WHEN name='getMessage' AND return_descriptor='Ljava/lang/String;' THEN 1 ELSE 0 END)>0 AND sum(CASE WHEN name='getUrlsMap' AND return_descriptor='Ljava/util/Map;' THEN 1 ELSE 0 END)>0 ORDER BY file_id,class_descriptor"
+    },
+    {
+      "id": "discover_kmp_richtext_structures",
+      "operation": "query",
+      "dialect": "dexsql",
+      "limit": 1000,
+      "sql": "SELECT file_id,descriptor,superclass_descriptor,interface_count FROM classes WHERE descriptor LIKE 'Lkntr/common/comment/%/model/%' AND instr(descriptor,'RichText')>0 AND instr(descriptor,'$')=0 ORDER BY file_id,descriptor"
+    },
+    {
+      "id": "discover_consumer_return_structures",
+      "operation": "query",
+      "dialect": "dexsql",
+      "limit": 1000,
+      "sql": "SELECT min(c.file_id) AS file_id,m.return_descriptor AS descriptor,count(DISTINCT c.file_id) AS source_dex_count FROM method_calls c JOIN methods m ON c.file_id=m.file_id AND c.method_idx=m.method_idx WHERE c.callee='Lcom/bapis/bilibili/main/community/reply/v1/Content;->getUrlsMap()Ljava/util/Map;' AND m.return_descriptor LIKE 'L%' AND m.return_descriptor NOT IN ('Ljava/util/Map;','Ljava/lang/Object;','Ljava/lang/String;') GROUP BY m.return_descriptor ORDER BY m.return_descriptor"
+    },
+    {
+      "id": "discover_consumer_field_layouts",
+      "operation": "query",
+      "dialect": "dexsql",
+      "limit": 1000,
+      "sql": "WITH targets AS (SELECT DISTINCT m.return_descriptor AS descriptor FROM method_calls c JOIN methods m ON c.file_id=m.file_id AND c.method_idx=m.method_idx WHERE c.callee='Lcom/bapis/bilibili/main/community/reply/v1/Content;->getUrlsMap()Ljava/util/Map;' AND m.return_descriptor LIKE 'L%' AND m.return_descriptor NOT IN ('Ljava/util/Map;','Ljava/lang/Object;','Ljava/lang/String;')) SELECT cf.file_id,cf.class_descriptor AS descriptor,count(*) AS field_count,group_concat(f.descriptor,char(10) ORDER BY cf.field_idx) AS field_layout FROM class_fields cf JOIN fields f ON cf.file_id=f.file_id AND cf.field_idx=f.field_idx JOIN targets t ON cf.class_descriptor=t.descriptor GROUP BY cf.file_id,cf.class_descriptor ORDER BY cf.class_descriptor,cf.file_id"
+    },
+    {
+      "id": "manifest_identity",
+      "operation": "info"
+    },
+    {
+      "id": "map_callers_reused",
+      "operation": "refs",
+      "kind": "method",
+      "target": "Lcom/bapis/bilibili/main/community/reply/v1/Content;->getUrlsMap()Ljava/util/Map;",
+      "limit": 1000
+    }
+  ]
+}

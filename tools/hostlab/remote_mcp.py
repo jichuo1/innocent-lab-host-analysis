@@ -12,7 +12,7 @@ import hostlab
 
 REPO = "jichuo1/innocent-lab-host-analysis"
 WORKFLOW = "host-analysis.yml"
-mcp = MCPServer(name="hostlab-remote", instructions="Run bounded APK analysis in GitHub Actions. Prefer plan_analysis then submit_analysis for related queries: one batch reuses input and prepared backends. Raw SQL keeps its declared sqlite/dexsql dialect. Legacy submit_job stays compatible. Reuse returned request IDs, poll job_status, and page job_result; never resubmit an unknown dispatch. APKs stay on the runner. Static evidence does not establish runtime acceptance.")
+mcp = MCPServer(name="hostlab-remote", instructions="Run bounded APK analysis in GitHub Actions. For cross-version hook-point or structure investigations use plan_version_matrix/submit_version_matrix, advance its durable queue, then collect version_matrix_result pages. For one sample prefer plan_analysis then submit_analysis: related queries reuse input and prepared backends. Raw SQL keeps its declared sqlite/dexsql dialect. Legacy submit_job stays compatible. Reuse returned IDs; never replay an unknown dispatch. APKs stay on the runner. Static candidates do not establish working runtime hooks.")
 
 
 def gh(args, payload=None):
@@ -81,6 +81,63 @@ def lookup(request_id):
     if run is not None:
         hostlab.write_json(mapping, {"run_id": run["id"]})
     return run
+
+
+@mcp.tool()
+def plan_version_matrix(samples: list[dict], request: dict, max_parallel: int = 4,
+                        reuse_completed: bool = True, deadline_seconds: int = 1800) -> str:
+    """Plan the same feature investigation over 1..40 exact APKs. Each sample needs version_code, apk_sha256 and sample_revision from inventory.json. One immutable tool commit binds the whole matrix; max_parallel is 1..4. Set reuse_completed=false for a fresh load test. No Actions dispatch here."""
+    import version_matrix
+    try:
+        return json.dumps(version_matrix.plan(samples,request,max_parallel,reuse_completed,deadline_seconds),ensure_ascii=False)
+    except ValueError as exc:
+        raise ToolError(str(exc)) from None
+
+
+@mcp.tool()
+def submit_version_matrix(samples: list[dict], request: dict, max_parallel: int = 4,
+                          reuse_completed: bool = True, deadline_seconds: int = 1800,
+                          idempotency_key: str = "") -> str:
+    """Create a durable multi-version queue and dispatch at most two initial batches. Inventory pins are mandatory. Use advance_version_matrix repeatedly to fill/replenish up to 4 slots; queued_local entries are retained under capacity pressure. No background execution occurs after the call. An explicit key resumes the same matrix. Unknown dispatches and paid failures are never replayed automatically."""
+    import version_matrix
+    try:
+        created=version_matrix.create(samples,request,gh,repository=REPO,max_parallel=max_parallel,
+            reuse_completed=reuse_completed,deadline_seconds=deadline_seconds,idempotency_key=idempotency_key)
+        if "matrix_id" not in created:
+            return json.dumps(created)
+        return json.dumps(version_matrix.advance(created["matrix_id"],gh,lookup,runs,repository=REPO,workflow=WORKFLOW),ensure_ascii=False)
+    except ValueError as exc:
+        raise ToolError(str(exc)) from None
+
+
+@mcp.tool()
+def advance_version_matrix(matrix_id: str) -> str:
+    """Refresh accepted jobs and dispatch at most two queued versions under the captured tool revision and 1..4-slot budget. Call only while you intend the matrix to progress. capacity_full leaves versions queued, never lost; a deadline stops new dispatches without cancelling accepted work."""
+    import version_matrix
+    try:
+        return json.dumps(version_matrix.advance(matrix_id,gh,lookup,runs,repository=REPO,workflow=WORKFLOW),ensure_ascii=False)
+    except ValueError as exc:
+        raise ToolError(str(exc)) from None
+
+
+@mcp.tool()
+def version_matrix_status(matrix_id: str) -> str:
+    """Refresh matrix job states without submitting additional work."""
+    import version_matrix
+    try:
+        return json.dumps(version_matrix.advance(matrix_id,gh,lookup,runs,repository=REPO,workflow=WORKFLOW,dispatch=False),ensure_ascii=False)
+    except ValueError as exc:
+        raise ToolError(str(exc)) from None
+
+
+@mcp.tool()
+def version_matrix_result(matrix_id: str, offset: int = 0, limit: int = 8) -> str:
+    """Collect a finished matrix and compare candidate descriptors and multiplicities across versions, preserving exact sample/tool identities. Typed identities and an explicit descriptor column in SQL support hook-point/structure discovery. DEX layout is not a cross-version identity. Large previews point to a full local comparison file. Complete static analysis does not prove a working runtime hook."""
+    import version_matrix
+    try:
+        return json.dumps(version_matrix.compare(matrix_id,job_result,offset,limit),ensure_ascii=False)
+    except ValueError as exc:
+        raise ToolError(str(exc)) from None
 
 
 @mcp.tool()

@@ -55,7 +55,7 @@ tools/hostlab/hostlab.cmd dexq batch --version-code 9150200 --request request.js
 
 ## 远端工具
 
-更新远程客户端并重新加载 MCP 后，旧四个工具继续存在，新增：
+更新远程客户端并重新加载 MCP 后，旧四个工具继续存在，并提供单样本和版本矩阵工具：
 
 - `plan_analysis(request)`：只规划，不分发作业。计划中的 native 可用性在 runner 执行前验证。
 - `submit_analysis(version_code, request, apk_sha256="", sample_revision="", idempotency_key="")`：一批共用一次样本下载和每后端一次准备。
@@ -81,6 +81,37 @@ DexSQL 的 methods/fields 是引用表，class_methods/class_fields 才是定义
 旧 code_size 是 16 位 code units，对应 code_items.insns_size，不能映射到 opcode_count。
 method_calls 只表示静态调用引用，不自动证明接口最终分派；引用方法身份与完整 offset/op 调用点格式分开。
 MCP 复用内存数据集，`.dxc2` 磁盘缓存属于原生 CLI，当前批量执行不伪称重开命中磁盘缓存。
+
+## 多版本 Hook 候选与结构发现
+
+使用 `plan_version_matrix` / `submit_version_matrix` 规划或启动同一功能跨版本的调查；
+`advance_version_matrix` 刷新状态并补充待运行样本，`version_matrix_status` 只刷新而不启动新任务，
+`version_matrix_result` 收集并比较候选。远程客户端共提供 11 项工具。
+
+每个 selector 必须来自 inventory.json：
+
+```python
+samples = [{"version_code": row["version_code"], "apk_sha256": row["sha256"],
+            "sample_revision": inventory["sample_revision"]} for row in selected_samples]
+```
+
+最多 40 个准确样本、并发 1–4。矩阵只捕获一次不可变工具提交，之后即使 main 更新也不会混用不同分析代码。
+本地待运行状态 queued_local 与 GitHub pending 分开计数；每次 advance 最多接纳两个，容量不足仍保留队列。
+条目在分发前保存稳定重试键，客户端崩溃后即使作业已经快速完成也不会重复付费执行。失败和未知结果不自动重跑。
+显式 idempotency_key 绑定同一矩阵；定义、样本或工具绑定异常时拒绝推进。
+
+默认可以复用同日同一工具/准确样本/结构化任务的结果；原始 SQL 不做隐式完成缓存。
+`reuse_completed=false` 用于冷负载比较：新矩阵会真实创建新作业，仍保持同一矩阵内重试的幂等性。
+这不是后台定时器；调用方停止 advance 就不会继续提交。deadline_seconds 只停止尚未接纳的条目，已接纳作业继续结算，不自动取消。
+
+结果每次最多收集 8 个版本；跟随 next_offset 读取下一页。比较完整 descriptor 和重复次数，保留每版精确 APK、工具提交和原始 DEX provenance，
+不把数字 file_id 或 DEX 重排当成 Hook 变化。SQL 显式输出 descriptor 列时也可进入候选对比；长预览标记截断并指向完整本地文件。
+
+[examples/comment-search-links.json](examples/comment-search-links.json) 是与实际评论搜索链接适配契约对应的 15 项工作负载：
+Map getter/URL schema getter 候选、调用/字段/类型消费者、Smali、Manifest，以及结构发现和布局展开查询。
+其中 protobuf 形状查询不预设类名，返回类型查询从真实消费者推导数据结构并展开字段布局；KMP 模型查询发现已知命名空间内的新增顶层 RichText 结构。
+结构属性与布局会单独计算语义哈希，排除 file_id 重排；长布局保留哈希和显式截断预览，完整数据仍在原始结果文件。
+它们产出静态候选及版本差异，不能直接升级为唯一可用 Hook 或设备验收。
 
 开发验收：
 
