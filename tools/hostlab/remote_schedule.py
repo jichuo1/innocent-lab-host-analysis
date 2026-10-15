@@ -78,7 +78,8 @@ def submit(version_code, request, gh, lookup, runs, *, repository, workflow,
             if run is None or run.get("status") != "completed":
                 return {**old, "reused": True, "dispatched": False,
                         "status": run.get("status") if run else old["status"]}
-            if idempotency_key or apk_sha256 and run.get("conclusion") == "success" and time.time() - old["created_at"] < 86400:
+            deterministic = all(task["operation"] != "query" for task in request["tasks"])
+            if idempotency_key or apk_sha256 and deterministic and run.get("conclusion") == "success" and time.time() - old["created_at"] < 86400:
                 return {**old, "reused": True, "dispatched": False, "status": "completed", "conclusion": run.get("conclusion")}
         recent = runs()
         observed = {r.get("display_title", "").removeprefix("hostlab-"):r for r in recent}

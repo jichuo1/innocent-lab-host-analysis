@@ -149,6 +149,19 @@ class ScheduleTest(unittest.TestCase):
         self.assertNotEqual(a["request_id"], b["request_id"])
         self.assertEqual(len(self.dispatches), 2)
 
+    def test_arbitrary_sql_is_not_automatically_cached_after_completion(self):
+        spec=request(tasks=[{"id":"random","operation":"query","sql":"SELECT random()","dialect":"sqlite"}])
+        kwargs={"apk_sha256":"b"*64,"sample_revision":"c"*40}
+        def submit():
+            return remote_schedule.submit(9150200,spec,self.gh,self.lookup,self.runs,
+                repository="owner/repo",workflow="host-analysis.yml",**kwargs)
+        first=submit()
+        self.lookup=lambda _:{"status":"completed","conclusion":"success"}
+        self.runs=lambda:[{"display_title":"hostlab-"+first["request_id"],"status":"completed"}]
+        second=submit()
+        self.assertNotEqual(first["request_id"],second["request_id"])
+        self.assertEqual(len(self.dispatches),2)
+
     def test_idempotency_key_cannot_be_rebound_to_another_payload(self):
         self.submit(idempotency_key="retry1")
         with self.assertRaisesRegex(ValueError, "already bound"):

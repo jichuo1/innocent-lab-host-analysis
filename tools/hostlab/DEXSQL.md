@@ -63,7 +63,8 @@ tools/hostlab/hostlab.cmd dexq batch --version-code 9150200 --request request.js
 先把示例对象传给 plan，再传给 submit；后续仍用返回的 request_id 调用 `job_status` 和分页 `job_result`。
 强制纯 DexSQL 批次只安装既有依赖的 MCP/Hugging Face 子集，省去 Androguard。安装失败或后端错误不伪装成成功。
 
-相同运行中请求会返回 `reused:true`。提供成对的准确 APK SHA-256 和不可变 sample_revision，可复用 24 小时内同一工具版本的成功结果。
+相同运行中请求会返回 `reused:true`。提供成对的准确 APK SHA-256 和不可变 sample_revision，可复用 24 小时内同一工具版本的结构化任务成功结果。
+任意原始 SQL 可能包含时间、随机数等表达式，完成后不做自动结果缓存；显式幂等 key 仍可绑定调用者选择的同一执行。
 显式 idempotency_key 绑定该请求（包含工具版本与样本选择）；同 key 改参数会拒绝，失败也不会偷偷重跑。
 提交期间网络结果不明会返回 dispatch_unknown 和已有请求 ID，此时只查状态，不重新提交。
 调度使用崩溃自动释放的 OS 锁；最多接纳 4 个可观察运行中或未确认提交。capacity_full/scheduler_busy 不分发新作业。

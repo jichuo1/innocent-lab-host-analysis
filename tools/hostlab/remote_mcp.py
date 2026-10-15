@@ -96,7 +96,7 @@ def plan_analysis(request: dict) -> str:
 @mcp.tool()
 def submit_analysis(version_code: int, request: dict, apk_sha256: str = "", sample_revision: str = "",
                     idempotency_key: str = "") -> str:
-    """Schedule one bounded analysis batch. Related tasks share one APK fetch and one session per backend. Optional APK SHA and immutable sample revision must be supplied together and enable completed-result reuse for 24h. Equal active submissions are reused. An idempotency key binds retries, including failures. Unknown dispatch is never replayed: use returned request_id with job_status/job_result. capacity_full/scheduler_busy do not dispatch. Uses Actions minutes."""
+    """Schedule one bounded analysis batch. Related tasks share one APK fetch and one session per backend. Optional APK SHA and immutable sample revision must be supplied together and enable completed-result reuse for deterministic semantic tasks for 24h. Arbitrary SQL is not cached after completion. Equal active submissions are reused. An idempotency key explicitly binds retries, including failures. Unknown dispatch is never replayed: use returned request_id with job_status/job_result. capacity_full/scheduler_busy do not dispatch. Uses Actions minutes."""
     import remote_schedule
     try:
         result = remote_schedule.submit(version_code, request, gh, lookup, runs, repository=REPO,
