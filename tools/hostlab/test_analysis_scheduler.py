@@ -86,6 +86,11 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(plan_ci.requirements("batch", json.dumps(request()))["requirements"], "requirements.txt")
         self.assertEqual(plan_ci.requirements("query", "SELECT 1")["needs_dexsql"], "false")
 
+    def test_actions_queue_does_not_replace_accepted_pending_sample_work(self):
+        workflow=(Path(__file__).parent/"host-analysis.yml").read_text(encoding="utf-8")
+        self.assertIn("  queue: max\n",workflow)
+        self.assertIn("  cancel-in-progress: false\n",workflow)
+
 
 class ScheduleTest(unittest.TestCase):
     def setUp(self):

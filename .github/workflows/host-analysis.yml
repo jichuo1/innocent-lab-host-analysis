@@ -42,6 +42,7 @@ permissions:
   contents: read
 concurrency:
   group: hostlab-${{ inputs.apk_sha256 || (inputs.operation == 'batch' && inputs.version_code) || inputs.request_id }}
+  queue: max
   cancel-in-progress: false
 jobs:
   analyze:

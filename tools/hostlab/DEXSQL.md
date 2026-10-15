@@ -68,6 +68,7 @@ tools/hostlab/hostlab.cmd dexq batch --version-code 9150200 --request request.js
 提交期间网络结果不明会返回 dispatch_unknown 和已有请求 ID，此时只查状态，不重新提交。
 调度使用崩溃自动释放的 OS 锁；最多接纳 4 个可观察运行中或未确认提交。capacity_full/scheduler_busy 不分发新作业。
 这是当前客户端与可观察 GitHub 队列的预算；多台客户端的竞争仍受 GitHub 实际调度约束。同一准确样本的批次在工作流中串行。
+工作流显式使用 `queue: max`，避免 GitHub 默认单个 pending 槽将先前已接纳的请求替换取消；GitHub 同组最多保留 100 个 pending，客户端预算仍是 4。
 
 工作流绑定 scheduler 选择的准确工具提交，并在 sample_revision/APK SHA 下取样。`job.json` 保存输入、工具哈希、请求摘要、后端版本和耗时。
 结果附件仅包含有界结果和元数据；APK、DEX、SQLite 及原生缓存保留在 runner。仓库与附件可见性以 GitHub 当前权限为准。
