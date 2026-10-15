@@ -131,10 +131,14 @@ def version_matrix_status(matrix_id: str) -> str:
 
 
 @mcp.tool()
-def version_matrix_result(matrix_id: str, offset: int = 0, limit: int = 8, download_parallel: int = 4) -> str:
-    """Collect a finished matrix with 1..4 download workers and a verified artifact cache. Partial collection reports collection_errors: retry this same matrix/page without new Actions. Candidate identities and structure hashes preserve exact sample/tool bindings. Large previews point to an immutable local comparison snapshot. Static results do not prove working runtime hooks."""
+def version_matrix_result(matrix_id: str, offset: int = 0, limit: int = 8, download_parallel: int = 4,
+                          prefetch_only: bool = False) -> str:
+    """Collect with 1..4 download workers and verified reuse. While later versions run, prefetch_only=true downloads only completed entries on this page, without candidate comparison or dispatch. For final comparisons use prefetch_only=false after the matrix finishes. collection_errors can be retried on the same matrix/page without new Actions. Large comparisons have immutable local snapshots. Static results do not prove working runtime hooks."""
     import version_matrix
     try:
+        if prefetch_only:
+            return json.dumps(version_matrix.prefetch(matrix_id,matrix_artifact,offset,limit,
+                download_parallel=download_parallel),ensure_ascii=False)
         return json.dumps(version_matrix.compare(matrix_id,job_result,offset,limit,
             download_parallel=download_parallel,collect=matrix_artifact),ensure_ascii=False)
     except ValueError as exc:
