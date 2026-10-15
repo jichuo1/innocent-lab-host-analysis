@@ -15,6 +15,7 @@ import uuid
 import remote_schedule
 
 MAX_BYTES = 8 * 1024 * 1024
+MAX_PUBLIC_RESPONSE_BYTES = 128 * 1024
 MAX_REQUESTS = 16
 MAX_TRANSPORT_RETRIES = 2
 COOLDOWN_SECONDS = 60
@@ -298,7 +299,7 @@ class Checkpoint:
         return row["id"]
 
     def received(self, attempt_id, request_hash, clean, usage, model):
-        if len(json.dumps(clean, ensure_ascii=False).encode()) > 128 * 1024:
+        if len(json.dumps(clean, ensure_ascii=False).encode()) > MAX_PUBLIC_RESPONSE_BYTES:
             raise CheckpointError("public model response receipt exceeds its bound")
         row = next(row for row in self.value["attempts"] if row["id"] == attempt_id)
         unknown = bool(usage.get("_usage_unknown", not bool(usage)))
@@ -322,6 +323,9 @@ class Checkpoint:
             and type(value) in {int, float}}
         if metrics.get("finish_reason") in {"stop", "tool_calls", "length", "content_filter"}:
             row["metrics"]["finish_reason"] = metrics["finish_reason"]
+        response_hash = getattr(error, "response_sha256", None)
+        if isinstance(response_hash, str) and HEX.fullmatch(response_hash):
+            row["response_sha256"] = response_hash
         import ai_transport
         usage = ai_transport._safe_usage(getattr(error, "usage", None))
         if usage:

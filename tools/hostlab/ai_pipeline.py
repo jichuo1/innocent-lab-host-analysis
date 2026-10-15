@@ -93,8 +93,14 @@ def build_binding(root, summary, units):
             ("ai_pipeline.py", "ai_checkpoint.py", "ai_review.py", "ai_prompts.py", "ai_transport.py")
             if (here/name).is_file()}
     source = summary.get("source_snapshot") or {}
-    config = {profile: ai_checkpoint.digest({"base": os.environ.get("AI_"+profile.upper()+"_BASE_URL", "").rstrip("/"),
-        "model": os.environ.get("AI_"+profile.upper()+"_MODEL", "")}) for profile in ("primary", "backup")}
+    config = {}
+    for profile in ("primary", "backup"):
+        value = {"base": os.environ.get("AI_"+profile.upper()+"_BASE_URL", "").rstrip("/"),
+                 "model": os.environ.get("AI_"+profile.upper()+"_MODEL", "")}
+        parameter = os.environ.get("AI_"+profile.upper()+"_OUTPUT_TOKEN_PARAMETER", "")
+        if parameter:
+            value["output_token_parameter"] = parameter
+        config[profile] = ai_checkpoint.digest(value)
     return {"schema": 1, "static_files": files, "static_manifest_sha256": summary.get("static_manifest_sha256"),
         "sample": summary["sample"], "baseline": summary.get("baseline"),
         "matrix_sha256": ai_checkpoint.digest(summary["page_path_matrix"]),
@@ -147,11 +153,14 @@ def public_reply(message):
     """Only structured output/tool arguments survive; never persist free text or tool bodies."""
     clean = {"role": "assistant", "content": None}
     calls = []
+    raw_calls = message.get("tool_calls", [])
+    if not isinstance(raw_calls, list) or len(raw_calls) > 8:
+        raise RuntimeError("API tool calls exceed public receipt bound")
     allowed = {"family_evidence": {"family", "side"}, "protocol_evidence": {"protocol", "side"},
         "module_source": {"path"}, "decompile_class": {"class_name", "side"},
         "finish_report": {"overview", "pages", "findings", "next_steps"},
         "finish_review": {"pages", "findings", "remaining_gaps"}}
-    for index, call in enumerate(message.get("tool_calls", [])[:8]):
+    for index, call in enumerate(raw_calls):
         function = call.get("function", {})
         name = function.get("name", "invalid_tool")
         name = name if isinstance(name, str) and re.fullmatch(r"[a-z_]{1,48}", name) else "invalid_tool"
@@ -310,18 +319,29 @@ class Coordinator:
                 timeout = request_timeout(self.limits, self.checkpoint.value["attempts"], self.profile, remaining)
                 self.checkpoint.value["attempts"][-1]["request_timeout_seconds"] = timeout
                 self.checkpoint.save()
+                received_usage = None; response_hash = None
                 try:
                     message, usage, model = self.api(self.profile, messages, tools, force_tool=force_tool, session_id=session,
                         max_output=self.limits["max_output"], total_timeout=timeout,
                         idle_timeout=min(self.limits["idle_timeout"], timeout), stream=self.limits["stream"])
+                    received_usage = public_usage(usage)
+                    clean = public_reply(message)
+                    response_hash = ai_checkpoint.digest(clean)
+                    if len(json.dumps(clean, ensure_ascii=False).encode()) > ai_checkpoint.MAX_PUBLIC_RESPONSE_BYTES:
+                        raise RuntimeError("API public response receipt exceeds bound")
                 except Exception as exc:
                     info = error_info(exc)
+                    if received_usage is not None:
+                        known = any(type(received_usage.get(key)) is int and received_usage[key] > 0 for key in
+                            ("total_tokens", "prompt_tokens", "completion_tokens", "input_tokens", "output_tokens"))
+                        info.usage = received_usage
+                        info.billing_unknown = not known
+                        info.metrics = received_usage.get("_transport", {})
+                        info.response_sha256 = response_hash
                     self.checkpoint.failed(token, info)
                     handled.add(token)
                 else:
-                    clean = public_reply(message)
-                    usage = public_usage(usage)
-                    self.checkpoint.received(token, request_hash, clean, usage, model)
+                    self.checkpoint.received(token, request_hash, clean, received_usage, model)
                     return clean
             fallback = self.profile == "primary" and self.limits["allow_fallback"]
             # A rejected credential must never be retried on the same profile.

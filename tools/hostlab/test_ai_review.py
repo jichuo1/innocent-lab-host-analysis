@@ -116,6 +116,74 @@ class DetailedReviewTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,"(?i)revision patch"):
             ai_review.assemble_report(draft,illegal)
 
+    def test_revised_text_and_evidence_follow_validated_review_without_mutating_inputs(self):
+        pages=("danmaku","story","mine")
+        ids={"danmaku":"E008","story":"E009","mine":"E010"}
+        draft=report(ids,pages,finding=False)
+        original_refs={"F010":["E000","E008","E011"], "F011":["E009","E010","E013"],
+                       "F012":["E009","E010","E011","E012","E013"]}
+        for identifier,page in (("F010","danmaku"),("F011","story"),("F012","story")):
+            draft["findings"].append({"finding_id":identifier,"page":page,"title":"原静态候选",
+                "level":"candidate","analysis":"原草稿含跨页候选引用","alternatives":"路径归属未确认",
+                "recommendation":"后续确认消费者","evidence_ids":original_refs[identifier]})
+        corrected_refs={"F010":["E000","E008"], "F011":["E009","E010"], "F012":["E009","E010"]}
+        review={"pages":[{"page":page,"assessment":"按本页冻结证据独立复核","evidence_ids":[ids[page]]} for page in pages],
+            "findings":[{"finding_id":identifier,"disposition":"revised","reason":"删除未证明有关的跨页证据",
+                         "evidence_ids":refs,"revision":{"analysis":"仅依据本页登记家族；运行启用与安装器覆盖未知。"}}
+                        for identifier,refs in corrected_refs.items()],"remaining_gaps":["未读取安装器正文"]}
+        evidence=ai_review.Evidence(Path("."),{"page_path_matrix":{}})
+        evidence.ids.update({"E000","E008","E009","E010","E011","E012","E013"})
+        before_draft,before_review=copy.deepcopy(draft),copy.deepcopy(review)
+        validated=ai_review.validate_review_record(copy.deepcopy(review),draft,evidence,list(pages),0)
+        before_validated=copy.deepcopy(validated)
+        assembled=ai_review.assemble_report(draft,validated)
+        for finding in assembled["findings"]:
+            self.assertEqual(finding["evidence_ids"],corrected_refs[finding["finding_id"]])
+            self.assertEqual(finding["analysis"],"仅依据本页登记家族；运行启用与安装器覆盖未知。")
+        matrix={page:{"paths":{page+"_native":{"evidence":"static_invoke_observed"}}} for page in pages}
+        ai_review.validate_report(assembled,evidence.ids,list(pages),matrix)
+        self.assertEqual(draft,before_draft)
+        self.assertEqual(review,before_review)
+        self.assertEqual(validated,before_validated)
+        assembled["findings"][0]["evidence_ids"].append("E999")
+        self.assertEqual(draft,before_draft)
+        self.assertEqual(validated,before_validated)
+
+    def test_revised_evidence_requires_validated_nonempty_known_references(self):
+        draft=report({"comment":"E001","dynamic":"E002"},("comment","dynamic"))
+        draft["findings"][0]["finding_id"]="F001"
+        for refs in (None,[],"E003",{"E003":True},[None],[""]):
+            record=review_record({"comment":"E003","dynamic":"E004"},("comment","dynamic"),
+                disposition="revised",revision={"analysis":"新的证据解释"})
+            record["findings"][0]["evidence_ids"]=refs
+            with self.subTest(refs=refs),self.assertRaisesRegex(RuntimeError,"validated evidence_ids"):
+                ai_review.assemble_report(draft,record)
+        data=summary(); evidence=ai_review.Evidence(Path("."),data)
+        evidence.ids.update({"E001","E002","E003","E004"})
+        evidence.journal=[{"id":"E003","tool":"page_evidence","args":{"page":"comment"}},
+                          {"id":"E004","tool":"page_evidence","args":{"page":"dynamic"}}]
+        record=review_record({"comment":"E003","dynamic":"E004"},("comment","dynamic"),
+            disposition="revised",revision={"analysis":"不能引用不存在的证据"})
+        record["findings"][0]["evidence_ids"]=["E999"]
+        with self.assertRaisesRegex(RuntimeError,"E999"):
+            ai_review.validate_review_record(record,draft,evidence,["comment","dynamic"],0)
+
+    def test_nonrevised_dispositions_preserve_existing_evidence_semantics(self):
+        for disposition in ("retained","rejected","needs_more_evidence"):
+            draft=report({"comment":"E001","dynamic":"E002"},("comment","dynamic"),level="static_evidence")
+            draft["findings"][0]["finding_id"]="F001"
+            review=review_record({"comment":"E003","dynamic":"E004"},("comment","dynamic"),disposition=disposition)
+            before_draft,before_review=copy.deepcopy(draft),copy.deepcopy(review)
+            assembled=ai_review.assemble_report(draft,review)
+            with self.subTest(disposition=disposition):
+                if disposition=="rejected":
+                    self.assertEqual(assembled["findings"],[])
+                else:
+                    self.assertEqual(assembled["findings"][0]["evidence_ids"],["E001"])
+                    self.assertEqual(assembled["findings"][0]["level"],"needs_runtime" if disposition=="needs_more_evidence" else "static_evidence")
+                self.assertEqual(draft,before_draft)
+                self.assertEqual(review,before_review)
+
     def test_review_failure_preserves_draft_but_does_not_complete(self):
         with tempfile.TemporaryDirectory() as folder, patch.dict("os.environ",{"AI_DEFAULT_PROFILE":"backup"}):
             root=self.root(folder)
