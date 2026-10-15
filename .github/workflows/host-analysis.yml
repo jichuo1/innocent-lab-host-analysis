@@ -46,6 +46,9 @@ concurrency:
   cancel-in-progress: false
 jobs:
   analyze:
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      SEGMENT_DOWNLOAD_TIMEOUT_MINS: '1'
     permissions:
       contents: read
       actions: read
@@ -59,24 +62,41 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
-          cache: pip
-          cache-dependency-path: |
-            tools/hostlab/requirements.txt
-            tools/hostlab/requirements-query.txt
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '17'
       - name: Plan dependency subset
         id: plan
         env:
           HOSTLAB_OPERATION: ${{ inputs.operation }}
           HOSTLAB_ARGUMENT: ${{ inputs.argument }}
         run: python tools/hostlab/plan_ci.py
-      - name: Install analysis dependencies
+      - uses: actions/setup-java@v5
+        if: steps.plan.outputs.needs_java == 'true'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Fingerprint dependency runtime
+        id: runtime-key
         env:
           REQUIREMENTS: ${{ steps.plan.outputs.requirements }}
-        run: python -m pip install -r "tools/hostlab/$REQUIREMENTS"
+        run: python tools/hostlab/prepare_runtime.py fingerprint --requirements "$REQUIREMENTS"
+      - name: Restore verified dependency runtime
+        id: runtime-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5, Node 24
+        continue-on-error: true
+        with:
+          path: runtime/hostlab-prepared
+          key: hostlab-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.runtime-key.outputs.fingerprint }}
+      - name: Prepare and verify analysis dependencies
+        id: runtime
+        env:
+          REQUIREMENTS: ${{ steps.plan.outputs.requirements }}
+        run: python tools/hostlab/prepare_runtime.py prepare --requirements "$REQUIREMENTS"
+      - name: Save verified dependency runtime
+        if: steps.runtime.outputs.built == 'true' && steps.runtime-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5, Node 24
+        continue-on-error: true
+        with:
+          path: runtime/hostlab-prepared
+          key: hostlab-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.runtime-key.outputs.fingerprint }}
       - name: Download verified optional DexSQL
         if: steps.plan.outputs.needs_dexsql == 'true'
         continue-on-error: ${{ steps.plan.outputs.dexsql_optional == 'true' }}

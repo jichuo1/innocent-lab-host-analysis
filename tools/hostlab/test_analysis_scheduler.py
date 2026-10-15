@@ -86,6 +86,13 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(plan_ci.requirements("batch", json.dumps(request()))["requirements"], "requirements.txt")
         self.assertEqual(plan_ci.requirements("query", "SELECT 1")["needs_dexsql"], "false")
 
+    def test_java_preparation_follows_the_actual_java_operations(self):
+        for operation in ("audit","decompile","multipath_audit","regenerate_ai","backend_validation"):
+            self.assertEqual(plan_ci.requirements(operation, "")["needs_java"],"true")
+        for operation in ("query","decode","string_refs","inventory","source_check"):
+            self.assertEqual(plan_ci.requirements(operation, "")["needs_java"],"false")
+        self.assertEqual(plan_ci.requirements("batch",json.dumps(request(backend="dexsql")))["needs_java"],"false")
+
     def test_actions_queue_does_not_replace_accepted_pending_sample_work(self):
         workflow=(Path(__file__).parent/"host-analysis.yml").read_text(encoding="utf-8")
         self.assertIn("  queue: max\n",workflow)

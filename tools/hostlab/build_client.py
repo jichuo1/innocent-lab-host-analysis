@@ -15,6 +15,7 @@ files += [here / name for name in ("install_dexsql.py", "analysis_plan.py", "ana
 files += [here / "vendor/dexsql/LICENSE", here / "vendor/dexsql/LICENSE-AUXILIARY"]
 files += [here / "version_matrix.py", here / "test_version_matrix.py"]
 files += [here / "remote_artifacts.py", here / "test_remote_artifacts.py"]
+files += [here / "prepare_runtime.py", here / "test_prepare_runtime.py", here / "test_sample_fetch.py"]
 files += [here / "examples/comment-search-links.json"]
 files += [here / "requirements-remote.txt", here / "setup-remote.cmd", here / "REMOTE_README.md"]
 files += [here / "surface_workers.py", here / "priority_analysis.py", here / "source_snapshot.py",
