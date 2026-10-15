@@ -1,14 +1,12 @@
 name: Analysis tooling tests
 on:
-  pull_request:
-    paths: ['tools/hostlab/**/*.py', 'tools/hostlab/examples/*.json', 'tools/hostlab/requirements*.txt', '.github/workflows/host-analysis.yml', '.github/workflows/tooling-tests.yml']
   push:
-    branches: [main]
-    paths: ['tools/hostlab/**/*.py', 'tools/hostlab/examples/*.json', 'tools/hostlab/requirements*.txt', '.github/workflows/host-analysis.yml', '.github/workflows/tooling-tests.yml']
+    branches: [codex/analysis-ci-cold-validation-20261015]
 permissions:
   contents: read
 jobs:
   test:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/codex/analysis-ci-cold-validation-20261015' && github.repository == 'jichuo1/innocent-lab-host-analysis' }}
     env:
       PYTHONDONTWRITEBYTECODE: '1'
     runs-on: ubuntu-24.04
@@ -16,7 +14,17 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: f5bfa50468dadb99fed4a856fd0ceab5445b3df2
+          fetch-depth: 0
           persist-credentials: false
+      - name: Verify immutable cold validation source
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = push
+          test "$GITHUB_REF" = refs/heads/codex/analysis-ci-cold-validation-20261015
+          test "$GITHUB_REPOSITORY" = jichuo1/innocent-lab-host-analysis
+          test "$(git rev-parse HEAD)" = f5bfa50468dadb99fed4a856fd0ceab5445b3df2
+          test "$(git rev-parse "$GITHUB_SHA^")" = f5bfa50468dadb99fed4a856fd0ceab5445b3df2
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
@@ -28,6 +36,7 @@ jobs:
         id: runtime-key
         run: python tools/hostlab/prepare_runtime.py fingerprint --requirements requirements-query.txt
       - name: Restore verified dependency runtime
+        if: false
         id: runtime-cache
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5, Node 24
         continue-on-error: true
@@ -43,7 +52,7 @@ jobs:
           runtime/hostlab-prepared/env/bin/python -B tools/hostlab/test_remote_mcp.py
           python -c "import sys; sys.path.insert(0,'tools/hostlab'); import prepare_runtime as p; identity,fingerprint=p.describe('requirements-query.txt'); assert p.verify(p.directory(),identity,fingerprint); assert p.prepare('requirements-query.txt')['cache_hit']"
       - name: Save verified dependency runtime
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'jichuo1/innocent-lab-host-analysis' && steps.runtime.outputs.built == 'true' && steps.runtime-cache.outputs.cache-hit != 'true' }}
+        if: false
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5, Node 24
         continue-on-error: true
         with:
