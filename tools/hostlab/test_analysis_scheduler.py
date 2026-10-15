@@ -140,6 +140,21 @@ class ScheduleTest(unittest.TestCase):
         b = self.submit(**kwargs)
         self.assertEqual(a["request_id"], b["request_id"])
         self.assertEqual(len(self.dispatches), 1)
+        receipt=json.loads(next((self.root/"analysis-schedule").glob("*.json")).read_text(encoding="utf-8"))
+        self.assertEqual(receipt["status"],"completed")
+
+    def test_observed_completion_releases_capacity_after_run_list_rolloff(self):
+        for i in range(6):
+            before=list(self.dispatches)
+            existing=[]
+            for receipt in (self.root/"analysis-schedule").glob("*.json") if (self.root/"analysis-schedule").exists() else []:
+                row=json.loads(receipt.read_text(encoding="utf-8"))
+                if row["status"]!="completed": existing.append({"display_title":"hostlab-"+row["request_id"],"status":"completed","conclusion":"success"})
+            self.runs=lambda rows=existing:rows
+            self.assertTrue(self.submit(idempotency_key="work"+str(i))["dispatched"])
+            self.assertEqual(len(self.dispatches),len(before)+1)
+        states=[json.loads(p.read_text(encoding="utf-8"))["status"] for p in (self.root/"analysis-schedule").glob("*.json")]
+        self.assertEqual(states.count("completed"),5)
 
     def test_unpinned_completed_request_fetches_current_sample_on_new_submission(self):
         a = self.submit()
