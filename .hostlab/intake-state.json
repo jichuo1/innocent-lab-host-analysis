@@ -30,13 +30,14 @@
     "a9b70a6ffb66ed3c074ce32faa53dcbfa48d6a8cb2c80ece6921f227d178a1cd",
     "b710f6490f0f54322ec5e9c7ea547f67a9b9d07118a547cae738ee2f2752340c",
     "bff47d2c4488f585c0315198a150f1cf7b5a1a982204ae5ace6993ffaec08112",
+    "c07cf0a3b838ecbc926d0a11c377e7fcb45c92b8aba7ee01d32cd2729b6a6110",
     "c12dca0cd0b256e9c82c437e146f21b37ad94e4b8591396afb5ccbc05e28439c",
     "c3f7aba395a7fd3651b446429e088d9dc776f462aefabe49543d00dbd00bb891",
     "e6fdd8b9abf5051cce9c682bc78aa17e254e02466e583b6a2203b171c415de41",
     "ec9b1ad929f725bdc62344039b50f7a8dfa0a00f6784844e44c347c66a73439c",
     "fc5ff38ff05a8841e89df7aaeeadbf249a4cee8ad1dff5245b6cd05d2a633567"
   ],
-  "watermark": 9150200,
+  "watermark": 9150300,
   "jobs": {
     "b9de430ac9861440f094992926e699a0": {
       "sample": "2b45ab0d934cbe000082caedfa360864de60ab46cd4d45488ae31f35693a927e",
@@ -79,9 +80,45 @@
       "run_id": 38283473478,
       "conclusion": "failure",
       "url": "https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/38283473478"
+    },
+    "47e89d3644b73fff038cf4081522be18": {
+      "sample": "c07cf0a3b838ecbc926d0a11c377e7fcb45c92b8aba7ee01d32cd2729b6a6110",
+      "version_code": 9150300,
+      "status": "submitted",
+      "module_source": {
+        "schema": 1,
+        "repo": "innocent-lab-dev/bilibili-host-apks",
+        "revision": "3f5c5a379dcbf4033a526f8e95d70522ac03f984",
+        "path": "source-snapshots/c7430a97b36e1bb75d91b40f3b6ca102a96ba4b1e051cc064cf28b75bf822081/context.json",
+        "snapshot_sha256": "c7430a97b36e1bb75d91b40f3b6ca102a96ba4b1e051cc064cf28b75bf822081",
+        "source_tree_sha256": "50f36995483e6b98d2ea3443cc7beae188c0e45bead70f749f608bc1fce498a7",
+        "repository_head": "340b064226a72d791989551a71163871629c74ee",
+        "captured_at": "2026-10-13T13:30:21.513701Z",
+        "verified_at": "2026-10-13T13:30:54.680897+00:00",
+        "origin": "published",
+        "working_tree_dirty": true,
+        "file_count": 669,
+        "selection_version": 1
+      },
+      "source_freshness": "published_unverified_worktree"
     }
   },
   "mode": "static_plus_bounded_ai_review",
   "initialized_revision": "e87fda0285f99c8ac568060b878a184a126fb778",
-  "source_freshness": "published_unverified_worktree"
+  "source_freshness": "published_unverified_worktree",
+  "module_source": {
+    "schema": 1,
+    "repo": "innocent-lab-dev/bilibili-host-apks",
+    "revision": "3f5c5a379dcbf4033a526f8e95d70522ac03f984",
+    "path": "source-snapshots/c7430a97b36e1bb75d91b40f3b6ca102a96ba4b1e051cc064cf28b75bf822081/context.json",
+    "snapshot_sha256": "c7430a97b36e1bb75d91b40f3b6ca102a96ba4b1e051cc064cf28b75bf822081",
+    "source_tree_sha256": "50f36995483e6b98d2ea3443cc7beae188c0e45bead70f749f608bc1fce498a7",
+    "repository_head": "340b064226a72d791989551a71163871629c74ee",
+    "captured_at": "2026-10-13T13:30:21.513701Z",
+    "verified_at": "2026-10-13T13:30:54.680897+00:00",
+    "origin": "published",
+    "working_tree_dirty": true,
+    "file_count": 669,
+    "selection_version": 1
+  }
 }
