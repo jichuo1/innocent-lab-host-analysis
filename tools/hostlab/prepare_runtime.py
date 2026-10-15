@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import argparse
+import compileall
 import hashlib
 import json
 import os
 from pathlib import Path
 import platform
+from py_compile import PycInvalidationMode
 import re
 import stat
 import subprocess
@@ -144,11 +146,13 @@ def build(root, identity, fingerprint):
     root.mkdir(parents=True, exist_ok=False)
     venv.EnvBuilder(with_pip=False, symlinks=os.name != "nt").create(root / "env")
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PIP_DISABLE_PIP_VERSION_CHECK": "1"}
-    subprocess.run([sys.executable, "-B", "-m", "pip", "--python", str(interpreter(root)), "install",
+    subprocess.run([identity["base_python"], "-B", "-m", "pip", "--python", str(interpreter(root)), "install",
         "--disable-pip-version-check", "--no-compile", "-r", str(HERE / identity["requirements"])],
         env=env, check=True, timeout=300)
-    subprocess.run([sys.executable, "-B", "-m", "pip", "--python", str(interpreter(root)), "check"],
+    subprocess.run([identity["base_python"], "-B", "-m", "pip", "--python", str(interpreter(root)), "check"],
                    env=env, check=True, timeout=30)
+    if not compileall.compile_dir(root / "env", quiet=2, invalidation_mode=PycInvalidationMode.CHECKED_HASH):
+        raise RuntimeError("dependency bytecode compilation failed")
     distributions = probe(root, identity["requirements"])
     files = inventory(root, Path(identity["base_python"]))
     hostlab.write_json(root / "receipt.json", {"schema": POLICY, "fingerprint": fingerprint,

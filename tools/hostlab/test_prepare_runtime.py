@@ -286,6 +286,15 @@ class RuntimeBootstrapContractTest(unittest.TestCase):
         self.assertTrue((self.root / "receipt.json").is_file())
         self.assertEqual(set(p.name for p in self.root.iterdir()), {"env", "receipt.json"})
 
+    def test_bytecode_compilation_failure_does_not_publish_a_receipt(self):
+        builder=Mock();builder.create.side_effect=self.fake_venv
+        with patch.object(prepare_runtime.venv,"EnvBuilder",return_value=builder), \
+             patch.object(prepare_runtime.subprocess,"run"), \
+             patch.object(prepare_runtime.compileall,"compile_dir",return_value=False), \
+             self.assertRaisesRegex(RuntimeError,"bytecode"):
+            prepare_runtime.build(self.root,self.identity,self.fingerprint)
+        self.assertFalse((self.root/"receipt.json").exists())
+
     def test_failed_install_or_probe_never_writes_success_receipt(self):
         for phase in ("install", "probe"):
             with self.subTest(phase=phase):

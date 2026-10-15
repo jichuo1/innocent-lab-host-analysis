@@ -22,3 +22,10 @@ jobs:
       - name: Offline source, dispatch, AI and report checks
         working-directory: tools/hostlab
         run: python -m unittest discover -p 'test_*.py' -v
+      - name: Verify actual isolated runtime and prepared bytecode
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python tools/hostlab/prepare_runtime.py prepare --requirements requirements-query.txt
+          runtime/hostlab-prepared/env/bin/python tools/hostlab/test_remote_mcp.py
+          python -c "import sys; sys.path.insert(0,'tools/hostlab'); import prepare_runtime as p; identity,fingerprint=p.describe('requirements-query.txt'); assert p.verify(p.directory(),identity,fingerprint); assert p.prepare('requirements-query.txt')['cache_hit']"

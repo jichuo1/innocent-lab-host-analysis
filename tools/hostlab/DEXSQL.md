@@ -66,6 +66,7 @@ tools/hostlab/hostlab.cmd dexq batch --version-code 9150200 --request request.js
 Actions 将已安装依赖保存在独立的 `runtime/hostlab-prepared` 隔离环境，使用精确 Python/ABI、OS/架构、runner image、工作区路径、requirements 与准备器源码摘要定位缓存。
 恢复后先校验完整文件/目录/链接清单和 SHA-256，再启动解释器验证环境绑定、顶层固定版本及完整已安装版本清单；损坏或失配时重建。
 冷安装使用既有 pip 管理无 pip 的 venv，完成依赖检查才发布回执；缓存只保存依赖，在样本步骤之前完成保存，不包含 HF_HOME、APK/DEX、报告或认证文件。
+依赖以当前精确解释器预编译为校验源哈希的字节码，源文件和字节码都进入完整性清单；正常执行不再反复编译依赖。
 未设置宽泛 restore key；缓存服务不可用时本次冷建，缓存本身不提供成功凭据。失配缓存保留在缓存根以外的受控隔离目录，未自动删除证据。
 传递依赖的解析结果记录并校验在缓存回执中；冷重建仍由既有 requirements 解析，不声称不同日期的冷解析已由完整 lock 文件锁定。
 纯 native 和普通结构查询不准备 Java；JADX/审计/后端验证仍保留 Java。DexSQL 二进制仍由固定 SHA 安装器校验，未跳过输入校验提速。
