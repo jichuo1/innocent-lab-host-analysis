@@ -4,6 +4,7 @@
 
 | 样本 | 分析结论 | AI | 源码快照 / UTC / 时效 | 报告 | 完整证据 |
 |---|---|---|---|---|---|
+| 9.15.0 / 9150300 | AI_ANALYSIS_FAILED | failed | c38121abb94b / 2026-10-15T10:53:46.454029Z / historical_static_evidence_new_source | [查看](samples/9150300/c07cf0a3b838ecbc926d0a11c377e7fcb45c92b8aba7ee01d32cd2729b6a6110/runs/38736269457-a1/report.md) | — |
 | 9.15.0 / 9150300 | AI_ANALYSIS_FAILED | failed | c38121abb94b / 2026-10-15T10:53:46.454029Z / historical_static_evidence_new_source | [查看](samples/9150300/c07cf0a3b838ecbc926d0a11c377e7fcb45c92b8aba7ee01d32cd2729b6a6110/runs/38727658593-a1/report.md) | — |
 | 9.15.0 / 9150300 | AI_ANALYSIS_FAILED | failed | c38121abb94b / 2026-10-15T10:53:46.454029Z / historical_static_evidence_new_source | [查看](samples/9150300/c07cf0a3b838ecbc926d0a11c377e7fcb45c92b8aba7ee01d32cd2729b6a6110/runs/38725765969-a1/report.md) | — |
 | 9.15.0 / 9150300 | AI_ANALYSIS_FAILED | failed | c7430a97b36e / 2026-10-13T13:30:21.513701Z / published_unverified_worktree | [查看](samples/9150300/c07cf0a3b838ecbc926d0a11c377e7fcb45c92b8aba7ee01d32cd2729b6a6110/runs/38716769106-a1/report.md) | — |
