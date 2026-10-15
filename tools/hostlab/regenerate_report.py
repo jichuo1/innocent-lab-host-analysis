@@ -59,7 +59,7 @@ def argument(raw):
             or type(value.get("static_run")) is not int or not 1 <= value["static_run"] < 10**20
             or "checkpoint_run" in value and (type(value["checkpoint_run"]) is not int or not 1 <= value["checkpoint_run"] < 10**20)
             or type(value.get("resume_unknown", False)) is not bool
-            or "recovery_policy" in value and (value["recovery_policy"] != "extended-v1" or "checkpoint_run" not in value)):
+            or "recovery_policy" in value and (value["recovery_policy"] not in ("extended-v1", "completion-v2") or "checkpoint_run" not in value)):
         raise RuntimeError("Expected static_run, optional checkpoint_run, boolean resume_unknown and explicit recovery_policy")
     return {**value, "resume_unknown": value.get("resume_unknown", False)}
 
@@ -244,7 +244,8 @@ def main():
     if checkpoint is not None:
         if options.get("recovery_policy"):
             import ai_recovery
-            data["ai_recovery_inputs"] = ai_recovery.restore_inputs(destination, checkpoint["files"], options["checkpoint_run"])
+            recovery_options = {"policy": "completion-v2"} if options["recovery_policy"] == "completion-v2" else {}
+            data["ai_recovery_inputs"] = ai_recovery.restore_inputs(destination, checkpoint["files"], options["checkpoint_run"], **recovery_options)
         else:
             import ai_checkpoint
             ai_checkpoint.restore_checkpoint(destination, checkpoint["files"])

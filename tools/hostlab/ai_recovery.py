@@ -16,6 +16,9 @@ import remote_schedule
 
 POLICY = "extended-v1"
 FILES = {"ai-checkpoint.json": "ai-resume-checkpoint.json", "ai-evidence.json": "ai-resume-evidence.json"}
+COMPLETION_POLICY = "completion-v2"
+COMPLETION_FILES = {"ai-checkpoint.json": "ai-completion-checkpoint.json",
+                    "ai-evidence.json": "ai-completion-evidence.json"}
 MUTABLE_CODE = {"ai_pipeline.py", "ai_checkpoint.py", "ai_transport.py"}
 BOUND_CODE = MUTABLE_CODE | {"ai_prompts.py", "ai_review.py"}
 
@@ -77,9 +80,9 @@ def _public_evidence(value):
     return value
 
 
-def restore_inputs(root, verifiedfiles, parent_run):
+def restore_inputs(root, verifiedfiles, parent_run, policy=POLICY):
     """Accept only the two public files in the caller's verified artifact inventory."""
-    if type(parent_run) is not int or parent_run <= 0:
+    if type(parent_run) is not int or parent_run <= 0 or policy not in (POLICY, COMPLETION_POLICY):
         raise checkpoint.CheckpointError("invalid recovery parent run")
     root = Path(root); root.mkdir(parents=True, exist_ok=True)
     def selected(name):
@@ -89,7 +92,40 @@ def restore_inputs(root, verifiedfiles, parent_run):
         return _read(selected[0])
     active_raw, active = selected("ai-checkpoint.json")
     checkpoint.validate(active)
-    extended = active["binding"].get("policy", {}).get("recovery_policy") == POLICY
+    active_policy = active["binding"].get("policy", {}).get("recovery_policy")
+    if policy == COMPLETION_POLICY:
+        if active_policy not in (POLICY, COMPLETION_POLICY):
+            raise checkpoint.CheckpointError("completion recovery requires an extended or completion parent")
+        repeated = active_policy == COMPLETION_POLICY
+        raw, original = selected(COMPLETION_FILES["ai-checkpoint.json"] if repeated else "ai-checkpoint.json")
+        evidence_raw, document = selected(COMPLETION_FILES["ai-evidence.json"] if repeated else "ai-evidence.json")
+        checkpoint.validate(original); _public_evidence(document)
+        _completion_parent(original, document)
+        metadata = {"parent_run": parent_run, "checkpoint_sha256": hashlib.sha256(raw).hexdigest(),
+                    "evidence_sha256": hashlib.sha256(evidence_raw).hexdigest()}
+        if repeated:
+            _history(active, original, metadata, document)
+            current_raw, current = selected("ai-evidence.json")
+            _evidence_history(current, document)
+            metadata["active_evidence_sha256"] = hashlib.sha256(current_raw).hexdigest()
+        else:
+            # A v2 origin is the full latest v1 ledger, whose old paid prefix
+            # must still match the original v1 recovery inputs.
+            ancestor_raw, ancestor = selected(FILES["ai-checkpoint.json"])
+            ancestor_evidence_raw, ancestor_document = selected(FILES["ai-evidence.json"])
+            checkpoint.validate(ancestor); _public_evidence(ancestor_document)
+            _history(active, ancestor, {"checkpoint_sha256": hashlib.sha256(ancestor_raw).hexdigest(),
+                "evidence_sha256": hashlib.sha256(ancestor_evidence_raw).hexdigest()})
+            _evidence_history(document, ancestor_document)
+        _atomic_bytes(root/COMPLETION_FILES["ai-checkpoint.json"], raw)
+        _atomic_bytes(root/COMPLETION_FILES["ai-evidence.json"], evidence_raw)
+        if repeated:
+            _atomic_bytes(root/"ai-checkpoint.json", active_raw)
+            _atomic_bytes(root/"ai-evidence.json", current_raw)
+        return metadata
+    if active_policy == COMPLETION_POLICY:
+        raise checkpoint.CheckpointError("completion parent requires the explicit completion policy")
+    extended = active_policy == POLICY
     metadata = {"parent_run": parent_run}
     for name, target in FILES.items():
         raw, value = selected(target if extended else name)
@@ -103,9 +139,10 @@ def restore_inputs(root, verifiedfiles, parent_run):
     return metadata
 
 
-def _history(value, original, inputs):
+def _history(value, original, inputs, document=None):
     recovery = value.get("recovery", {})
     count = recovery.get("adopted_attempt_count")
+    _binding(original["binding"], value["binding"])
     if (recovery.get("origin_checkpoint_sha256") != inputs["checkpoint_sha256"]
             or recovery.get("evidence_sha256") != inputs["evidence_sha256"]
             or recovery.get("original_binding") != original["binding"]
@@ -116,6 +153,16 @@ def _history(value, original, inputs):
             or value["transport_retries"] < original["transport_retries"]
             or value["elapsed_seconds"] < original["elapsed_seconds"]):
         raise checkpoint.CheckpointError("extended recovery changed its immutable origin history")
+    if recovery.get("policy") == COMPLETION_POLICY:
+        if (document is None or recovery.get("adopted_review_units") != _review_prefix(original)
+                or recovery.get("original_review_start") != _completion_parent(original, document)
+                or recovery.get("parent_recovery") != original.get("recovery")):
+            raise checkpoint.CheckpointError("completion recovery changed its immutable parent history")
+        touched = {row["profile"] for row in value["attempts"][count:]}
+        if (not set(original["providers"]) <= set(value["providers"])
+                or any(value["providers"][name] != saved for name, saved in original["providers"].items()
+                       if name not in touched)):
+            raise checkpoint.CheckpointError("completion recovery changed its inherited provider state")
     if recovery["resume_transport_retry_pending"]:
         if (len(value["attempts"]) != count or value["transport_retries"] != original["transport_retries"]
                 or recovery["next_retry_unit"] != original["attempts"][-1]["unit"]):
@@ -127,18 +174,24 @@ def _history(value, original, inputs):
 
 def _binding(old, new):
     checkpoint.policy_limits(old); new_limits = checkpoint.policy_limits(new)
-    if old.get("policy", {}).get("recovery_policy") == POLICY:
+    old_policy = old.get("policy", {}).get("recovery_policy")
+    new_policy = new.get("policy", {}).get("recovery_policy")
+    if old_policy in (POLICY, COMPLETION_POLICY) and old_policy == new_policy:
         if old != new:
             raise checkpoint.CheckpointError("extended recovery binding changed")
         return
-    if new_limits["max_requests"] != 24 or new.get("policy", {}).get("recovery_policy") != POLICY:
+    completion = new_policy == COMPLETION_POLICY
+    if (new_limits["max_requests"] != (32 if completion else 24)
+            or new_policy not in (POLICY, COMPLETION_POLICY)
+            or completion and old_policy != POLICY or not completion and old_policy is not None):
         raise checkpoint.CheckpointError("explicit extended recovery policy required")
     if (set(old) != set(new) or set(old.get("code", {})) != BOUND_CODE or set(new.get("code", {})) != BOUND_CODE
             or any(old[key] != new[key] for key in old if key not in {"code", "policy"})
             or any(old["code"][key] != new["code"][key] for key in BOUND_CODE-MUTABLE_CODE)):
         raise checkpoint.CheckpointError("recovery source/static/prompt/acceptance/provider/plan binding changed")
-    expected_policy = {**old["policy"], "max_requests": 24, "transport_retries": 4,
-                       "max_output": 16384, "recovery_policy": POLICY}
+    expected_policy = {**old["policy"], "max_requests": 32 if completion else 24, "transport_retries": 4,
+                       "max_output": 16384, "recovery_policy": new_policy,
+                       "deadline_seconds": 3600 if completion else 1800}
     if new["policy"] != expected_policy:
         raise checkpoint.CheckpointError("recovery changed an unapproved policy field")
     for value in (*old["code"].values(), *new["code"].values()):
@@ -174,6 +227,47 @@ def _draft_prefix(value):
     return names
 
 
+def _review_prefix(value):
+    names = sorted((name for name in value["units"] if name.startswith("r")), key=lambda name: int(name[1:]))
+    if names != ["r"+str(index) for index in range(len(names))] or len(names) > 12:
+        raise checkpoint.CheckpointError("recovery review units are not a contiguous plan prefix")
+    return names
+
+
+def _completion_parent(value, document):
+    if (value["binding"].get("policy", {}).get("recovery_policy") != POLICY
+            or not _draft_prefix(value)
+            or len(_draft_prefix(value)) != len(value["binding"].get("draft_units", []))
+            or not _review_prefix(value)):
+        raise checkpoint.CheckpointError("completion recovery requires every draft and an accepted review prefix")
+    attempts = value["attempts"]
+    if (not attempts or attempts[-1].get("status") != "failed" or not attempts[-1].get("retryable")
+            or attempts[-1].get("stage") != "review"
+            or attempts[-1].get("unit") != "r"+str(len(_review_prefix(value)))
+            or value["transport_retries"] >= 4):
+        raise checkpoint.CheckpointError("completion recovery requires its next retryable review and remaining compensation")
+    pages = [page for unit in value["binding"]["draft_units"] for page in unit]
+    rows = document["tools"]
+    prefetched = rows[:len(pages)]
+    prefetch_pages = [row["args"].get("page") for row in prefetched]
+    refresh = [page for page in prefetch_pages if page in {"comment", "dynamic"}]
+    if (not refresh or len(rows) < len(pages)+len(refresh)
+            or len(set(pages)) != len(pages) or set(prefetch_pages) != set(pages)
+            or any(row["tool"] != "page_evidence" or set(row["args"]) != {"page"} for row in prefetched)):
+        raise checkpoint.CheckpointError("completion recovery lacks its original page prefetch")
+    start = next((index for index in range(len(pages), len(rows)) if rows[index]["tool"] == "page_evidence"), None)
+    if (start is None or [row["args"] for row in rows[start:start+len(refresh)]] != [{"page": page} for page in refresh]
+            or any(row["tool"] != "page_evidence" for row in rows[start:start+len(refresh)])):
+        raise checkpoint.CheckpointError("completion recovery lacks its original fresh review boundary")
+    return start
+
+
+def _evidence_history(current, original):
+    _public_evidence(current)
+    if current["E000"] != original["E000"] or current["tools"][:len(original["tools"])] != original["tools"]:
+        raise checkpoint.CheckpointError("completion recovery evidence changed its immutable parent prefix")
+
+
 def _rebuild(evidence, document):
     rows = document["tools"]
     current = evidence.public_journal()
@@ -201,27 +295,38 @@ def prepare_recovery(root, summary, new_binding, evidence):
     policy = summary.get("ai_recovery_policy")
     if policy is None:
         return {"migrated": False, "imported_units": []}
-    if policy != POLICY:
+    if policy not in (POLICY, COMPLETION_POLICY):
         raise checkpoint.CheckpointError("unknown AI recovery policy")
+    completion = policy == COMPLETION_POLICY
     inputs = summary.get("ai_recovery_inputs")
-    if (not isinstance(inputs, dict) or set(inputs) != {"parent_run", "checkpoint_sha256", "evidence_sha256"}
+    required = {"parent_run", "checkpoint_sha256", "evidence_sha256"}
+    allowed = required | ({"active_evidence_sha256"} if completion else set())
+    if (not isinstance(inputs, dict) or not required <= set(inputs) <= allowed
             or type(inputs["parent_run"]) is not int or inputs["parent_run"] <= 0
             or summary.get("checkpoint_from_run") != inputs["parent_run"]):
         raise checkpoint.CheckpointError("explicit recovery needs verified parent-run inputs")
     root = Path(root)
-    raw, original = _read(root/FILES["ai-checkpoint.json"])
-    evidence_raw, document = _read(root/FILES["ai-evidence.json"])
+    files = COMPLETION_FILES if completion else FILES
+    raw, original = _read(root/files["ai-checkpoint.json"])
+    evidence_raw, document = _read(root/files["ai-evidence.json"])
     if (hashlib.sha256(raw).hexdigest() != inputs["checkpoint_sha256"]
             or hashlib.sha256(evidence_raw).hexdigest() != inputs["evidence_sha256"]):
         raise checkpoint.CheckpointError("verified recovery input bytes changed")
     checkpoint.validate(original); _public_evidence(document)
     _binding(original["binding"], new_binding); _static(root, new_binding)
     imported = _draft_prefix(original)
-    if original["binding"].get("policy", {}).get("recovery_policy") != POLICY and any(name.startswith("r") for name in original["units"]):
+    review_start = _completion_parent(original, document) if completion else None
+    if not completion and original["binding"].get("policy", {}).get("recovery_policy") != POLICY and any(name.startswith("r") for name in original["units"]):
         raise checkpoint.CheckpointError("initial extended recovery cannot import accepted review units")
     if not original["attempts"] or original["attempts"][-1].get("status") != "failed" or not original["attempts"][-1].get("retryable"):
         raise checkpoint.CheckpointError("extended recovery needs an original retryable failed request")
-    _rebuild(evidence, document)
+    active_document = document
+    if "active_evidence_sha256" in inputs:
+        current_raw, active_document = _read(root/"ai-evidence.json")
+        if hashlib.sha256(current_raw).hexdigest() != inputs["active_evidence_sha256"]:
+            raise checkpoint.CheckpointError("verified active recovery evidence bytes changed")
+        _evidence_history(active_document, document)
+    _rebuild(evidence, active_document)
     path = root/"ai-checkpoint.json"
     checkpoint.regular(root/"ai-checkpoint.lock", missing=True)
     lock = remote_schedule.admission_lock(root/"ai-checkpoint.lock")
@@ -231,26 +336,33 @@ def prepare_recovery(root, summary, new_binding, evidence):
         if path.exists():
             _, existing = _read(path); checkpoint.validate(existing)
             if (existing["binding"] != new_binding or existing.get("recovery", {}).get("origin_checkpoint_sha256") !=
-                    original.get("recovery", {}).get("origin_checkpoint_sha256", inputs["checkpoint_sha256"])):
+                    (inputs["checkpoint_sha256"] if completion else
+                     original.get("recovery", {}).get("origin_checkpoint_sha256", inputs["checkpoint_sha256"]))):
                 raise checkpoint.CheckpointError("refusing to overwrite a different active recovery ledger")
             value = existing
-            _history(value, original, inputs)
+            _history(value, original, inputs, document)
             imported = value["recovery"]["adopted_units"]
         else:
             value = copy.deepcopy(original)
             value["binding"] = copy.deepcopy(new_binding)
             value["binding_sha256"] = checkpoint.digest(new_binding)
-            value["recovery"] = {"schema": 1, "policy": POLICY, "parent_run": inputs["parent_run"],
+            value["recovery"] = {"schema": 1, "policy": policy, "parent_run": inputs["parent_run"],
                 "origin_checkpoint_sha256": inputs["checkpoint_sha256"], "evidence_sha256": inputs["evidence_sha256"],
                 "original_binding": copy.deepcopy(original["binding"]), "original_binding_sha256": original["binding_sha256"],
                 "old_limits": checkpoint.policy_limits(original["binding"]), "new_limits": checkpoint.policy_limits(new_binding),
                 "resume_transport_retry_pending": True, "next_retry_unit": original["attempts"][-1]["unit"],
                 "adopted_units": imported, "adopted_attempt_count": len(original["attempts"]), "migrated_at": time.time(),
                 "migration_tool_sha256": hostlab.digest(Path(__file__))}
+            if completion:
+                value["recovery"].update(parent_recovery=copy.deepcopy(original["recovery"]),
+                    adopted_review_units=_review_prefix(original), original_review_start=review_start)
             checkpoint.validate(value)
             checkpoint.atomic(path, value)
     finally:
         lock.close()
-    return {"migrated": True, "imported_units": imported, "recovery": copy.deepcopy(value["recovery"]),
+    result = {"migrated": True, "imported_units": imported, "recovery": copy.deepcopy(value["recovery"]),
             "adopted_attempt_count": value["recovery"]["adopted_attempt_count"],
             "restored_tool_rows": len(evidence.journal), "restored_model_tool_calls": evidence.calls}
+    if completion:
+        result.update(imported_review_units=_review_prefix(value), original_review_start=review_start)
+    return result
