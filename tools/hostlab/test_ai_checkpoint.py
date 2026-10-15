@@ -30,8 +30,26 @@ class CheckpointTest(unittest.TestCase):
         self.assertEqual(checkpoint.policy_limits(completion)["max_requests"], 32)
         self.assertEqual(checkpoint.policy_limits(completion)["transport_retries"], 4)
         self.assertEqual(checkpoint.policy_limits(completion)["deadline_seconds"], 3600)
+        final = copy.deepcopy(completion)
+        final["policy"].update(max_requests=40, transport_retries=6, deadline_seconds=4800,
+                               total_timeout=600, adaptive_timeout=True, recovery_policy="completion-v3")
+        self.assertEqual(checkpoint.policy_limits(final)["max_requests"], 40)
+        self.assertEqual(checkpoint.policy_limits(final)["transport_retries"], 6)
+        self.assertEqual(checkpoint.policy_limits(final)["deadline_seconds"], 4800)
+        self.assertEqual(checkpoint.policy_limits(final)["total_timeout"], 600)
+        self.assertTrue(checkpoint.policy_limits(final)["adaptive_timeout"])
+        for update in ({"max_requests": 41}, {"transport_retries": 7}, {"deadline_seconds": 4801},
+                       {"total_timeout": 599}, {"adaptive_timeout": False}, {"adaptive_timeout": 1},
+                       {"recovery_policy": "completion-v4"}):
+            value = copy.deepcopy(final); value["policy"].update(update)
+            with self.subTest(final=update), self.assertRaises(checkpoint.CheckpointError):
+                checkpoint.policy_limits(value)
+        value = copy.deepcopy(final); del value["policy"]["adaptive_timeout"]
+        with self.assertRaises(checkpoint.CheckpointError):
+            checkpoint.policy_limits(value)
         for update in ({"max_requests": 33}, {"transport_retries": 5}, {"deadline_seconds": 3601},
-                       {"max_output": 8192}, {"recovery_policy": "completion-v3"}):
+                       {"max_output": 8192}, {"total_timeout": 600}, {"adaptive_timeout": True},
+                       {"recovery_policy": "completion-v3"}):
             value = copy.deepcopy(completion); value["policy"].update(update)
             with self.subTest(completion=update), self.assertRaises(checkpoint.CheckpointError):
                 checkpoint.policy_limits(value)

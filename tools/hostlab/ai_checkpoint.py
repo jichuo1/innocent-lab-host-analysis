@@ -19,6 +19,15 @@ MAX_REQUESTS = 16
 MAX_TRANSPORT_RETRIES = 2
 COOLDOWN_SECONDS = 60
 HEX = re.compile(r"[0-9a-f]{64}")
+RECOVERY_LIMITS = {
+    "extended-v1": {"max_requests": 24, "transport_retries": 4, "max_output": 16384,
+                    "deadline_seconds": 1800, "total_timeout": 240},
+    "completion-v2": {"max_requests": 32, "transport_retries": 4, "max_output": 16384,
+                      "deadline_seconds": 3600, "total_timeout": 240},
+    "completion-v3": {"max_requests": 40, "transport_retries": 6, "max_output": 16384,
+                      "deadline_seconds": 4800, "total_timeout": 600, "adaptive_timeout": True},
+}
+PARENT_POLICY = {"extended-v1": None, "completion-v2": "extended-v1", "completion-v3": "completion-v2"}
 
 
 def policy_limits(binding):
@@ -30,11 +39,11 @@ def policy_limits(binding):
     if not isinstance(policy, dict):
         raise CheckpointError("invalid AI policy")
     recovery = policy.get("recovery_policy")
-    extended = recovery in ("extended-v1", "completion-v2")
-    expected = {"max_requests": 32 if recovery == "completion-v2" else 24 if extended else 16,
-                "transport_retries": 4 if extended else 2, "max_output": 16384 if extended else 8192,
-                "deadline_seconds": 3600 if recovery == "completion-v2" else 1800,
+    extended = isinstance(recovery, str) and recovery in RECOVERY_LIMITS
+    expected = {"max_requests": 16, "transport_retries": 2, "max_output": 8192, "deadline_seconds": 1800,
                 "total_timeout": 240, "idle_timeout": 45, "stream": True}
+    if extended:
+        expected.update(RECOVERY_LIMITS[recovery])
     if (set(policy) != set(expected) | {"initial_profile", "allow_fallback"} | ({"recovery_policy"} if extended else set())
             or policy.get("initial_profile") not in {"primary", "backup"}
             or type(policy.get("allow_fallback")) is not bool
@@ -80,11 +89,12 @@ def validate(value):
             or type(value.get("elapsed_seconds", 0)) not in {int, float}
             or not math.isfinite(value.get("elapsed_seconds", 0)) or value.get("elapsed_seconds", 0) < 0):
         raise CheckpointError("invalid checkpoint accounting")
-    if limits["max_requests"] in {24, 32}:
+    if limits.get("recovery_policy") in PARENT_POLICY:
         recovery = value.get("recovery")
-        completion = limits["max_requests"] == 32
-        old_requests = 24 if completion else MAX_REQUESTS
-        old_retries = 4 if completion else MAX_TRANSPORT_RETRIES
+        parent_policy = PARENT_POLICY[limits["recovery_policy"]]
+        completion = parent_policy is not None
+        old_requests = RECOVERY_LIMITS[parent_policy]["max_requests"] if completion else MAX_REQUESTS
+        old_retries = RECOVERY_LIMITS[parent_policy]["transport_retries"] if completion else MAX_TRANSPORT_RETRIES
         if (not isinstance(recovery, dict) or recovery.get("policy") != limits["recovery_policy"]
                 or recovery.get("schema") != 1 or type(recovery.get("schema")) is not int
                 or not isinstance(recovery.get("original_binding"), dict)
@@ -109,7 +119,7 @@ def validate(value):
             raise CheckpointError("invalid recovery provenance")
         if completion:
             reviews = recovery.get("adopted_review_units")
-            if (recovery["original_binding"].get("policy", {}).get("recovery_policy") != "extended-v1"
+            if (recovery["original_binding"].get("policy", {}).get("recovery_policy") != parent_policy
                     or not recovery["adopted_units"]
                     or recovery["adopted_units"] != ["d"+str(index) for index in range(
                         len(value["binding"].get("draft_units", [])))]
@@ -119,15 +129,16 @@ def validate(value):
                     or type(recovery.get("original_review_start")) is not int
                     or not 0 <= recovery["original_review_start"] < 32
                     or not isinstance(recovery.get("parent_recovery"), dict)
-                    or recovery["parent_recovery"].get("policy") != "extended-v1"
+                    or recovery["parent_recovery"].get("policy") != parent_policy
                     or (recovery["resume_transport_retry_pending"] and
                         recovery["next_retry_unit"] != "r"+str(len(reviews)))):
                 raise CheckpointError("invalid completion recovery provenance")
-            # Validate the preserved v1 metadata against its complete adopted
-            # attempt prefix without permitting a second policy transition.
+            # Validate only ancestor provenance here. Its old cap does not apply
+            # to the current generation's additional compensation receipts.
             parent = {**value, "binding": recovery["original_binding"],
                 "binding_sha256": recovery["original_binding_sha256"],
                 "attempts": value["attempts"][:recovery["adopted_attempt_count"]],
+                "transport_retries": min(value["transport_retries"], old_retries),
                 "responses": {}, "recovery": recovery["parent_recovery"]}
             validate(parent)
     elif "recovery" in value:
@@ -267,7 +278,7 @@ class Checkpoint:
         if provider.get("failures", 0) >= 2 and time.time() < provider.get("open_until", 0):
             raise CheckpointError("provider circuit is open")
         pending = self.value.get("recovery", {}).get("resume_transport_retry_pending", False)
-        reserved_stage = "review" if self.policy.get("recovery_policy") == "completion-v2" else "draft"
+        reserved_stage = "review" if self.policy.get("recovery_policy") in ("completion-v2", "completion-v3") else "draft"
         if pending and (unit != self.value["recovery"]["next_retry_unit"] or stage != reserved_stage):
             raise CheckpointError("recovery compensation is reserved for its original failed unit")
         transport_retry = transport_retry or pending
