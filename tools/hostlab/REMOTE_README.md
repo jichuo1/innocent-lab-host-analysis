@@ -65,3 +65,7 @@ Call `submit_job(version_code=1, operation="inventory")`, then use `job_status` 
 
 更新并重新加载 MCP 后有十一项工具，包括单样本 plan/submit 和多版本 plan/submit/advance/status/result。
 相关查询一批共用一次下载与后端会话，保留 SQLite 方言和 JADX 路径。完整请求示例、去重/未知提交行为与限额见 [DEXSQL.md](DEXSQL.md)。
+
+`version_matrix_result` 默认四路附件收集，`download_parallel` 可设 1–4；多个调用也共享下载预算。
+已验证的附件复用本地文件，分页不重复下载；首次校验 GitHub ZIP SHA-256，复用前重新校验文件 SHA-256。
+`collection_errors` 表示局部收集未完成，可重试相同 matrix_id/offset；已成功文件保留，不创建新的 Actions 作业。

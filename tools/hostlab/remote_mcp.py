@@ -131,13 +131,25 @@ def version_matrix_status(matrix_id: str) -> str:
 
 
 @mcp.tool()
-def version_matrix_result(matrix_id: str, offset: int = 0, limit: int = 8) -> str:
-    """Collect a finished matrix and compare candidate descriptors and multiplicities across versions, preserving exact sample/tool identities. Typed identities and an explicit descriptor column in SQL support hook-point/structure discovery. DEX layout is not a cross-version identity. Large previews point to a full local comparison file. Complete static analysis does not prove a working runtime hook."""
+def version_matrix_result(matrix_id: str, offset: int = 0, limit: int = 8, download_parallel: int = 4) -> str:
+    """Collect a finished matrix with 1..4 download workers and a verified artifact cache. Partial collection reports collection_errors: retry this same matrix/page without new Actions. Candidate identities and structure hashes preserve exact sample/tool bindings. Large previews point to an immutable local comparison snapshot. Static results do not prove working runtime hooks."""
     import version_matrix
     try:
-        return json.dumps(version_matrix.compare(matrix_id,job_result,offset,limit),ensure_ascii=False)
+        return json.dumps(version_matrix.compare(matrix_id,job_result,offset,limit,
+            download_parallel=download_parallel,collect=matrix_artifact),ensure_ascii=False)
     except ValueError as exc:
         raise ToolError(str(exc)) from None
+
+
+def matrix_artifact(entry):
+    """Use the matrix's completed run snapshot; old matrices resolve it once per cache access."""
+    import remote_artifacts
+    run = entry.get("result_run")
+    if not run or not {"head_sha", "display_title", "run_attempt"} <= run.keys():
+        run = lookup(entry["request_id"])
+    if run is None:
+        raise remote_artifacts.ArtifactError("result_run_unavailable")
+    return json.dumps(remote_artifacts.get(REPO, entry["request_id"], run, gh), ensure_ascii=False)
 
 
 @mcp.tool()
@@ -240,16 +252,14 @@ def job_result(request_id: str, result_offset: int = 0) -> str:
     run = lookup(request_id)
     if run is None or run["status"] != "completed":
         raise ToolError("Job has not completed")
-    out = hostlab.STATE / "remote-results" / str(run["id"])
-    if not (out / ".downloaded").exists():
-        out.mkdir(parents=True, exist_ok=True)
-        try:
-            gh(["run", "download", str(run["id"]), "--repo", REPO, "--name", "host-analysis-" + str(run["id"]), "--dir", str(out)])
-            (out / ".downloaded").touch()
-        except Exception:
-            raise ToolError("Results unavailable; check workflow logs or expired artifact")
-    files = sorted((p for p in out.rglob("*") if p.is_file() and p.name != ".downloaded"),
+    import remote_artifacts
+    try:
+        collected = remote_artifacts.get(REPO, request_id, run, gh)
+    except (ValueError, OSError) as exc:
+        raise ToolError(str(exc) if isinstance(exc, remote_artifacts.ArtifactError) else "artifact_collection_failed") from None
+    files = sorted((Path(p) for p in collected["files"]),
                    key=lambda p: (p.name != "result.txt", str(p)))
+    out = Path(collected["root"])
     if sum(p.name == "result.txt" for p in files) > 1:
         raise ToolError("Multiple result.txt files; cannot choose an unambiguous page source")
     text = []
@@ -277,7 +287,8 @@ def job_result(request_id: str, result_offset: int = 0) -> str:
     freshness = source_freshness(json.loads(summaries[0].read_text(encoding="utf-8"))) if len(summaries) == 1 else None
     return json.dumps({"run": run["html_url"], "files": [str(p) for p in files],
                        "text": combined[:24000], "text_truncated": preview_truncated,
-                       "result_page": result_page, "source_freshness": freshness}, ensure_ascii=False)
+                       "result_page": result_page, "source_freshness": freshness,
+                       "collection": {key:collected[key] for key in ("cache_hit", "artifact", "integrity", "elapsed_ms", "run_attempt")}}, ensure_ascii=False)
 
 
 if __name__ == "__main__":

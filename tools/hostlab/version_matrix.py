@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 from pathlib import Path
 import re
+import threading
 import time
 import uuid
 
@@ -15,6 +17,7 @@ import remote_schedule
 
 MAX_SAMPLES = 40
 TERMINAL = {"complete", "failed", "skipped"}
+COLLECTION_SLOTS = threading.BoundedSemaphore(4)
 
 
 def digest(value):
@@ -177,6 +180,9 @@ def advance(matrix_id, gh, lookup, runs, *, repository, workflow, dispatch=True)
             if run is not None:
                 hostlab.write_json(hostlab.STATE/"remote-job-map"/(entry["request_id"]+".json"),{"run_id":run["id"]})
                 entry.update(run_id=run["id"], run_url=run["html_url"], conclusion=run.get("conclusion"))
+                if run["status"] == "completed":
+                    entry["result_run"] = {key: run[key] for key in (
+                        "id", "status", "conclusion", "html_url", "head_sha", "run_attempt", "display_title", "run_started_at") if key in run}
                 entry["status"] = ("complete" if run.get("conclusion") == "success" else "failed") if run["status"] == "completed" else run["status"]
                 remote_schedule.observe(entry["request_id"], run)
         active = sum(e["status"] not in TERMINAL and bool(e["request_id"]) for e in matrix["entries"])
@@ -240,13 +246,24 @@ def attributes(output):
     return {key:sorted(value) for key,value in hashes.items()},previews
 
 
-def compare(matrix_id, job_result, offset=0, limit=8):
+def compare(matrix_id, job_result, offset=0, limit=8, *, download_parallel=4, collect=None):
+    """Bound concurrent callers as well as each caller's download workers."""
+    if not COLLECTION_SLOTS.acquire(timeout=60):
+        raise ValueError("collection_busy_retry_same_matrix")
+    try:
+        return _compare(matrix_id,job_result,offset,limit,download_parallel=download_parallel,collect=collect)
+    finally:
+        COLLECTION_SLOTS.release()
+
+
+def _compare(matrix_id, job_result, offset=0, limit=8, *, download_parallel=4, collect=None):
     """Download only completed bounded results and compare descriptors, not DEX positions."""
     matrix = load(matrix_id)
     if not all(e["status"] in TERMINAL for e in matrix["entries"]):
         raise ValueError("matrix has unfinished entries; advance/status before collecting")
     analysis_plan.integer(offset,0,MAX_SAMPLES,"offset")
     analysis_plan.integer(limit,1,8,"limit")
+    analysis_plan.integer(download_parallel,1,4,"download_parallel")
     versions = []
     baseline = None
     baseline_attributes={}
@@ -254,14 +271,35 @@ def compare(matrix_id, job_result, offset=0, limit=8):
     selected=matrix["entries"][offset:offset+limit]
     baseline_entry=next((e for e in matrix["entries"] if e["status"]=="complete"),None)
     sequence=([baseline_entry] if baseline_entry and baseline_entry not in selected else [])+selected
-    for entry in sequence:
+    def fetch(entry):
+        if entry["status"] != "complete":
+            return None, None
+        try:
+            value = collect(entry) if collect else job_result(entry["request_id"])
+            return json.loads(value), None
+        except Exception as exc:
+            # Preserve successfully downloaded siblings for retry; never expose exception bodies.
+            import remote_artifacts
+            return None, str(exc) if isinstance(exc, remote_artifacts.ArtifactError) else type(exc).__name__
+    with ThreadPoolExecutor(max_workers=download_parallel, thread_name_prefix="hostlab-collect") as pool:
+        downloads = list(pool.map(fetch, sequence))
+    collection_errors = []
+    for entry, (downloaded, error) in zip(sequence, downloads):
         row = {"sample_id":entry["sample_id"], "sample":entry["sample"], "request_id":entry["request_id"],
                "status":entry["status"], "run_url":entry.get("run_url"), "tasks":{}}
         if entry["status"] != "complete":
             all_complete = False
             versions.append(row)
             continue
-        downloaded = json.loads(job_result(entry["request_id"]))
+        if error:
+            all_complete = False
+            row.update(collection_status="error", collection_error=error)
+            collection_errors.append({"sample_id":entry["sample_id"], "error":error})
+            if entry in selected:
+                versions.append(row)
+            continue
+        row.update(collection_status="complete", collection={key:downloaded[key] for key in (
+            "cache_hit", "artifact", "integrity", "elapsed_ms", "run_attempt") if key in downloaded})
         files = [Path(p) for p in downloaded["files"]]
         result_files = [p for p in files if p.name == "result.txt"]
         job_files = [p for p in files if p.name == "job.json"]
@@ -307,7 +345,7 @@ def compare(matrix_id, job_result, offset=0, limit=8):
                     summary_task["vs_first_version"] = {"added":dict(added.most_common(20)),
                         "removed":dict(removed.most_common(20)),"preview_truncated":len(added)>20 or len(removed)>20}
             row["tasks"][task["id"]] = summary_task
-        if baseline is None:
+        if baseline is None and entry == baseline_entry:
             baseline = {}
             for task in result["tasks"]:
                 output=task.get("result",{})
@@ -327,13 +365,18 @@ def compare(matrix_id, job_result, offset=0, limit=8):
               "sample_count":len(matrix["entries"]),
               "baseline_sample":baseline_entry["sample"] if baseline_entry else None,
               "baseline_rule":"first_successful_input_sample",
+              "baseline_collection_complete":baseline is not None,
+              "collection_errors":collection_errors,"download_parallel":download_parallel,
               "scope":"offline_static_only","runtime_compatibility_verified":False}
-    destination = directory() / (matrix_id + "-comparison-"+str(offset)+".json")
+    # Each caller receives an immutable snapshot; concurrent reads cannot overwrite its result.
+    destination = directory() / (matrix_id + "-comparison-"+str(offset)+"-"+uuid.uuid4().hex+".json")
     hostlab.write_json(destination,report)
     rendered = json.dumps(report,ensure_ascii=False)
     if len(rendered.encode()) > 24000:
         return {"matrix_id":matrix_id,"all_analysis_complete":all_complete,"file":str(destination),
-                "preview_truncated":True,"sample_count":len(matrix["entries"]),"next_offset":report["next_offset"],"versions":[{"sample":r["sample"],"status":r["status"],
+                "preview_truncated":True,"sample_count":len(matrix["entries"]),"next_offset":report["next_offset"],
+                "collection_errors":collection_errors,"download_parallel":download_parallel,"versions":[{"sample":r["sample"],"status":r["status"],
+                    "collection_status":r.get("collection_status"),"collection":r.get("collection"),
                     "tasks":{k:{key:value for key,value in v.items() if key not in {"descriptors","vs_first_version","attributes","attribute_hashes","changed_attributes_vs_first_version"}}
                              for k,v in list(r["tasks"].items())[:8]}} for r in versions[:8]]}
     return {**report,"file":str(destination),"preview_truncated":False}

@@ -170,11 +170,14 @@ class RemoteResultPagingTest(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.out = self.root / "remote-results/123"
         self.out.mkdir(parents=True)
-        (self.out / ".downloaded").touch()
         self.value = "前" + "悟空🔍\n" * 4000 + "END完整结束"
         (self.out / "result.txt").write_text(self.value, encoding="utf-8", newline="\n")
         (self.out / "job.json").write_text('{"exit_code":0}', encoding="utf-8")
         for fixture in (patch.object(hostlab, "STATE", self.root),
+                        # These tests isolate rendering; verified-cache behavior has real ZIP tests.
+                        patch("remote_artifacts.get", side_effect=lambda *args, **kwargs: {
+                            "root":str(self.out),"files":[str(p) for p in self.out.rglob("*") if p.is_file()],
+                            "cache_hit":True,"artifact":{},"integrity":"test_rendering_fixture","elapsed_ms":0,"run_attempt":1}),
                         patch.object(remote_mcp, "repository_report", return_value=None),
                         patch.object(remote_mcp, "lookup", return_value={"id": 123, "status": "completed",
                                                                          "html_url": "https://example.invalid/run/123"})):
