@@ -291,6 +291,25 @@ def _rebuild(evidence, document):
         raise
 
 
+def _corrected_wire_stop(original, new_binding):
+    """One explicit migration for the former default SSE envelope limit.
+
+    Retain the original nonretryable/unknown-billing receipt verbatim. This is
+    never normal automatic retry permission for malformed or oversized output.
+    """
+    if (original["binding"]["policy"].get("recovery_policy") is not None
+            or new_binding["policy"].get("recovery_policy") != POLICY
+            or original["binding"]["code"]["ai_transport.py"] == new_binding["code"]["ai_transport.py"]):
+        return False
+    last = original["attempts"][-1] if original["attempts"] else {}
+    metrics = last.get("metrics") or {}
+    size, events = metrics.get("response_bytes"), metrics.get("events")
+    return (last.get("status") == "failed" and last.get("kind") == "protocol"
+        and last.get("reason") == "API response exceeds bound" and last.get("retryable") is False
+        and last.get("http_status") is None and type(size) is int and 2*1024*1024 < size <= 2*1024*1024+8192
+        and type(events) is int and 1 <= events <= 65536)
+
+
 def prepare_recovery(root, summary, new_binding, evidence):
     """Rebuild read-only evidence, then atomically adopt a bounded ledger migration."""
     policy = summary.get("ai_recovery_policy")
@@ -319,7 +338,8 @@ def prepare_recovery(root, summary, new_binding, evidence):
     review_start = _completion_parent(original, document, policy) if completion else None
     if not completion and original["binding"].get("policy", {}).get("recovery_policy") != POLICY and any(name.startswith("r") for name in original["units"]):
         raise checkpoint.CheckpointError("initial extended recovery cannot import accepted review units")
-    if not original["attempts"] or original["attempts"][-1].get("status") != "failed" or not original["attempts"][-1].get("retryable"):
+    if (not original["attempts"] or original["attempts"][-1].get("status") != "failed"
+            or not original["attempts"][-1].get("retryable") and not _corrected_wire_stop(original, new_binding)):
         raise checkpoint.CheckpointError("extended recovery needs an original retryable failed request")
     active_document = document
     if "active_evidence_sha256" in inputs:

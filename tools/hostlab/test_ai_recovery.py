@@ -217,6 +217,40 @@ class AiRecoveryTest(unittest.TestCase):
         self.assertEqual(evidence.calls, 2)
         self.assertEqual(origin, (self.output/"ai-resume-checkpoint.json").read_bytes())
 
+    def test_explicit_wire_limit_correction_preserves_nonretryable_unknown_receipt(self):
+        self.original["attempts"][-1].update(kind="protocol", reason="API response exceeds bound",
+            retryable=False, http_status=None, metrics={"response_bytes": 2097273, "events": 7513})
+        self.write_inputs()
+        fresh = self.root/"wire-output"; fresh.mkdir()
+        for name in self.binding["static_files"]:
+            (fresh/name).write_bytes((self.output/name).read_bytes())
+        self.output = fresh
+        self.summary["ai_recovery_inputs"] = recovery.restore_inputs(self.output, list(self.artifact.iterdir()), 987)
+        self.prepare()
+        value = self.opened()
+        self.assertEqual(value.value["attempts"], self.original["attempts"])
+        self.assertFalse(value.value["attempts"][-1]["retryable"])
+        self.assertTrue(value.value["attempts"][-1]["billing_unknown"])
+        self.assertEqual(value.value["elapsed_seconds"], self.original["elapsed_seconds"])
+        value.claim("draft", "d2", "b"*64, "backup", "session")
+        self.assertEqual(value.value["transport_retries"], 3)
+
+    def test_wire_recovery_rejects_unrelated_protocol_or_unchanged_transport(self):
+        self.original["attempts"][-1].update(kind="protocol", reason="API response exceeds bound",
+            retryable=False, http_status=None, metrics={"response_bytes": 2097273, "events": 7513})
+        self.assertTrue(recovery._corrected_wire_stop(self.original, self.new_binding))
+        for update in ({"reason": "API response malformed"}, {"kind": "http"}, {"http_status": 400},
+                {"metrics": {"response_bytes": 2097152, "events": 7513}},
+                {"metrics": {"response_bytes": 2105345, "events": 7513}},
+                {"metrics": {"response_bytes": 2097273, "events": 0}},
+                {"metrics": {"response_bytes": True, "events": 7513}}):
+            changed = copy.deepcopy(self.original); changed["attempts"][-1].update(update)
+            with self.subTest(update=update):
+                self.assertFalse(recovery._corrected_wire_stop(changed, self.new_binding))
+        unchanged = copy.deepcopy(self.new_binding)
+        unchanged["code"]["ai_transport.py"] = self.binding["code"]["ai_transport.py"]
+        self.assertFalse(recovery._corrected_wire_stop(self.original, unchanged))
+
     def test_compensation_consumed_atomically_once_for_original_d2_and_not_recharged(self):
         self.prepare()
         value = self.opened()
