@@ -9,6 +9,8 @@ permissions:
   contents: read
 jobs:
   test:
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -21,11 +23,29 @@ jobs:
       - run: python -m pip install -r tools/hostlab/requirements.txt
       - name: Offline source, dispatch, AI and report checks
         working-directory: tools/hostlab
-        run: python -m unittest discover -p 'test_*.py' -v
+        run: python -B -m unittest discover -p 'test_*.py' -v
+      - name: Fingerprint dependency runtime
+        id: runtime-key
+        run: python tools/hostlab/prepare_runtime.py fingerprint --requirements requirements-query.txt
+      - name: Restore verified dependency runtime
+        id: runtime-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5, Node 24
+        continue-on-error: true
+        with:
+          # Share only the dependency environment, never samples or credentials.
+          path: runtime/hostlab-prepared
+          key: hostlab-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.runtime-key.outputs.fingerprint }}
+      - name: Prepare and verify query dependencies
+        id: runtime
+        run: python tools/hostlab/prepare_runtime.py prepare --requirements requirements-query.txt
       - name: Verify actual isolated runtime and prepared bytecode
-        env:
-          PYTHONDONTWRITEBYTECODE: '1'
         run: |
-          python tools/hostlab/prepare_runtime.py prepare --requirements requirements-query.txt
-          runtime/hostlab-prepared/env/bin/python tools/hostlab/test_remote_mcp.py
+          runtime/hostlab-prepared/env/bin/python -B tools/hostlab/test_remote_mcp.py
           python -c "import sys; sys.path.insert(0,'tools/hostlab'); import prepare_runtime as p; identity,fingerprint=p.describe('requirements-query.txt'); assert p.verify(p.directory(),identity,fingerprint); assert p.prepare('requirements-query.txt')['cache_hit']"
+      - name: Save verified dependency runtime
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'jichuo1/innocent-lab-host-analysis' && steps.runtime.outputs.built == 'true' && steps.runtime-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5, Node 24
+        continue-on-error: true
+        with:
+          path: runtime/hostlab-prepared
+          key: hostlab-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.runtime-key.outputs.fingerprint }}
