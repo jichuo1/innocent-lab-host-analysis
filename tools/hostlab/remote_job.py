@@ -14,7 +14,7 @@ import snapshot_transport
 
 def batch_tool_hashes():
     here = Path(__file__).resolve().parent
-    names = ("analysis_plan.py", "analysis_batch.py", "install_dexsql.py", "analyze.py", "hostlab.py",
+    names = ("analysis_plan.py", "analysis_batch.py", "analysis_paging.py", "analysis_checkpoint.py", "install_dexsql.py", "analyze.py", "hostlab.py",
              "remote_job.py", "prepare_runtime.py", "runner_group.py", "runner_worker.py", "runner_resources.py", "adaptive_schedule.py",
              "dexq/server.py", "dexq/dexq_workers.py")
     return {name: hostlab.digest(here / name) for name in names}
@@ -36,11 +36,14 @@ def run_batch(request, row, repo, revision, *, context_timings=None, output=None
     import analysis_batch
     import analysis_plan
     import install_dexsql
+    import analysis_checkpoint
     output = Path(output) if output is not None else hostlab.STATE / "remote-output"
     output.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
     phases={**(context_timings or {}),"batch_import_ms":(started-import_started)*1000}
     fetch_timings={}
+    tools = batch_tool_hashes()
+    recovery_error = None
     try:
         if prepared_input is None:
             apk = analyze.fetch_sample(row, repo, revision, timings=fetch_timings)
@@ -52,12 +55,16 @@ def run_batch(request, row, repo, revision, *, context_timings=None, output=None
                 raise prepared_input["error"]
             apk = prepared_input["apk"]
         sample = {**row, "source": "huggingface", "repo": repo, "revision": revision}
+        resume = analysis_checkpoint.load_actions(request, sample, tools, install_dexsql.status())
         if resource_sampler is not None:
             phases["resource_before_analysis"] = resource_snapshot(resource_sampler)
         analysis_started=time.monotonic()
         if group_origin is not None:
             phases["group_analysis_started_ms"] = (analysis_started-group_origin)*1000
-        report = asyncio.run(analysis_batch.execute(apk, request, roots=[apk.parent], sample=sample))
+        def checkpoint(report, sealed):
+            analysis_checkpoint.save(output / "checkpoint.json", report, request, tools, sealed=sealed)
+        report = asyncio.run(analysis_batch.execute(apk, request, roots=[apk.parent], sample=sample,
+                                                  resume=resume, checkpoint=checkpoint))
         analysis_finished=time.monotonic()
         phases["analysis_ms"]=(analysis_finished-analysis_started)*1000
         if group_origin is not None:
@@ -66,6 +73,7 @@ def run_batch(request, row, repo, revision, *, context_timings=None, output=None
             phases["resource_after_analysis"] = resource_snapshot(resource_sampler)
         rc = 0 if report["complete"] else 2
     except Exception as exc:
+        recovery_error = exc
         fetch_ms = prepared_input["fetch_ms"] if prepared_input is not None else None
         rc = 1
         report = {"complete": False, "scope": "offline_static_only", "error": type(exc).__name__,
@@ -75,9 +83,10 @@ def run_batch(request, row, repo, revision, *, context_timings=None, output=None
     preparation=json.loads(prepared.read_text(encoding="utf-8")) if prepared.is_file() and prepared.stat().st_size<=65536 else None
     job = {"operation": "batch", "version_code": row["version_code"], "apk_sha256": row["sha256"],
            "sample_revision": revision, "scope": "offline_static_only", "exit_code": rc,
-           "request_sha256": analysis_plan.fingerprint(request), "complete": report["complete"],
+           "request_sha256": analysis_checkpoint.work_hash(request), "complete": report["complete"],
+           "execution_request_sha256": analysis_plan.fingerprint(request), "batch_contract": analysis_checkpoint.CONTRACT,
            "backend_versions": report.get("backend_versions"),
-           "tools": batch_tool_hashes(),
+           "tools": tools,
            "runner_revision": os.environ.get("HOSTLAB_RUNNER_REVISION") or os.environ.get("GITHUB_SHA"),
            "workflow_revision": os.environ.get("GITHUB_SHA"), "fetch_ms": fetch_ms,
            "phases":{**phases,**fetch_timings},"preparation":preparation,
@@ -87,6 +96,7 @@ def run_batch(request, row, repo, revision, *, context_timings=None, output=None
     if execution_sha256 is not None:
         job["execution_sha256"] = execution_sha256
     hostlab.write_json(output / "job.json", job)
+    analysis_checkpoint.summary(os.environ.get("GITHUB_STEP_SUMMARY"), report, error=recovery_error)
     print(json.dumps({"operation": "batch", "complete": report["complete"], "exit_code": rc,
                       "tasks": [{"id": t["id"], "status": t["status"]} for t in report["tasks"]]}))
     return rc

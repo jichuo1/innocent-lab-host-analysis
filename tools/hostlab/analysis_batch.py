@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import hashlib
 import json
 import os
@@ -14,6 +15,7 @@ from mcp import Client
 from mcp.client.stdio import StdioServerParameters
 
 import analysis_plan
+import analysis_paging
 import hostlab
 import install_dexsql
 
@@ -162,10 +164,31 @@ class Session:
         return [{"file_id": int(row[0]), "entry_name": self.files[int(row[0])], "descriptor": row[1]}
                 for row in response["rows"]]
 
-    async def execute(self, task):
+    async def execute(self, task, *, seed=None, progress=None, remaining_bytes=MAX_RESULT_BYTES):
         op, limit = task["operation"], task["limit"]
         if op == "query":
-            result = await self.sql(task["sql"], limit, task["offset"])
+            if self.backend == "sqlite":
+                result = await self.sql(task["sql"], limit, task["offset"])
+            else:
+                pages = analysis_paging.QueryPages(task, seed, remaining_bytes=remaining_bytes)
+                if seed is not None and progress is not None:
+                    progress(pages.stopped("resume_pending"))
+                while True:
+                    count = pages.next_limit()
+                    if not count:
+                        return pages.stopped()
+                    try:
+                        page = await self.sql(task["sql"], count, pages.cursor)
+                        if not pages.admit(page, count):
+                            return pages.stopped()
+                    except Exception:
+                        # The last admitted page is already in the checkpoint; never admit half a page.
+                        raise
+                    result = pages.stopped()
+                    if progress is not None:
+                        progress(result)
+                    if not result["partial"]:
+                        return result
         elif op == "locate":
             sql = analysis_plan.locate_sql(task, self.backend) + f" LIMIT {limit+1}"
             result = await self.sql(sql, limit)
@@ -228,11 +251,13 @@ class Session:
         return result
 
 
-async def execute(apk, request, *, roots, sample=None):
+async def execute(apk, request, *, roots, sample=None, resume=None, checkpoint=None):
     apk = controlled_input(apk, roots)
     expected_members = archive_inventory(apk)
     initial_stat = (apk.stat().st_size, apk.stat().st_mtime_ns)
     request = analysis_plan.validate(request)
+    if "resume" in request and resume is None:
+        raise ValueError("verified_resume_checkpoint_required")
     native = install_dexsql.status()
     planning = analysis_plan.plan(request, dexsql_available=native["available"], sqlite_cache_hit=sqlite_cached(apk))
     threads = min(request["threads"], os.cpu_count() or 1)
@@ -241,7 +266,28 @@ async def execute(apk, request, *, roots, sample=None):
     report = {"schema": 1, "scope": "offline_static_only", "sample": sample, "plan": planning,
               "sessions": [], "tasks": [], "complete": False, "backend_versions": {"sqlite": "legacy-schema-1", "dexsql": native}}
     task_map = {t["id"]:t for t in request["tasks"]}
-    used = 0
+    saved = {t["id"]: t for t in resume["tasks"]} if resume is not None else {}
+    if resume is not None:
+        old_backends = {t["id"]: t["backend"] for t in resume["plan"]["tasks"]}
+        if old_backends != {t["id"]: t["backend"] for t in planning["tasks"]}:
+            raise ValueError("checkpoint_backend_selection_changed")
+        report["resume_origin"] = copy.deepcopy(resume["resume_origin"])
+        report["sessions"] = [copy.deepcopy(s) for s in resume["sessions"] if "files" in s]
+        for task in resume["tasks"]:
+            if task["status"] == "complete":
+                entry = copy.deepcopy(task)
+                entry["checkpoint_reused"] = True
+                report["tasks"].append(entry)
+            elif task["status"] == "partial" and task.get("result", {}).get("rows"):
+                report["tasks"].append(copy.deepcopy(task))
+    used = sum(analysis_paging.size(t["result"]) for t in report["tasks"] if t["status"] == "complete")
+    if used > MAX_RESULT_BYTES:
+        raise ValueError("checkpoint_result_budget")
+    def publish(entry):
+        report["tasks"] = [t for t in report["tasks"] if t["id"] != entry["id"]]
+        report["tasks"].append(entry)
+        if checkpoint is not None:
+            checkpoint(report, False)
     for group in planning["groups"]:
         backend = group["backend"]
         if backend == "dexsql":
@@ -252,14 +298,22 @@ async def execute(apk, request, *, roots, sample=None):
             command, args = sys.executable, [str(HERE / "dexq/server.py")]
         params = StdioServerParameters(command=command, args=args, cwd=str(HERE / "dexq"),
                                       env=child_environment(apk, threads))
-        pending = list(group["task_ids"])
+        pending = [name for name in group["task_ids"] if saved.get(name, {}).get("status") != "complete"]
+        if not pending:
+            continue
         try:
             async with asyncio.timeout(max(0.001, deadline - time.monotonic())), Client(params) as client:
                 session = Session(client, backend, apk, deadline)
                 memo = {}
                 try:
-                    report["sessions"].append(await session.open())
+                    opened = await session.open()
                     verify_inventory(expected_members, session.files)
+                    if resume is not None:
+                        previous = next(s for s in resume["sessions"] if s.get("backend") == backend and "files" in s)
+                        if session.files != {int(k): v for k, v in previous["files"].items()}:
+                            raise BackendError("checkpoint_dex_identity_mapping_changed")
+                    report["sessions"] = [s for s in report["sessions"] if s.get("backend") != backend]
+                    report["sessions"].append(opened)
                     while pending:
                         name = pending.pop(0)
                         began = time.monotonic()
@@ -267,20 +321,34 @@ async def execute(apk, request, *, roots, sample=None):
                             task = task_map[name]
                             identity = json.dumps({k:v for k,v in task.items() if k != "id"}, sort_keys=True)
                             reused = memo.get(identity) if task["operation"] != "query" else None
-                            output = reused[1] if reused else await session.execute(task)
+                            seed = saved.get(name, {}).get("result") if saved.get(name, {}).get("status") == "partial" else None
+                            def progress(output):
+                                publish({"id": name, "backend": backend,
+                                    "status": "partial" if output["partial"] else "complete",
+                                    "elapsed_ms": (time.monotonic() - began) * 1000,
+                                    "reused_from": None, "result": copy.deepcopy(output)})
+                            output = reused[1] if reused else await session.execute(task, seed=seed,
+                                progress=progress, remaining_bytes=MAX_RESULT_BYTES-used)
                             size = len(json.dumps(output, ensure_ascii=False).encode())
                             if used + size > MAX_RESULT_BYTES:
                                 raise BackendError("batch result budget exhausted")
                             used += size
-                            report["tasks"].append({"id": name, "backend": backend,
+                            publish({"id": name, "backend": backend,
                                 "status": "partial" if output["partial"] else "complete",
                                 "elapsed_ms": (time.monotonic() - began) * 1000, "reused_from": reused[0] if reused else None,
                                 "result": output})
                             if not output["partial"] and task["operation"] != "query":
                                 memo[identity] = (name, output)
                         except Exception as exc:
-                            report["tasks"].append({"id": name, "backend": backend, "status": "error",
-                                "elapsed_ms": (time.monotonic() - began) * 1000, **failure(exc)})
+                            admitted = next((t for t in report["tasks"] if t["id"] == name), None)
+                            if admitted is not None and admitted["status"] == "partial":
+                                admitted["result"].setdefault("pagination", {})["stop_reason"] = (
+                                    str(exc) if isinstance(exc, analysis_paging.PageError) else "page_request_failed")
+                                admitted["failure"] = failure(exc)
+                            else:
+                                report["tasks"] = [t for t in report["tasks"] if t["id"] != name]
+                                report["tasks"].append({"id": name, "backend": backend, "status": "error",
+                                    "elapsed_ms": (time.monotonic() - began) * 1000, **failure(exc)})
                             # A failed/expired dataset is never silently reused or replayed.
                             break
                 finally:
@@ -291,8 +359,12 @@ async def execute(apk, request, *, roots, sample=None):
                             pass  # Client EOF also releases the server and its datasets.
         except Exception as exc:
             report["sessions"].append({"backend": backend, **failure(exc)})
+            for entry in report["tasks"]:
+                if entry["backend"] == backend and entry["status"] == "partial":
+                    entry["result"].get("pagination", {})["stop_reason"] = "analysis_deadline_or_session_failure"
         for name in pending:
-            report["tasks"].append({"id": name, "backend": backend, "status": "skipped", "reason": "backend_session_failed_or_deadline"})
+            if not any(t["id"] == name for t in report["tasks"]):
+                report["tasks"].append({"id": name, "backend": backend, "status": "skipped", "reason": "backend_session_failed_or_deadline"})
     order = {t["id"]:i for i,t in enumerate(request["tasks"])}
     report["tasks"].sort(key=lambda t:order[t["id"]])
     report["complete"] = len(report["tasks"]) == len(request["tasks"]) and all(t["status"] == "complete" for t in report["tasks"])
@@ -303,5 +375,9 @@ async def execute(apk, request, *, roots, sample=None):
         report["source_unchanged"] = False
         report["source_error"] = type(exc).__name__
     report["complete"] = report["complete"] and report["source_unchanged"]
-    report["result_bytes"] = used
+    report["result_bytes"] = sum(analysis_paging.size(t["result"]) for t in report["tasks"] if "result" in t)
+    if report["result_bytes"] > MAX_RESULT_BYTES:
+        report["complete"] = False
+    if checkpoint is not None:
+        checkpoint(report, True)
     return report

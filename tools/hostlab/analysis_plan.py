@@ -25,7 +25,7 @@ def text(value, maximum, name):
 
 
 def validate(request):
-    if not isinstance(request, dict) or set(request) - {"schema", "backend", "timeout_seconds", "threads", "tasks"}:
+    if not isinstance(request, dict) or set(request) - {"schema", "backend", "timeout_seconds", "threads", "tasks", "resume"}:
         raise ValueError("unsupported analysis request fields")
     if type(request.get("schema", SCHEMA)) is not int or request.get("schema", SCHEMA) != SCHEMA:
         raise ValueError("unsupported analysis schema")
@@ -38,7 +38,15 @@ def validate(request):
                   "timeout_seconds": integer(request.get("timeout_seconds", 180), 1, 600, "timeout_seconds"),
                   "threads": integer(request.get("threads", 2), 1, 6, "threads"), "tasks": []}
     ids = set()
-    fields = {"query": {"sql", "dialect", "offset"}, "locate": {"kind", "name", "owner"},
+    if "resume" in request:
+        resume = request["resume"]
+        if not isinstance(resume, dict) or set(resume) != {"run_id", "attempt", "request_id"}:
+            raise ValueError("resume needs run_id, attempt and request_id")
+        if not isinstance(resume["request_id"], str) or not re.fullmatch(r"[0-9a-f]{32}", resume["request_id"]):
+            raise ValueError("invalid resume request_id")
+        normalized["resume"] = {"run_id": integer(resume["run_id"], 1, 10**15, "resume run_id"),
+            "attempt": integer(resume["attempt"], 1, 1000, "resume attempt"), "request_id": resume["request_id"]}
+    fields = {"query": {"sql", "dialect", "offset", "pagination"}, "locate": {"kind", "name", "owner"},
               "refs": {"kind", "target", "detail"}, "decode": {"method", "file_id"}, "info": set()}
     for task in tasks:
         if not isinstance(task, dict) or task.get("operation") not in OPERATIONS:
@@ -63,6 +71,12 @@ def validate(request):
                 raise ValueError("SQLite query paging must be explicit in its SQL")
             if normalized["backend"] != "auto" and normalized["backend"] != item["dialect"]:
                 raise ValueError("explicit SQL dialect cannot be changed by backend selection")
+            if "pagination" in task:
+                paging = task["pagination"]
+                if item["dialect"] != "dexsql" or not isinstance(paging, dict) or set(paging) - {"max_pages", "max_rows", "max_bytes"}:
+                    raise ValueError("pagination applies only to DexSQL queries")
+                limits = {"max_pages": (1, 32), "max_rows": (1, 10000), "max_bytes": (1024, 1024 * 1024)}
+                item["pagination"] = {key: integer(value, *limits[key], key) for key, value in paging.items()}
         elif op == "locate":
             item["kind"] = task.get("kind", "method")
             if item["kind"] not in {"class", "method", "field"}:
