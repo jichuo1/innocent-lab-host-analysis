@@ -79,6 +79,11 @@ Call `submit_job(version_code=1, operation="inventory")`, then use `job_status` 
 更新并重新加载 MCP 后有十二项工具，包括单样本 plan/submit、多版本 plan/submit/advance/status/result 和显式恢复。
 相关查询一批共用一次下载与后端会话，保留 SQLite 方言和 JADX 路径。完整请求示例、去重/未知提交行为与限额见 [DEXSQL.md](DEXSQL.md)。
 
+DexSQL query会在页数、行数、字节及原总时限内自动续页。显式恢复可在原request添加
+`resume={"run_id":原run,"attempt":原attempt,"request_id":"原32位request_id"}`，再向
+`submit_analysis`提供原APK SHA及sample revision。已验真的完成任务不重跑，部分查询只取剩余页面；
+恢复默认绑定稳定幂等键，确认失败后再次执行需要新键。旧客户端普通请求继续兼容；显式恢复参数和分页预算需要更新客户端并重新加载MCP。契约、排序要求及封存规则见 [DEXSQL.md](DEXSQL.md#查询续页与断点恢复)。
+
 `version_matrix_result` 默认四路附件收集，`download_parallel` 可设 1–4；多个调用也共享下载预算。
 已验证的附件复用本地文件，分页不重复下载；首次校验 GitHub ZIP SHA-256，复用前重新校验文件 SHA-256。
 `collection_errors` 表示局部收集未完成，可重试相同 matrix_id/offset；已成功文件保留，不创建新的 Actions 作业。

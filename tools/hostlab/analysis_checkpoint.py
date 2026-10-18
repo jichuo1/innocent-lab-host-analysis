@@ -64,6 +64,13 @@ def validate(report, job, request, sample, tools, native, *, checkpoint=None):
         raise ValueError("checkpoint_sample_request_or_source_mismatch")
     if any(report.get("sample", {}).get(k) != v for k, v in expected_sample.items()):
         raise ValueError("checkpoint_report_sample_mismatch")
+    execution_hash = job.get("execution_request_sha256", job.get("request_sha256"))
+    if (report.get("plan", {}).get("request_sha256") != execution_hash
+            or job.get("backend_versions") != report.get("backend_versions")
+            or job.get("complete") is not report.get("complete")
+            or type(job.get("exit_code")) is not int
+            or job["exit_code"] != (0 if report.get("complete") is True else 2)):
+        raise ValueError("checkpoint_job_report_binding_mismatch")
     prior_tools = job.get("tools", {})
     if any(not tools.get(name) or prior_tools.get(name) != tools[name] for name in STABLE_TOOLS):
         raise ValueError("checkpoint_engine_tools_changed")
@@ -109,6 +116,9 @@ def validate(report, job, request, sample, tools, native, *, checkpoint=None):
             total += analysis_paging.size(result)
     if total > 1024 * 1024:
         raise ValueError("checkpoint_result_budget")
+    expected_complete = len(tasks) == len(wanted) and all(t["status"] == "complete" for t in tasks)
+    if report.get("complete") is not expected_complete:
+        raise ValueError("checkpoint_completion_claim_mismatch")
     return copy.deepcopy(report)
 
 
@@ -166,7 +176,7 @@ def load_actions(request, sample, tools, native):
     return report
 
 
-def summary(path, report, *, error=None):
+def summary(path, report, *, error=None, append=True):
     if not path:
         return
     counts = {status: sum(t.get("status") == status for t in report.get("tasks", []))
@@ -179,16 +189,22 @@ def summary(path, report, *, error=None):
     if report.get("resume_origin"):
         origin = report["resume_origin"]
         lines.append(f"- Resume: run `{origin['run_id']}`, attempt `{origin['attempt']}`; verified archive `{origin['artifact_id']}`; reused complete tasks `{origin['reused_complete_tasks']}`.")
+    if report.get("execution"):
+        counts = report["execution"]
+        lines.append(f"- This execution: admitted query pages `{counts['admitted_query_pages']}`; new query rows `{counts['new_query_rows']}`; reused completed tasks `{counts['reused_complete_tasks']}`.")
     lines += ["", "| Task | Status | Rows / total | Reused / fetched | Next offset | Reason |", "| --- | --- | --- | --- | --- | --- |"]
     for task in report.get("tasks", []):
         p = task.get("result", {}).get("pagination", {})
         reason = p.get("stop_reason", task.get("reason", "complete" if task.get("status") == "complete" else task.get("error", "incomplete")))
         # IDs and reason codes are internal bounded identifiers, never SQL or exception bodies.
         reason = re.sub(r"[^A-Za-z0-9_:.-]", "_", str(reason))[:100]
-        lines.append(f"| `{task['id']}` | {task['status']} | {p.get('rows', '-')} / {p.get('total_rows', '-')} | {p.get('reused_rows', '-')} / {p.get('fetched_rows', '-')} | {p.get('next_offset', '-')} | `{reason}` |")
+        reused, fetched = p.get("reused_rows", "-"), p.get("fetched_rows", "-")
+        if task.get("checkpoint_reused"):
+            reused, fetched, reason = p.get("rows", "-"), 0, "checkpoint_reused"
+        lines.append(f"| `{task['id']}` | {task['status']} | {p.get('rows', '-')} / {p.get('total_rows', '-')} | {reused} / {fetched} | {p.get('next_offset', '-')} | `{reason}` |")
     if error:
         code = str(error) if re.fullmatch(r"(?:checkpoint|query|verified_resume)_[a-z_]{1,90}", str(error)) else type(error).__name__
         lines.append(f"\n- Recovery rejected: `{code}`. No completed work is replayed on an invalid checkpoint.")
     lines += ["", "- Evidence: `remote-output/result.txt`, `job.json`, `checkpoint.json`. Partial results remain incomplete; resume uses the original exact sample and work request.", ""]
-    with Path(path).open("a", encoding="utf-8") as stream:
+    with Path(path).open("a" if append else "w", encoding="utf-8") as stream:
         stream.write("\n".join(lines))

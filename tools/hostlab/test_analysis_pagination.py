@@ -154,6 +154,12 @@ class PagingTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["partial"])
         self.assertEqual("backend_offset_budget", result["pagination"]["stop_reason"])
 
+    async def test_later_page_diagnostics_are_preserved_once(self):
+        def add(result, number):
+            result["typed_result"]["diagnostics"] = [{"code": "shared"}, {"code": f"page{number}"}]
+        result, _, _ = await self.run_query(change=add)
+        self.assertEqual(["shared", "page1", "page2", "page3"], [v["code"] for v in result["typed_result"]["diagnostics"]])
+
 
 class RecoveryTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -189,7 +195,8 @@ class RecoveryTest(unittest.IsolatedAsyncioTestCase):
                   "backend_versions": {"dexsql": NATIVE},
                   "resume_origin": {"run_id": 1, "attempt": 1, "artifact_id": 2, "reused_complete_tasks": 11}}
         job = {"operation": "batch", "version_code": 9150200, "apk_sha256": self.sample["sha256"],
-               "sample_revision": self.sample["revision"], "request_sha256": checkpoints.work_hash(req), "tools": TOOLS}
+               "sample_revision": self.sample["revision"], "request_sha256": checkpoints.work_hash(req), "tools": TOOLS,
+               "complete": False, "exit_code": 2, "backend_versions": report["backend_versions"]}
         return req, report, job
 
     async def execute(self, req, resume=None):
@@ -207,6 +214,17 @@ class RecoveryTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(checkpoints.checksum(before["result"]), checkpoints.checksum(after["result"]))
             self.assertTrue(after["checkpoint_reused"])
         self.assertTrue(checkpoints.read_json(self.root / "checkpoint.json")["payload"]["sealed"])
+        self.assertEqual({"reused_complete_tasks": 11, "admitted_query_pages": 1, "new_query_rows": 8}, result["execution"])
+
+    async def test_completed_checkpoint_runs_zero_queries_and_keeps_historical_result_payload(self):
+        req, old, job = self.origin()
+        first = await self.execute(req, old)
+        self.calls.clear()
+        second = await self.execute(req, first)
+        self.assertTrue(second["complete"])
+        self.assertEqual([], self.calls)
+        self.assertEqual({"reused_complete_tasks": 12, "admitted_query_pages": 0, "new_query_rows": 0}, second["execution"])
+        self.assertEqual(checkpoints.checksum(first["tasks"][-1]["result"]), checkpoints.checksum(second["tasks"][-1]["result"]))
 
     async def test_interruption_keeps_admitted_page_and_resumes_without_replay(self):
         async def fail(text, limit, offset):
@@ -237,6 +255,16 @@ class RecoveryTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["source_unchanged"])
         self.assertEqual("partial", result["tasks"][0]["status"])
         self.assertEqual(2, result["tasks"][0]["result"]["pagination"]["next_offset"])
+
+    async def test_deadline_before_first_page_keeps_task_in_denominator(self):
+        async def slow(text, limit, offset):
+            await asyncio.sleep(5)
+        self.effects = slow
+        result = await self.execute(request(timeout_seconds=1))
+        self.assertFalse(result["complete"])
+        self.assertEqual(1, len(result["tasks"]))
+        self.assertEqual("skipped", result["tasks"][0]["status"])
+        self.assertTrue(result["source_unchanged"])
 
     async def test_source_mutation_never_seals_or_completes(self):
         async def change(text, limit, offset):
@@ -311,6 +339,17 @@ class RecoveryTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             checkpoints.validate(report, job, req, self.sample, TOOLS, NATIVE,
                                  checkpoint=checkpoints.read_json(self.root / "checkpoint.json"))
+
+    def test_job_and_result_cannot_be_mixed_or_claim_missing_tasks_complete(self):
+        req, report, job = self.origin()
+        wrong = copy.deepcopy(report)
+        wrong["plan"]["request_sha256"] = "f" * 64
+        with self.assertRaisesRegex(ValueError, "binding_mismatch"):
+            checkpoints.validate(wrong, job, req, self.sample, TOOLS, NATIVE)
+        wrong = copy.deepcopy(report); wrong["complete"] = True
+        forged_job = {**job, "complete": True, "exit_code": 0}
+        with self.assertRaisesRegex(ValueError, "completion_claim"):
+            checkpoints.validate(wrong, forged_job, req, self.sample, TOOLS, NATIVE)
 
     def test_summary_contains_counts_cursor_and_reason_but_no_sql_or_exception_body(self):
         req, report, _ = self.origin()

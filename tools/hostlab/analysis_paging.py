@@ -158,6 +158,13 @@ class QueryPages:
             item["execute_ms"] = previous.get("execute_ms", 0) + current.get("execute_ms", 0)
             merged["rows"] += copy.deepcopy(page["rows"])
             merged["partial"] = page["partial"]
+            diagnostics = merged["typed_result"].setdefault("diagnostics", [])
+            seen = {json.dumps(d, sort_keys=True, ensure_ascii=False) for d in diagnostics}
+            for diagnostic in page["typed_result"].get("diagnostics", []):
+                key = json.dumps(diagnostic, sort_keys=True, ensure_ascii=False)
+                if key not in seen:
+                    diagnostics.append(copy.deepcopy(diagnostic))
+                    seen.add(key)
             # The merged statement describes the whole admitted range, not the last page.
         self.pages += 1
         self.fetched_rows += len(page["rows"])

@@ -96,6 +96,7 @@ def run_batch(request, row, repo, revision, *, context_timings=None, output=None
     if execution_sha256 is not None:
         job["execution_sha256"] = execution_sha256
     hostlab.write_json(output / "job.json", job)
+    analysis_checkpoint.summary(output / "summary.md", report, error=recovery_error, append=False)
     analysis_checkpoint.summary(os.environ.get("GITHUB_STEP_SUMMARY"), report, error=recovery_error)
     print(json.dumps({"operation": "batch", "complete": report["complete"], "exit_code": rc,
                       "tasks": [{"id": t["id"], "status": t["status"]} for t in report["tasks"]]}))

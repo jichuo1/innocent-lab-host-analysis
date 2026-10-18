@@ -283,6 +283,10 @@ async def execute(apk, request, *, roots, sample=None, resume=None, checkpoint=N
     used = sum(analysis_paging.size(t["result"]) for t in report["tasks"] if t["status"] == "complete")
     if used > MAX_RESULT_BYTES:
         raise ValueError("checkpoint_result_budget")
+    for entry in report["tasks"]:
+        if entry["status"] == "partial":
+            entry["result"] = analysis_paging.QueryPages(task_map[entry["id"]], entry["result"],
+                remaining_bytes=MAX_RESULT_BYTES-used).stopped("resume_pending")
     def publish(entry):
         report["tasks"] = [t for t in report["tasks"] if t["id"] != entry["id"]]
         report["tasks"].append(entry)
@@ -348,6 +352,7 @@ async def execute(apk, request, *, roots, sample=None, resume=None, checkpoint=N
                             else:
                                 report["tasks"] = [t for t in report["tasks"] if t["id"] != name]
                                 report["tasks"].append({"id": name, "backend": backend, "status": "error",
+                                    "reason": str(exc) if isinstance(exc, analysis_paging.PageError) else "backend_request_failed",
                                     "elapsed_ms": (time.monotonic() - began) * 1000, **failure(exc)})
                             # A failed/expired dataset is never silently reused or replayed.
                             break
@@ -366,6 +371,10 @@ async def execute(apk, request, *, roots, sample=None, resume=None, checkpoint=N
             if not any(t["id"] == name for t in report["tasks"]):
                 report["tasks"].append({"id": name, "backend": backend, "status": "skipped", "reason": "backend_session_failed_or_deadline"})
     order = {t["id"]:i for i,t in enumerate(request["tasks"])}
+    for task in planning["tasks"]:
+        if not any(t["id"] == task["id"] for t in report["tasks"]):
+            report["tasks"].append({"id": task["id"], "backend": task["backend"], "status": "skipped",
+                                    "reason": "backend_session_failed_or_deadline"})
     report["tasks"].sort(key=lambda t:order[t["id"]])
     report["complete"] = len(report["tasks"]) == len(request["tasks"]) and all(t["status"] == "complete" for t in report["tasks"])
     try:
@@ -378,6 +387,10 @@ async def execute(apk, request, *, roots, sample=None, resume=None, checkpoint=N
     report["result_bytes"] = sum(analysis_paging.size(t["result"]) for t in report["tasks"] if "result" in t)
     if report["result_bytes"] > MAX_RESULT_BYTES:
         report["complete"] = False
+    fresh = [t.get("result", {}).get("pagination", {}) for t in report["tasks"] if not t.get("checkpoint_reused")]
+    report["execution"] = {"reused_complete_tasks": sum(bool(t.get("checkpoint_reused")) for t in report["tasks"]),
+        "admitted_query_pages": sum(len(p.get("requests_this_run", [])) for p in fresh),
+        "new_query_rows": sum(p.get("fetched_rows", 0) for p in fresh)}
     if checkpoint is not None:
         checkpoint(report, True)
     return report

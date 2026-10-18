@@ -40,7 +40,7 @@ tools/hostlab/hostlab.cmd dexq batch --version-code 9150200 --request request.js
 
 | operation | 参数 | 契约 |
 | --- | --- | --- |
-| query | sql, dialect, limit, offset | dialect 默认 sqlite；DexSQL SQL 显式声明 dexsql；不改写 SQL |
+| query | sql, dialect, limit, offset, 可选 pagination | dialect 默认 sqlite；DexSQL SQL 显式声明 dexsql；不改写 SQL |
 | locate | kind=class/method/field, name, 可选 owner | 查定义；类的 name 是完整类型描述符 |
 | refs | kind=string/method/field/type, target, detail | 默认 methods，保留引用重复次数；sites 保留旧 offset/op 并走 SQLite |
 | decode | method, 可选 file_id | 完整方法描述符；file_id 只对本次 DexSQL 数据集有效 |
@@ -52,6 +52,20 @@ tools/hostlab/hostlab.cmd dexq batch --version-code 9150200 --request request.js
 批次返回逐项 `complete/partial/error/skipped`、会话准备成本、版本和计划原因。任何截断或错误都不会标成完整成功，CLI 返回 2。
 失效数据集和未知结果不会自动重放；MCP SDK 负责 EOF、Windows Job Object／POSIX 进程组的关闭和终止升级。
 结果总预算 1 MiB，按完整任务结果记账；原始 SQL/native typed result 保留整数精度及分页字段。
+
+## 查询续页与断点恢复
+
+DexSQL 批量 query 的 `limit` 是每页行数，默认在同一数据集中自动续页。每项默认总行数上限1000、每次执行最多8页、结果字节上限1 MiB，并共享原批次的总时限和1 MiB输出预算。可以显式传入 `pagination={"max_pages":8,"max_rows":1000,"max_bytes":1048576}`；硬范围分别为1–32、1–10000和1024–1048576。`max_pages=1` 保留单页行为；页数按每次恢复计算，行数/字节按累计结果计算。SQLite SQL仍按原请求执行，JADX路径不变。
+
+续页要求调用者给出可复现的外层 `ORDER BY`，并选择唯一的排序键/消歧键；这是原生接口重执行 SQL 的契约，不能依赖未排序结果或随机值。缺少外层排序、游标不前进、模式或总行数变化、达到页数/行数/字节/后端offset预算时，仍返回 partial 和明确 `stop_reason`、`next_offset`，不伪装完整。空结果成功、整数精度、重复行、长SQL元数据缩略与原SQL保持兼容。原生范围仍为offset+limit不超过100000。
+
+每个已接纳页面和完成任务会原子更新 `remote-output/checkpoint.json`。正常结束、受控超时和后端失败后仍执行源校验，只有最终APK SHA-256/DEX清单校验成立才封存检查点；进程被强制杀死而未封存、产物过期或校验失败的检查点不会被信任，也不会回退成全量重跑。
+
+恢复时向原请求添加 `"resume":{"run_id":原run,"attempt":原attempt,"request_id":"原32位request_id"}`，通过 `submit_analysis` 传入准确的 `apk_sha256` 和 `sample_revision`。服务端验证同仓Actions的run/attempt、ZIP摘要与文件摘要、样本/请求身份、固定原生版本和兼容核心工具，再保留完成任务内容并从最后接纳的游标续取。仅支持单样本batch，分组版本仍使用原版本恢复机制。普通SQL完成结果仍不作为新任务缓存；这里是显式恢复同一个不可变工作请求。
+
+恢复提交默认使用稳定幂等键，未知派发和重复调用不重放；确认失败后要再次执行，需显式提供新的 `idempotency_key`。旧schema-1检查点只兼容已审计的工具哈希，后续检查点要求封存摘要及batch契约版本一致。原运行及其11项/其它已完成结果继续保留，不覆盖旧产物。
+
+Actions摘要逐项列出完成状态、返回/总行数、复用/新取行数、下一游标与停止原因；`job.json`保留原工作摘要并增加执行请求摘要和契约版本。恢复的结果包含原run/attempt与附件摘要，可独立复核实际复用了哪些数据。所有受信文件都在上传的有界产物内，仍不包含APK、DEX、数据库或凭据。
 
 ## 远端工具
 
