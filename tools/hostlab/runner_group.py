@@ -40,7 +40,10 @@ def validate(value):
         if row in samples:
             raise ValueError("duplicate runner group sample")
         samples.append(dict(row))
-    return {"schema": value["schema"], "request": analysis_plan.validate(value["request"]), "samples": samples,
+    request = analysis_plan.validate(value["request"])
+    if "resume" in request:
+        raise ValueError("checkpoint resume uses a single pinned sample batch")
+    return {"schema": value["schema"], "request": request, "samples": samples,
             **({"execution": dict(value["execution"])} if adaptive else {})}
 
 

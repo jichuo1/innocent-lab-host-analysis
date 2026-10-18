@@ -53,7 +53,7 @@ class RunnerWorkerTest(unittest.TestCase):
         timings.update(download_ms=1.0, verify_ms=1.0, stage_ms=1.0, staged_cache_hit=False)
         return self.paths[row["version_code"]]
 
-    async def execute_fixture(self, apk, request, *, roots, sample):
+    async def execute_fixture(self, apk, request, *, roots, sample, resume=None, checkpoint=None):
         matches = hostlab.digest(apk) == sample["sha256"]
         return {"complete": matches, "tasks": [{"id": "info", "status": "complete"}],
             "source_unchanged": matches, "sample": sample,
@@ -126,7 +126,7 @@ class RunnerWorkerTest(unittest.TestCase):
         self.assertEqual(self.job(1)["group_index"], 1)
 
     def test_analysis_failure_is_local_to_one_member(self):
-        async def execute(apk, request, *, roots, sample):
+        async def execute(apk, request, *, roots, sample, resume=None, checkpoint=None):
             if sample["version_code"] == 101:
                 raise RuntimeError("fixture-sensitive-analysis-message")
             return await self.execute_fixture(apk, request, roots=roots, sample=sample)
@@ -139,7 +139,7 @@ class RunnerWorkerTest(unittest.TestCase):
         self.assertEqual(self.execute.await_count, 4)
 
     def test_partial_analysis_is_not_promoted_to_complete(self):
-        async def execute(apk, request, *, roots, sample):
+        async def execute(apk, request, *, roots, sample, resume=None, checkpoint=None):
             result = await self.execute_fixture(apk, request, roots=roots, sample=sample)
             if sample["version_code"] == 102:
                 result["complete"] = False
@@ -202,7 +202,7 @@ class RunnerWorkerTest(unittest.TestCase):
                 raise RuntimeError("head of line blocked faster member")
             return self.fetch_fixture(row, repo, revision, timings=timings)
 
-        async def execute(apk, request, *, roots, sample):
+        async def execute(apk, request, *, roots, sample, resume=None, checkpoint=None):
             if sample["version_code"] == 101:
                 second_analyzed.set()
             return await self.execute_fixture(apk, request, roots=roots, sample=sample)
@@ -234,7 +234,7 @@ class RunnerWorkerTest(unittest.TestCase):
                 with mutex:
                     active -= 1
 
-        async def execute(apk, request, *, roots, sample):
+        async def execute(apk, request, *, roots, sample, resume=None, checkpoint=None):
             nonlocal native, native_peak
             with mutex:
                 native += 1
@@ -254,7 +254,7 @@ class RunnerWorkerTest(unittest.TestCase):
     def test_partial_checkpoint_is_saved_before_later_sample_finishes(self):
         saw_complete = threading.Event()
 
-        async def execute(apk, request, *, roots, sample):
+        async def execute(apk, request, *, roots, sample, resume=None, checkpoint=None):
             checkpoint = self.group()
             if any(row["status"] == "complete" for row in checkpoint["samples"]):
                 saw_complete.set()

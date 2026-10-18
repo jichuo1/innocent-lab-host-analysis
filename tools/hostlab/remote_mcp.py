@@ -212,7 +212,7 @@ def matrix_artifact(entry):
 
 @mcp.tool()
 def plan_analysis(request: dict) -> str:
-    """Plan up to 16 related tasks without dispatching. Request: {backend:auto|sqlite|dexsql,tasks:[{id,operation,...}]}. query requires sql and dialect; locate requires kind/name; refs requires kind/target and methods|sites detail; decode requires a full method descriptor; info reads Manifest. Auto preserves raw SQL dialect and reference-site semantics, prefers native references, and reuses warm SQLite structure indexes on the runner. This is a plan, not execution evidence."""
+    """Plan up to 16 related tasks without dispatching. Request: {backend:auto|sqlite|dexsql,tasks:[{id,operation,...}]}. query requires sql and dialect. DexSQL query.limit is page size; automatic continuation is bounded by pagination={max_pages:1..32,max_rows:1..10000,max_bytes:1024..1048576}, default 8/1000/1048576 and the shared batch deadline/byte budget. max_pages=1 preserves a single page. SQLite SQL is unchanged. locate requires kind/name; refs requires kind/target and methods|sites detail; decode requires a full method descriptor. This is a plan, not execution evidence."""
     import remote_schedule
     try:
         return json.dumps(remote_schedule.describe(request), ensure_ascii=False)
@@ -223,7 +223,7 @@ def plan_analysis(request: dict) -> str:
 @mcp.tool()
 def submit_analysis(version_code: int, request: dict, apk_sha256: str = "", sample_revision: str = "",
                     idempotency_key: str = "") -> str:
-    """Schedule one bounded analysis batch. Related tasks share one APK fetch and one session per backend. Optional APK SHA and immutable sample revision must be supplied together and enable completed-result reuse for deterministic semantic tasks for 24h. Arbitrary SQL is not cached after completion. Equal active submissions are reused. An idempotency key explicitly binds retries, including failures. Unknown dispatch is never replayed: use returned request_id with job_status/job_result. capacity_full/scheduler_busy do not dispatch. Uses Actions minutes."""
+    """Schedule one bounded analysis batch. Related tasks share one APK fetch and one session per backend. DexSQL queries automatically continue under row/page/byte/deadline budgets. request.resume={run_id,attempt,request_id} explicitly imports a verified checkpoint from this repository; exact APK SHA and sample revision are required. Completed task payloads are retained and partial SQL continues at its admitted cursor, never by replaying its prefix. Resume defaults to a stable idempotency key; a new key explicitly authorizes another attempt. Ordinary arbitrary SQL is not completion-cached. Unknown dispatch is never replayed. Uses Actions minutes."""
     import remote_schedule
     try:
         result = remote_schedule.submit(version_code, request, gh, lookup, runs, repository=REPO,

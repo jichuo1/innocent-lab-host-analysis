@@ -109,6 +109,11 @@ def submit(version_code, request, gh, lookup, runs, *, repository, workflow,
         raise ValueError("invalid APK SHA-256")
     if sample_revision and not re.fullmatch(r"[0-9a-f]{40}", sample_revision):
         raise ValueError("invalid sample revision")
+    if "resume" in request:
+        if not apk_sha256 or not sample_revision:
+            raise ValueError("resume requires exact APK SHA-256 and sample revision")
+        if not idempotency_key:
+            idempotency_key = "resume-" + hashlib.sha256(json.dumps(request["resume"], sort_keys=True).encode()).hexdigest()[:32]
     if idempotency_key and not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", idempotency_key):
         raise ValueError("invalid idempotency key")
     head = runner_revision or json.loads(gh(["api", f"repos/{repository}/git/ref/heads/main"]))["object"]["sha"]
