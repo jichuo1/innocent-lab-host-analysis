@@ -214,7 +214,7 @@ class RecoveryTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(checkpoints.checksum(before["result"]), checkpoints.checksum(after["result"]))
             self.assertTrue(after["checkpoint_reused"])
         self.assertTrue(checkpoints.read_json(self.root / "checkpoint.json")["payload"]["sealed"])
-        self.assertEqual({"reused_complete_tasks": 11, "admitted_query_pages": 1, "new_query_rows": 8}, result["execution"])
+        self.assertEqual({"reused_complete_tasks": 11, "admitted_query_pages": 1, "new_query_rows": 8, "dataset_opens": 1}, result["execution"])
 
     async def test_completed_checkpoint_runs_zero_queries_and_keeps_historical_result_payload(self):
         req, old, job = self.origin()
@@ -223,7 +223,7 @@ class RecoveryTest(unittest.IsolatedAsyncioTestCase):
         second = await self.execute(req, first)
         self.assertTrue(second["complete"])
         self.assertEqual([], self.calls)
-        self.assertEqual({"reused_complete_tasks": 12, "admitted_query_pages": 0, "new_query_rows": 0}, second["execution"])
+        self.assertEqual({"reused_complete_tasks": 12, "admitted_query_pages": 0, "new_query_rows": 0, "dataset_opens": 0}, second["execution"])
         self.assertEqual(checkpoints.checksum(first["tasks"][-1]["result"]), checkpoints.checksum(second["tasks"][-1]["result"]))
 
     async def test_interruption_keeps_admitted_page_and_resumes_without_replay(self):
@@ -365,6 +365,23 @@ class RecoveryTest(unittest.IsolatedAsyncioTestCase):
 
 
 class ProtocolTest(unittest.TestCase):
+    def test_numeric_dex_keys_are_stable_across_json_round_trip(self):
+        value = {"files": {i: f"classes{i}.dex" for i in range(33)}}
+        self.assertEqual(checkpoints.checksum(value), checkpoints.checksum(json.loads(json.dumps(value))))
+        with self.assertRaisesRegex(ValueError, "key_collision"):
+            checkpoints.checksum({1: "first", "1": "second"})
+
+    def test_only_audited_v1_integer_key_encoding_is_accepted(self):
+        import hashlib
+        payload = {"schema": 1, "report": {"sessions": [{"files": {i: f"classes{i}.dex" for i in range(33)}}]}}
+        digest = hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        record = json.loads(json.dumps({"payload": payload, "sha256": digest}))
+        tools = {"analysis_checkpoint.py": next(iter(checkpoints.V1_WRITERS))}
+        self.assertTrue(checkpoints.sealed_digest_matches(record, tools))
+        self.assertFalse(checkpoints.sealed_digest_matches(record, {"analysis_checkpoint.py": "0" * 64}))
+        record["payload"]["report"]["sessions"][0]["files"]["10"] = "damaged.dex"
+        self.assertFalse(checkpoints.sealed_digest_matches(record, tools))
+
     def test_equal_resume_dispatch_is_idempotent_even_after_failure(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(hostlab, "STATE", Path(directory)):
             payloads = []

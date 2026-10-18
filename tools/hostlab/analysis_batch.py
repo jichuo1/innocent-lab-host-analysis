@@ -272,7 +272,7 @@ async def execute(apk, request, *, roots, sample=None, resume=None, checkpoint=N
         if old_backends != {t["id"]: t["backend"] for t in planning["tasks"]}:
             raise ValueError("checkpoint_backend_selection_changed")
         report["resume_origin"] = copy.deepcopy(resume["resume_origin"])
-        report["sessions"] = [copy.deepcopy(s) for s in resume["sessions"] if "files" in s]
+        report["sessions"] = [{**copy.deepcopy(s), "checkpoint_reused": True} for s in resume["sessions"] if "files" in s]
         for task in resume["tasks"]:
             if task["status"] == "complete":
                 entry = copy.deepcopy(task)
@@ -389,6 +389,7 @@ async def execute(apk, request, *, roots, sample=None, resume=None, checkpoint=N
         report["complete"] = False
     fresh = [t.get("result", {}).get("pagination", {}) for t in report["tasks"] if not t.get("checkpoint_reused")]
     report["execution"] = {"reused_complete_tasks": sum(bool(t.get("checkpoint_reused")) for t in report["tasks"]),
+        "dataset_opens": sum("files" in s and not s.get("checkpoint_reused") for s in report["sessions"]),
         "admitted_query_pages": sum(len(p.get("requests_this_run", [])) for p in fresh),
         "new_query_rows": sum(p.get("fetched_rows", 0) for p in fresh)}
     if checkpoint is not None:

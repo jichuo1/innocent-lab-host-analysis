@@ -19,10 +19,24 @@ STABLE_TOOLS = ("hostlab.py", "analyze.py", "install_dexsql.py", "dexq/server.py
 LEGACY = {"analysis_plan.py": "870dc125afb0094643b7b225c521fd81dbd13900dba066f3c214ac93f113492f",
           "analysis_batch.py": "e215cf8de0b3e03d76d2051557ad564a557c6e52f891b97ba9f6c8619614401b",
           "remote_job.py": "36313eb8bd7791d9966acbf0ccd4504def165c27ec701b9f16b428ea9db51a03"}
+V1_WRITERS = {"bb8ec24869a004c5cd6da688fba5e76f576e0d2f73dcd654fb47b683518ac35f"}
+
+
+def json_value(value):
+    if isinstance(value, dict):
+        result = {}
+        for key, item in value.items():
+            if type(key) not in {str, int} or str(key) in result:
+                raise ValueError("checkpoint_object_key_collision")
+            result[str(key)] = json_value(item)
+        return result
+    if isinstance(value, (list, tuple)):
+        return [json_value(item) for item in value]
+    return value
 
 
 def canonical(value):
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    return json.dumps(json_value(value), ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
 
 
 def checksum(value):
@@ -38,7 +52,7 @@ def work_hash(request):
 
 
 def save(path, report, request, tools, *, sealed=False):
-    payload = {"schema": 1, "batch_contract": CONTRACT, "request": work_request(request),
+    payload = {"schema": 2, "encoding": "json-keys-v2", "batch_contract": CONTRACT, "request": work_request(request),
                "work_sha256": work_hash(request), "tools": tools,
                "sealed": sealed and report.get("source_unchanged") is True, "report": report}
     if len(canonical(payload)) > MAX_BYTES:
@@ -50,7 +64,32 @@ def read_json(path):
     path = Path(path)
     if not path.is_file() or not 0 < path.stat().st_size <= MAX_BYTES:
         raise ValueError("checkpoint_missing_or_oversized")
-    return json.loads(path.read_text(encoding="utf-8"))
+    def object_pairs(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("checkpoint_duplicate_json_key")
+            result[key] = value
+        return result
+    return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=object_pairs)
+
+
+def sealed_digest_matches(record, tools):
+    payload = record.get("payload", {})
+    if payload.get("schema") == 2 and payload.get("encoding") == "json-keys-v2":
+        return record.get("sha256") == checksum(payload)
+    if payload.get("schema") != 1 or tools.get("analysis_checkpoint.py") not in V1_WRITERS:
+        return False
+    # Audited v1 writer sorted in-memory integer file IDs before JSON converted their keys.
+    # Reproduce that writer exactly; the verified original archive and payload remain unchanged.
+    legacy = copy.deepcopy(payload)
+    for session in legacy.get("report", {}).get("sessions", []):
+        if "files" in session:
+            if any(not re.fullmatch(r"0|[1-9][0-9]*", str(k)) for k in session["files"]):
+                raise ValueError("checkpoint_legacy_file_ids_invalid")
+            session["files"] = {int(k): v for k, v in session["files"].items()}
+    raw = json.dumps(legacy, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    return record.get("sha256") == hashlib.sha256(raw).hexdigest()
 
 
 def validate(report, job, request, sample, tools, native, *, checkpoint=None):
@@ -79,7 +118,7 @@ def validate(report, job, request, sample, tools, native, *, checkpoint=None):
         raise ValueError("checkpoint_contract_incompatible")
     if checkpoint is not None:
         payload = checkpoint.get("payload", {})
-        if (checkpoint.get("sha256") != checksum(payload) or payload.get("schema") != 1
+        if (not sealed_digest_matches(checkpoint, prior_tools)
                 or payload.get("sealed") is not True or payload.get("batch_contract") != CONTRACT
                 or payload.get("work_sha256") != work_hash(request)
                 or checksum(payload.get("report")) != checksum(report) or payload.get("tools") != prior_tools
@@ -191,7 +230,7 @@ def summary(path, report, *, error=None, append=True):
         lines.append(f"- Resume: run `{origin['run_id']}`, attempt `{origin['attempt']}`; verified archive `{origin['artifact_id']}`; reused complete tasks `{origin['reused_complete_tasks']}`.")
     if report.get("execution"):
         counts = report["execution"]
-        lines.append(f"- This execution: admitted query pages `{counts['admitted_query_pages']}`; new query rows `{counts['new_query_rows']}`; reused completed tasks `{counts['reused_complete_tasks']}`.")
+        lines.append(f"- This execution: admitted query pages `{counts['admitted_query_pages']}`; new query rows `{counts['new_query_rows']}`; reused completed tasks `{counts['reused_complete_tasks']}`; dataset opens `{counts.get('dataset_opens', '-')}`.")
     lines += ["", "| Task | Status | Rows / total | Reused / fetched | Next offset | Reason |", "| --- | --- | --- | --- | --- | --- |"]
     for task in report.get("tasks", []):
         p = task.get("result", {}).get("pagination", {})
