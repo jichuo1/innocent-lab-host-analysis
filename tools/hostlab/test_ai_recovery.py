@@ -100,6 +100,34 @@ class AiRecoveryTest(unittest.TestCase):
         return recovery.prepare_recovery(self.output, self.summary, binding or self.new_binding,
                                          evidence or FakeEvidence(self.document))
 
+    def test_first_review_resume_requires_complete_drafts_and_retains_budget(self):
+        result = {"pages":[{"page":"p2"}],"findings":[],"overview":"accepted"}
+        self.original["units"]["d2"]={"result":result,"result_sha256":checkpoint.digest(result)}
+        for row,profile in zip(self.original["attempts"][-2:],["primary","backup"]):
+            row.update(stage="review",unit="r0",kind="incomplete",profile=profile,metrics={"finish_reason":"length"})
+        self.write_inputs()
+        old=self.output;self.output=self.root/"first-review";self.output.mkdir()
+        for name in self.binding["static_files"]:(self.output/name).write_bytes((old/name).read_bytes())
+        self.summary["ai_recovery_inputs"]=recovery.restore_inputs(self.output,list(self.artifact.iterdir()),987)
+        self.prepare()
+        value=self.opened()
+        self.assertEqual(value.value["attempts"],self.original["attempts"])
+        self.assertEqual(value.value["recovery"]["adopted_units"],["d0","d1","d2"])
+        import ai_pipeline
+        runner=ai_pipeline.Coordinator(value,None,profile="primary",deadline=1e12)
+        self.assertEqual(runner.profile,"primary")
+        value.claim("review","r0","e"*64,"primary","session")
+        self.assertEqual(value.value["transport_retries"],3)
+
+    def test_first_review_resume_rejects_missing_draft(self):
+        self.original["attempts"][-1].update(stage="review",unit="r0")
+        self.write_inputs()
+        old=self.output;self.output=self.root/"missing-draft";self.output.mkdir()
+        for name in self.binding["static_files"]:(self.output/name).write_bytes((old/name).read_bytes())
+        self.summary["ai_recovery_inputs"]=recovery.restore_inputs(self.output,list(self.artifact.iterdir()),987)
+        with self.assertRaisesRegex(checkpoint.CheckpointError,"every draft"):
+            self.prepare()
+
     def opened(self):
         value = checkpoint.Checkpoint(self.output, self.new_binding)
         self.addCleanup(value.close)

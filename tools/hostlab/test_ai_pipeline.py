@@ -524,5 +524,19 @@ class PipelineTest(unittest.TestCase):
         self.assertLess(calls[1][1]-calls[0][1], 15)
         self.assertGreaterEqual(ledger["providers"]["primary"]["not_before"], 4100)
 
+    def test_length_stop_does_not_repeat_the_same_output_budget_on_backup(self):
+        error=ai_transport.ApiError("API output incomplete","incomplete",True,False,
+            metrics={"finish_reason":"length"},usage={"total_tokens":8192})
+        with patch.object(ai_review,"call_api",side_effect=error) as api:
+            with self.assertRaises(RuntimeError):
+                ai_review.run(self.root)
+            with self.assertRaises(RuntimeError):
+                ai_review.run(self.root)
+        self.assertEqual(api.call_count,1)
+        self.assertIn("larger-budget",json.loads((self.root/"ai-analysis.json").read_text())["error"])
+        saved=json.loads((self.root/"ai-checkpoint.json").read_text())
+        self.assertEqual(saved["transport_retries"],0)
+        self.assertEqual(saved["attempts"][0]["usage"]["total_tokens"],8192)
+
 
 if __name__ == "__main__": unittest.main()

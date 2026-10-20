@@ -111,13 +111,17 @@ def validate(value):
                 or recovery["adopted_units"] != ["d"+str(index) for index in range(len(recovery["adopted_units"]))]
                 or not set(recovery["adopted_units"]) <= set(value["units"])
                 or (recovery["resume_transport_retry_pending"] and not re.fullmatch(
-                    r"r[0-9]{1,2}" if completion else r"d[0-9]", str(recovery.get("next_retry_unit", ""))))
+                    r"r[0-9]{1,2}" if completion else r"(?:d[0-9]|r0)", str(recovery.get("next_retry_unit", ""))))
                 or (not recovery["resume_transport_retry_pending"] and "next_retry_unit" in recovery)
                 or recovery.get("old_limits") != policy_limits(recovery["original_binding"])
                 or recovery.get("old_limits", {}).get("max_requests") != old_requests
                 or recovery.get("old_limits", {}).get("transport_retries") != old_retries
                 or recovery.get("new_limits") != limits):
             raise CheckpointError("invalid recovery provenance")
+        if (not completion and recovery["resume_transport_retry_pending"] and recovery["next_retry_unit"] == "r0"
+                and (not recovery["adopted_units"] or len(recovery["adopted_units"]) != len(value["binding"].get("draft_units", []))
+                     or any(name.startswith("r") for name in value["units"]))):
+            raise CheckpointError("first review recovery requires every draft and no accepted review")
         if completion:
             reviews = recovery.get("adopted_review_units")
             if (recovery["original_binding"].get("policy", {}).get("recovery_policy") != parent_policy
@@ -279,7 +283,8 @@ class Checkpoint:
         if provider.get("failures", 0) >= 2 and time.time() < provider.get("open_until", 0):
             raise CheckpointError("provider circuit is open")
         pending = self.value.get("recovery", {}).get("resume_transport_retry_pending", False)
-        reserved_stage = "review" if self.policy.get("recovery_policy") in ("completion-v2", "completion-v3") else "draft"
+        reserved_stage = "review" if self.policy.get("recovery_policy") in ("completion-v2", "completion-v3") or (
+            pending and self.value["recovery"]["next_retry_unit"] == "r0") else "draft"
         if pending and (unit != self.value["recovery"]["next_retry_unit"] or stage != reserved_stage):
             raise CheckpointError("recovery compensation is reserved for its original failed unit")
         transport_retry = transport_retry or pending

@@ -286,6 +286,12 @@ class Coordinator:
             raise RuntimeError("Invalid adopted request replay position")
         if recovered:
             self.profile = checkpoint.value["attempts"][self.position-1]["profile"]
+            last = checkpoint.value["attempts"][self.position-1]
+            prior = [row for row in checkpoint.value["attempts"][:self.position] if row["unit"] == last["unit"]]
+            if (self.limits["max_output"] > checkpoint.value["recovery"]["old_limits"]["max_output"]
+                    and prior and all(row.get("kind") == "incomplete" and
+                        row.get("metrics", {}).get("finish_reason") == "length" for row in prior)):
+                self.profile = prior[0]["profile"]
 
     def available_slots(self, reserve_after):
         used_retries = sum(bool(row.get("transport_retry")) for row in self.checkpoint.value["attempts"][:self.position])
@@ -335,7 +341,7 @@ class Coordinator:
                 handled.add(previous["id"])
                 self.position = max(self.position, self.checkpoint.value["attempts"].index(previous)+1)
                 info = SimpleNamespace(**{key: previous.get(key) for key in
-                    ("reason", "kind", "retryable", "billing_unknown", "http_status", "retry_after")})
+                    ("reason", "kind", "retryable", "billing_unknown", "http_status", "retry_after", "metrics")})
             else:
                 self.wait_for_provider()
                 remaining = self.deadline-time.monotonic()
@@ -369,6 +375,8 @@ class Coordinator:
                 else:
                     self.checkpoint.received(token, request_hash, clean, received_usage, model)
                     return clean
+            if info.kind == "incomplete" and (getattr(info, "metrics", None) or {}).get("finish_reason") == "length":
+                raise RuntimeError("AI output limit reached; explicit larger-budget checkpoint recovery required")
             fallback = self.profile == "primary" and self.limits["allow_fallback"]
             # A rejected credential must never be retried on the same profile.
             # The separately configured backup may still serve this request.
@@ -462,7 +470,11 @@ def collect(coordinator, stage, unit, messages, tools, evidence, validate, *, al
         # tools also makes the available contract unambiguous to those models.
         request_tools = [row for row in tools if row["function"]["name"] == finish] if force else tools
         offered = {row["function"]["name"] for row in request_tools}
-        message = coordinator.request(stage, unit, messages, request_tools, force)
+        request_messages = messages
+        if force:
+            request_messages = messages+[{"role":"user", "content":"当前仅允许调用 "+finish+
+                " 提交本单元结果。只读取证阶段已结束；直接使用已提供的证据，不得调用或编造其他工具，不输出自由文本。证据不足仍须在结果中明确保留缺口。"}]
+        message = coordinator.request(stage, unit, request_messages, request_tools, force)
         messages.append(message)
         accepted = None
         calls = message.get("tool_calls", [])
