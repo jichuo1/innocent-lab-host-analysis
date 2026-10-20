@@ -1,0 +1,75 @@
+{
+  "release": null,
+  "files": [
+    {
+      "path": "remote-output/ai-analysis.json",
+      "bytes": 15535,
+      "sha256": "3593346f4f6b3474e6a745bc4cdd2c0745cfd46ea467a2c981f4d52d8d851eca"
+    },
+    {
+      "path": "remote-output/ai-checkpoint.json",
+      "bytes": 109623,
+      "sha256": "18c0958cb349ecc7c72bc67b9c38a12983567109c9130210490efae72f22a4f1"
+    },
+    {
+      "path": "remote-output/ai-evidence.json",
+      "bytes": 323090,
+      "sha256": "b5b030acac68d7c32789f854e68a15322621fa13638caa7e1f234118c86564c2"
+    },
+    {
+      "path": "remote-output/ai-review.json",
+      "bytes": 31,
+      "sha256": "6b6455ac75c27e85b01ce55d504ed51ec6b27576eeaa5feea1ac354ca2487035"
+    },
+    {
+      "path": "remote-output/job.json",
+      "bytes": 225055,
+      "sha256": "aa92b90da4c8d110797fc8c270fab3819219984d414cd8c24f9fdff291c6fc31"
+    },
+    {
+      "path": "remote-output/priority-baseline.json",
+      "bytes": 93459318,
+      "sha256": "95297232282af260b43ddc8ac4c8d91b521cfe769696b2f3ad012862b2b8522a"
+    },
+    {
+      "path": "remote-output/priority-report.md",
+      "bytes": 13577,
+      "sha256": "b58633ce79b944587aac90fd9d4eb001b1bede0aa656f1d47289d7bb9947bc65"
+    },
+    {
+      "path": "remote-output/priority-summary.json",
+      "bytes": 5010674,
+      "sha256": "8031b74f03b2995bf25b70ac26b9eecd4d17abe402d5cf4614cc5530f7de4eb4"
+    },
+    {
+      "path": "remote-output/priority-target.json",
+      "bytes": 94092220,
+      "sha256": "b124c4fca74dc9789e226fa3758679f2b99f91bee16473affd51f1122420fde6"
+    },
+    {
+      "path": "remote-output/static-manifest.json",
+      "bytes": 1696,
+      "sha256": "32bd7916f8fc799d37e49e1407c72df42255eadf58ac4e226d47a00bcaa9812e"
+    },
+    {
+      "path": "reports/9150300/c07cf0a3b838ecbc/20261020T124407227124Z/features.tsv",
+      "bytes": 9009,
+      "sha256": "e7843d6fa8c7f979dee659741a98293b4b178e38a12498ac7662f6a20918d5bb"
+    },
+    {
+      "path": "reports/9150300/c07cf0a3b838ecbc/20261020T124407227124Z/summary.json",
+      "bytes": 11294,
+      "sha256": "b39b84291a8b62778645ca260d16b798ca8473ad27649dff44c6ef2deca45753"
+    },
+    {
+      "path": "reports/9160200/a80c4e0189458c9d/20261020T124135551371Z/features.tsv",
+      "bytes": 9009,
+      "sha256": "d3afdb95719d9beb03927124d931271fd27d720f3d19c43900f810ba6c3e9eb3"
+    },
+    {
+      "path": "reports/9160200/a80c4e0189458c9d/20261020T124135551371Z/summary.json",
+      "bytes": 11294,
+      "sha256": "ca524f41794db2c54fdcd90a860241e52a769e43d20a0a727acac6a71307c55f"
+    }
+  ]
+}
