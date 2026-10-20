@@ -97,7 +97,11 @@ def configuration(profile):
         valid = False
     if not valid:
         raise ValueError("invalid_configuration")
-    return {"key": key, "base": base, "model": model, "output_token_parameter": token_parameter,
+    try:
+        mode = ai_transport.tool_choice_mode(profile)
+    except ai_transport.ApiError:
+        raise ValueError("invalid_configuration") from None
+    return {"key": key, "base": base, "model": model, "output_token_parameter": token_parameter, "tool_choice_mode": mode,
             "endpoint": {"scheme": "https", "host": parsed.hostname, "path": parsed.path}}
 
 

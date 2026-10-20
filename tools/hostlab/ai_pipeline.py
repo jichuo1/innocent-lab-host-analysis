@@ -100,6 +100,9 @@ def build_binding(root, summary, units):
         parameter = os.environ.get("AI_"+profile.upper()+"_OUTPUT_TOKEN_PARAMETER", "")
         if parameter:
             value["output_token_parameter"] = parameter
+        mode = os.environ.get("AI_"+profile.upper()+"_TOOL_CHOICE_MODE", "").strip()
+        if mode:
+            value["tool_choice_mode"] = mode
         config[profile] = ai_checkpoint.digest(value)
     return {"schema": 1, "static_files": files, "static_manifest_sha256": summary.get("static_manifest_sha256"),
         "sample": summary["sample"], "baseline": summary.get("baseline"),

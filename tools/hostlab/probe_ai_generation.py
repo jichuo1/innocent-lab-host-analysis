@@ -14,7 +14,7 @@ import urllib.request
 import uuid
 
 from check_ai_connectivity import NoRedirect, MAX_ERROR_BYTES, configuration, credential_shape, error_summary, safe_request_id
-from ai_transport import request_interval, _retry_after
+from ai_transport import request_interval, _retry_after, select_tools
 
 OUTPUT = Path(__file__).resolve().parents[2] / "runtime/hostlab/probe"
 STAGES = (("minimal_chat", 128), ("stream", 1024), ("forced_tool", 1024))
@@ -48,7 +48,7 @@ def payload(config, stage, include_usage):
     if stage == "forced_tool":
         body["messages"] = [{"role": "user", "content": "Call hostlab_probe_echo exactly once with ok=true. Do not add text."}]
         body["tools"] = [{"type": "function", "function": {"name": TOOL_NAME, "description": "Return a synthetic diagnostic marker. This probe never executes this tool.", "parameters": {"type": "object", "properties": {"ok": {"type": "boolean", "enum": [True]}}, "required": ["ok"], "additionalProperties": False}}}]
-        body["tool_choice"] = {"type": "function", "function": {"name": TOOL_NAME}}
+        body["tools"], body["tool_choice"] = select_tools(body["tools"], TOOL_NAME, config.get("tool_choice_mode", "named"))
     return body
 
 

@@ -327,6 +327,17 @@ class TransportTest(unittest.TestCase):
     def test_redirect_denied(self):
         self.assertIsNone(transport.NoRedirect().redirect_request(None, None, None, None, None, None))
 
+    def test_explicit_auto_mode_keeps_only_the_required_tool(self):
+        tools = [{"type":"function", "function":{"name":name}} for name in ["read", "finish"]]
+        selected, choice = transport.select_tools(tools, "finish", "auto")
+        self.assertEqual([row["function"]["name"] for row in selected], ["finish"])
+        self.assertEqual(choice, "auto")
+        self.assertEqual(transport.select_tools(tools, "finish", "named")[1]["function"]["name"], "finish")
+        for invalid in ([], tools+tools):
+            with self.assertRaises(transport.ApiError): transport.select_tools(invalid, "finish", "auto")
+        with patch.dict(os.environ, {"AI_PRIMARY_TOOL_CHOICE_MODE":"invalid"}):
+            with self.assertRaises(transport.ApiError): transport.tool_choice_mode("primary")
+
     def test_unavailable_tool_is_a_complete_response_for_safe_feedback(self):
         raw = delta({"tool_calls": [{"index": 0, "id": "call-1", "type": "function",
             "function": {"name": "functions.not_offered", "arguments": '{"private":"body"}'}}]}, "tool_calls")

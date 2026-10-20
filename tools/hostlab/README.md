@@ -204,6 +204,8 @@ AI 分析与生成诊断共用 `hostlab-ai-provider-slot` 串行队列，不取�
 
 完整结束但返回未提供工具的响应可进入原有逻辑请求预算内的纠正流程，不作为传输重试；未知工具名统一记为 invalid_tool，参数丢弃，只返回当前允许工具的提示，绝不派发执行。工具结构损坏、流中断、输出未完成和认证失败仍按各自边界处理；已知用量和未知计费不清零。
 
+提供商不接受具名 tool_choice 时，可显式配置 AI_PRIMARY_TOOL_CHOICE_MODE=auto（备用对应 AI_BACKUP_TOOL_CHOICE_MODE）；默认 named 不变。auto 模式的强制提交请求仍只提供唯一的目标工具，服务端完整校验返回结果，不将普通文本或其他工具视作提交成功。诊断读取同一配置；配置参与提供商检查点摘要，不能静默复用不同模式的旧检查点。HTTP 400 不自动降级或重试。
+
 ## 仓库内长期报告
 
 reports 分支 README.md 是报告首页，index.json 是机器索引；每次结果存 samples/<code>/<完整sha>/runs/<run>-a<attempt>/。

@@ -91,6 +91,10 @@ class AiDiagnosticsTest(unittest.TestCase):
                     catalog.configuration("primary")
 
     def test_generation_probe_uses_same_output_parameter_and_protocol_contract(self):
+        with patch.dict(os.environ, {"AI_PRIMARY_TOOL_CHOICE_MODE":"auto"}):
+            body = probe.payload(catalog.configuration("primary"), "forced_tool", True)
+            self.assertEqual(body["tool_choice"], "auto")
+            self.assertEqual(len(body["tools"]), 1)
         with patch.dict(os.environ, {"AI_PRIMARY_BASE_URL": "https://api.openai.com/v1/chat/completions"}):
             config = catalog.configuration("primary")
             body = probe.payload(config, "minimal_chat", True)

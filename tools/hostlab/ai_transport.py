@@ -61,6 +61,22 @@ def output_token_parameter(profile, base):
     return explicit or ("max_completion_tokens" if urllib.parse.urlsplit(base).hostname == "api.openai.com" else "max_tokens")
 
 
+def tool_choice_mode(profile):
+    mode = os.environ.get("AI_"+str(profile).upper()+"_TOOL_CHOICE_MODE", "").strip() or "named"
+    if mode not in {"named", "auto"}:
+        raise ApiError("API tool choice mode invalid", "configuration", False, False)
+    return mode
+
+
+def select_tools(tools, force_tool, mode):
+    if force_tool and mode == "auto":
+        selected = [tool for tool in tools if tool.get("function", {}).get("name") == force_tool]
+        if len(selected) != 1:
+            raise ApiError("API forced tool missing or ambiguous", "configuration", False, False)
+        return selected, "auto"
+    return tools, {"type": "function", "function": {"name": force_tool}} if force_tool else "auto"
+
+
 def _redact(value):
     for name in ("AI_API_KEY_PRIMARY", "AI_API_KEY_BACKUP", "HF_TOKEN", "GH_TOKEN"):
         secret = os.environ.get(name)
@@ -166,8 +182,9 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
             or not 0 < idle_timeout <= total_timeout <= 600
             or (session_id is not None and not re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", session_id))):
         raise ApiError("API configuration incomplete or invalid", "configuration", False, False)
+    tools, choice = select_tools(tools, force_tool, tool_choice_mode(profile))
     payload = {"model": model, "messages": messages, "tools": tools,
-               "tool_choice": {"type": "function", "function": {"name": force_tool}} if force_tool else "auto",
+               "tool_choice": choice,
                output_token_parameter(profile, base): max_output, "stream": bool(stream)}
     if stream:
         payload["stream_options"] = {"include_usage": True}
