@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import hashlib
 import io
 import json
@@ -26,39 +27,76 @@ def digest(path):
 
 
 def sdk_tool(name):
-    sdk = Path(os.environ.get("ANDROID_HOME") or
-               Path(os.environ.get("LOCALAPPDATA", "")) / "Android" / "Sdk")
-    candidates = sorted((sdk / "build-tools").glob("*/" + name), reverse=True)
-    if not candidates:
-        raise RuntimeError("Android SDK tool missing: " + name)
-    return candidates[0]
+    """Resolve a stable build-tools version on Windows and POSIX runners."""
+    import shutil
+    windows = sys.platform == "win32"
+    suffix = {"aapt": ".exe", "apksigner": ".bat"}.get(name, "") if windows else ""
+    executable = name + suffix
+    root = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
+    if not root and windows and os.environ.get("LOCALAPPDATA"):
+        root = str(Path(os.environ["LOCALAPPDATA"]) / "Android" / "Sdk")
+    candidates = []
+    if root:
+        for candidate in (Path(root) / "build-tools").glob("*/" + executable):
+            if candidate.is_file() and re.fullmatch(r"\d+(?:\.\d+)*", candidate.parent.name):
+                candidates.append(candidate)
+    if candidates:
+        return max(candidates, key=lambda p: tuple(map(int, p.parent.name.split("."))))
+    found = shutil.which(executable)
+    if found:
+        return Path(found)
+    raise RuntimeError("Android SDK tool missing: " + name)
+
+
+def sdk_command(name, *args):
+    tool = str(sdk_tool(name))
+    if sys.platform == "win32" and name == "apksigner":
+        return ["cmd.exe", "/d", "/c", tool, *map(str, args)]
+    return [tool, *map(str, args)]
 
 
 def identity(path):
+    path = Path(path)
     # aapt on Windows cannot reliably open Unicode paths.
     with tempfile.TemporaryDirectory(prefix="hostlab-") as temp:
         import shutil
         target = Path(temp) / "host.apk"
         shutil.copyfile(path, target)
         output = subprocess.check_output(
-            [str(sdk_tool("aapt.exe")), "dump", "badging", str(target)],
+            sdk_command("aapt", "dump", "badging", target),
             text=True, encoding="utf-8", errors="replace", stderr=subprocess.STDOUT)
         match = re.search(r"package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", output)
         if not match or match[1] != "tv.danmaku.bili":
             raise RuntimeError("APK identity missing or package is not tv.danmaku.bili")
         # Pass cmd arguments as a list; temporary target contains no shell metacharacters.
         cert = subprocess.check_output(
-            ["cmd.exe", "/d", "/c", str(sdk_tool("apksigner.bat")), "verify",
-             "--print-certs", str(target)], text=True, encoding="utf-8",
+            sdk_command("apksigner", "verify", "--print-certs", target), text=True, encoding="utf-8",
             errors="replace", stderr=subprocess.STDOUT)
         fingerprints = re.findall(r"certificate SHA-256 digest: ([0-9a-fA-F]{64})", cert)
         if not fingerprints:
             raise RuntimeError("APK signature verification did not yield certificate fingerprints")
-    sha = digest(path)
+        sha = digest(target)
+        size = target.stat().st_size
+    if digest(path) != sha:
+        raise RuntimeError("APK changed during identity inspection")
     return {"package": match[1], "version_code": int(match[2]), "version_name": match[3],
-            "sha256": sha, "size": path.stat().st_size,
+            "sha256": sha, "size": size,
             "certificate_sha256": sorted(set(x.lower() for x in fingerprints)),
+            "abis": sorted(set(re.findall(r"'([^']+)'",
+                next((line for line in output.splitlines() if line.startswith("native-code:")), "")))),
             "path": f"apks/tv.danmaku.bili/{match[2]}/{sha}/base.apk"}
+
+
+@contextmanager
+def verified_upload_file(path, row):
+    """Upload exactly the inspected bytes, not a mutable external pathname."""
+    import shutil
+    with tempfile.TemporaryDirectory(prefix="hostlab-upload-") as directory:
+        snapshot = Path(directory) / "host.apk"
+        shutil.copyfile(path, snapshot)
+        if snapshot.stat().st_size != row["size"] or digest(snapshot) != row["sha256"]:
+            raise RuntimeError("APK changed before upload; admission must be repeated")
+        yield snapshot
 
 
 def write_json(path, value):
@@ -125,6 +163,10 @@ def main():
     scan.add_argument("directory", type=Path)
     upload = commands.add_parser("upload")
     upload.add_argument("apk", type=Path)
+    upload.add_argument("--source-receipt", type=Path,
+                        help="Untrusted source metadata JSON; requires --trust-policy")
+    upload.add_argument("--trust-policy", type=Path,
+                        help="Independently provisioned trusted signer policy JSON")
     commands.add_parser("list")
     fetch = commands.add_parser("fetch")
     fetch.add_argument("--version-code", type=int, required=True)
@@ -174,6 +216,14 @@ def main():
         write_json(STATE / "inventory.json", {"schema": 1, "samples": samples})
         print(f"Inventory: {len(samples)} distinct APKs; no uploads performed")
         return
+    admitted = None
+    if args.command == "upload" and (args.source_receipt or args.trust_policy):
+        if not args.source_receipt or not args.trust_policy:
+            raise RuntimeError("Source upload requires both receipt and trust policy")
+        import source_intake
+        admitted = source_intake.verify(args.apk.resolve(),
+            json.loads(args.source_receipt.read_text(encoding="utf-8")),
+            json.loads(args.trust_policy.read_text(encoding="utf-8")))
     repo = config()["repo"]
     api, head = api_private(repo)
     revision = getattr(args, "revision", None) or head
@@ -184,7 +234,7 @@ def main():
             print(f"{row['version_name']}\t{row['version_code']}\t{row['sha256']}\t{row['size']}")
     elif args.command == "upload":
         from huggingface_hub import CommitOperationAdd
-        row = identity(args.apk.resolve())
+        row = admitted if admitted is not None else identity(args.apk.resolve())
         if any(x["sha256"] == row["sha256"] for x in data["samples"]):
             print("Sample already registered: " + row["sha256"])
             return
@@ -192,10 +242,11 @@ def main():
         data["samples"].sort(key=lambda x: (x["version_code"], x["sha256"]))
         payload = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
         # Publish APK and index atomically; reject concurrent head changes.
-        result = api.create_commit(repo_id=repo, repo_type="dataset", parent_commit=head,
-            commit_message=f"chore(samples): add {row['version_code']} {row['sha256'][:12]}",
-            operations=[CommitOperationAdd(path_in_repo=row["path"], path_or_fileobj=str(args.apk.resolve())),
-                        CommitOperationAdd(path_in_repo="manifest.json", path_or_fileobj=io.BytesIO(payload))])
+        with verified_upload_file(args.apk.resolve(), row) as snapshot:
+            result = api.create_commit(repo_id=repo, repo_type="dataset", parent_commit=head,
+                commit_message=f"chore(samples): add {row['version_code']} {row['sha256'][:12]}",
+                operations=[CommitOperationAdd(path_in_repo=row["path"], path_or_fileobj=str(snapshot)),
+                            CommitOperationAdd(path_in_repo="manifest.json", path_or_fileobj=io.BytesIO(payload))])
         remote = manifest(repo, result.oid)
         if row not in remote["samples"]:
             raise RuntimeError("Published manifest readback failed")
