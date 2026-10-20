@@ -14,7 +14,7 @@ import urllib.request
 import uuid
 
 from check_ai_connectivity import NoRedirect, MAX_ERROR_BYTES, configuration, credential_shape, error_summary, safe_request_id
-from ai_transport import MIN_REQUEST_INTERVAL
+from ai_transport import request_interval, _retry_after
 
 OUTPUT = Path(__file__).resolve().parents[2] / "runtime/hostlab/probe"
 STAGES = (("minimal_chat", 128), ("stream", 1024), ("forced_tool", 1024))
@@ -198,7 +198,7 @@ def attempt(profile, stage, timeout, include_usage=True):
             detail = error_summary(exc.code, b"", exc.headers)
         finally:
             exc.close()
-        result.update(status="auth_failed" if exc.code in (401, 403) else "capability_unknown" if exc.code in (400, 422) else "http_failed", http=exc.code, **detail)
+        result.update(status="auth_failed" if exc.code in (401, 403) else "capability_unknown" if exc.code in (400, 422) else "http_failed", http=exc.code, retry_after_seconds=_retry_after(exc.headers), **detail)
     except (TimeoutError, urllib.error.URLError, OSError):
         result["status"] = "transport_unknown"
     except (ValueError, TypeError, KeyError, UnicodeError):
@@ -271,7 +271,7 @@ def run(output=None):
             item["reason"] = "configuration_invalid"
             continue
         for stage, tokens in STAGES:
-            delay = max(0, previous_started+MIN_REQUEST_INTERVAL-time.monotonic()) if previous_started else 0
+            delay = max(0, previous_started+request_interval(profile)-time.monotonic()) if previous_started else 0
             if deadline-time.monotonic()-5 <= delay:
                 item["reason"] = "total_deadline_exceeded"
                 break

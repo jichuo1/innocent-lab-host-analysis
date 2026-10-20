@@ -22,6 +22,10 @@ MAX_TOOL_CALLS = 8
 MIN_REQUEST_INTERVAL = 15
 
 
+def request_interval(profile):
+    return 35 if profile == "primary" else MIN_REQUEST_INTERVAL
+
+
 class ApiError(RuntimeError):
     def __init__(self, reason, kind="protocol", retryable=False, billing_unknown=True,
                  http_status=None, retry_after=None, metrics=None, usage=None):

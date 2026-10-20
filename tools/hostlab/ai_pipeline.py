@@ -305,7 +305,7 @@ class Coordinator:
         previous = max((row["started_at"] for row in self.checkpoint.value["attempts"]
                         if row["profile"] == self.profile), default=0)
         self.wait(max(provider.get("not_before", 0), provider.get("open_until", 0),
-                      previous+ai_transport.MIN_REQUEST_INTERVAL)-time.time())
+                      previous+ai_transport.request_interval(self.profile))-time.time())
 
     def request(self, stage, unit, messages, tools, force_tool):
         import ai_review as review
