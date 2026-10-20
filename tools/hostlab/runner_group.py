@@ -84,7 +84,7 @@ def collect(payload, downloaded, runner_revision):
             # Both member files must validate before promoting the checkpoint to complete.
             status = "skipped"
         if present:
-            if present != names or any(p.stat().st_size > 2 * 1024 * 1024 for p in present):
+            if present != names or any(p.stat().st_size > 4 * 1024 * 1024 for p in present):
                 raise ValueError("incomplete or oversized runner group member")
             metadata = json.loads((root / "samples" / str(index) / "job.json").read_text(encoding="utf-8"))
             result = json.loads((root / "samples" / str(index) / "result.txt").read_text(encoding="utf-8"))

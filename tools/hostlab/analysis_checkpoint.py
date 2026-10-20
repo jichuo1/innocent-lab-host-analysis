@@ -55,9 +55,14 @@ def save(path, report, request, tools, *, sealed=False):
     payload = {"schema": 2, "encoding": "json-keys-v2", "batch_contract": CONTRACT, "request": work_request(request),
                "work_sha256": work_hash(request), "tools": tools,
                "sealed": sealed and report.get("source_unchanged") is True, "report": report}
-    if len(canonical(payload)) > MAX_BYTES:
+    raw = canonical({"payload": payload, "sha256": checksum(payload)}) + b"\n"
+    if len(raw) > MAX_BYTES:
         raise ValueError("checkpoint_byte_budget")
-    hostlab.write_json(Path(path), {"payload": payload, "sha256": checksum(payload)})
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_suffix(".tmp")
+    temp.write_bytes(raw)
+    os.replace(temp, path)
 
 
 def read_json(path):
@@ -153,7 +158,8 @@ def validate(report, job, request, sample, tools, native, *, checkpoint=None):
             elif task["status"] == "partial":
                 raise ValueError("checkpoint_partial_operation_not_resumable")
             total += analysis_paging.size(result)
-    if total > 1024 * 1024:
+    budget = report.get("result_budget_bytes", 1024 * 1024)
+    if type(budget) is not int or budget not in {1024 * 1024, 2 * 1024 * 1024} or total > budget:
         raise ValueError("checkpoint_result_budget")
     expected_complete = len(tasks) == len(wanted) and all(t["status"] == "complete" for t in tasks)
     if report.get("complete") is not expected_complete:
@@ -200,17 +206,37 @@ def load_actions(request, sample, tools, native):
         raise ValueError("checkpoint_run_attempt_changed")
     archive = remote_artifacts.get(repository, binding["request_id"], run, api, downloader=download)
     root = Path(archive["root"])
-    job = read_json(root / "remote-output/job.json")
-    report = read_json(root / "remote-output/result.txt")
+    member = root / "remote-output"
+    group_path = member / "group.json"
+    group = None
+    if group_path.exists():
+        if "sample_index" not in binding:
+            raise ValueError("checkpoint_group_member_required")
+        group = read_json(group_path)
+        index = binding["sample_index"]
+        rows = group.get("samples") if isinstance(group, dict) else None
+        if (not isinstance(group, dict) or group.get("schema") != 1 or not isinstance(rows, list) or not 0 <= index < len(rows) <= 12
+                or not isinstance(rows[index], dict) or rows[index].get("index") != index or rows[index].get("sample") != {
+                    "version_code": sample["version_code"], "apk_sha256": sample["sha256"], "sample_revision": sample["revision"]}
+                or group.get("request_sha256") != work_hash(request)):
+            raise ValueError("checkpoint_group_sample_or_request_mismatch")
+        member = member / "samples" / str(index)
+    elif "sample_index" in binding:
+        raise ValueError("checkpoint_group_receipt_missing")
+    job = read_json(member / "job.json")
+    report = read_json(member / "result.txt")
+    if group is not None and (job.get("group_index") != binding["sample_index"]
+                              or job.get("runner_revision") != group.get("runner_revision")):
+        raise ValueError("checkpoint_group_member_identity_mismatch")
     if (job.get("workflow_revision") != run["head_sha"]
             or not re.fullmatch(r"[0-9a-f]{40}", job.get("runner_revision", ""))):
         raise ValueError("checkpoint_producer_identity_mismatch")
-    checkpoint_path = root / "remote-output/checkpoint.json"
+    checkpoint_path = member / "checkpoint.json"
     checkpoint = read_json(checkpoint_path) if checkpoint_path.exists() else None
     report = validate(report, job, request, sample, tools, native, checkpoint=checkpoint)
     report["resume_origin"] = {**binding, "runner_revision": job["runner_revision"],
         "artifact_id": archive["artifact"]["id"], "artifact_digest": archive["artifact"]["digest"],
-        "work_sha256": work_hash(request), "result_sha256": hostlab.digest(root / "remote-output/result.txt"),
+        "work_sha256": work_hash(request), "result_sha256": hostlab.digest(member / "result.txt"),
         "reused_complete_tasks": sum(t["status"] == "complete" for t in report["tasks"])}
     return report
 

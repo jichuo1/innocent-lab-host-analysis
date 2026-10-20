@@ -218,6 +218,30 @@ class ScheduleTest(unittest.TestCase):
 
 
 class ExecutionTest(unittest.IsolatedAsyncioTestCase):
+    async def test_query_local_error_does_not_skip_independent_queries(self):
+        with tempfile.TemporaryDirectory() as temp:
+            apk=Path(temp)/"app.apk"
+            with zipfile.ZipFile(apk,"w") as z:z.writestr("classes.dex",b"fixture")
+            client=SimpleNamespace(call_tool=AsyncMock())
+            class Context:
+                async def __aenter__(self):return client
+                async def __aexit__(self,*args):return False
+            async def opened(session):
+                session.dataset="opened";session.files={0:"classes.dex"}
+                return {"backend":"dexsql"}
+            spec={"backend":"dexsql","tasks":[{"id":n,"operation":"query","sql":"SELECT 1","dialect":"dexsql"} for n in ["bad","good"]]}
+            failure=analysis_batch.BackendError("backend rejected operation",{"error":{"kind":"invalid_query","dataset_closed":False}})
+            with patch.object(analysis_batch,"Client",return_value=Context()), \
+                 patch.object(analysis_batch.install_dexsql,"status",return_value={"available":True}), \
+                 patch.object(analysis_batch.install_dexsql,"verify",return_value=Path("fixture.exe")), \
+                 patch.object(analysis_batch.Session,"open",opened), \
+                 patch.object(analysis_batch.Session,"execute",side_effect=[failure,{"partial":False,"rows":[]}]) as execute:
+                report=await analysis_batch.execute(apk,spec,roots=[temp])
+            self.assertEqual([t["status"] for t in report["tasks"]],["error","complete"])
+            self.assertEqual(execute.call_count,2)
+            self.assertFalse(report["complete"])
+            self.assertEqual(report["result_budget_bytes"],2*1024*1024)
+
     async def test_failed_session_is_closed_and_remaining_tasks_are_not_replayed(self):
         with tempfile.TemporaryDirectory() as temp:
             apk = Path(temp)/"app.apk"

@@ -78,7 +78,7 @@ def run_batch(request, row, repo, revision, *, context_timings=None, output=None
         rc = 1
         report = {"complete": False, "scope": "offline_static_only", "error": type(exc).__name__,
                   "message": type(exc).__name__ if group_index is not None else str(exc)[:1000], "tasks": []}
-    (output / "result.txt").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    (output / "result.txt").write_text(json.dumps(report, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     prepared=hostlab.STATE/"preparation.json"
     preparation=json.loads(prepared.read_text(encoding="utf-8")) if prepared.is_file() and prepared.stat().st_size<=65536 else None
     job = {"operation": "batch", "version_code": row["version_code"], "apk_sha256": row["sha256"],
@@ -99,7 +99,9 @@ def run_batch(request, row, repo, revision, *, context_timings=None, output=None
     analysis_checkpoint.summary(output / "summary.md", report, error=recovery_error, append=False)
     analysis_checkpoint.summary(os.environ.get("GITHUB_STEP_SUMMARY"), report, error=recovery_error)
     print(json.dumps({"operation": "batch", "complete": report["complete"], "exit_code": rc,
-                      "tasks": [{"id": t["id"], "status": t["status"]} for t in report["tasks"]]}))
+                      "tasks": [{"id": t["id"], "status": t["status"],
+                                 "reason": t.get("result", {}).get("pagination", {}).get("stop_reason", t.get("reason"))}
+                                for t in report["tasks"]]}))
     return rc
 
 

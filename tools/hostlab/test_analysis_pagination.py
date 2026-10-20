@@ -78,6 +78,30 @@ class PagingTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((150, 8, 1), tuple(result["pagination"][k] for k in ("reused_rows", "fetched_rows", "pages_this_run")))
         self.assertEqual([{"offset": 150, "limit": 8, "rows": 8, "next_offset": None}], result["pagination"]["requests_this_run"])
 
+    async def test_zero_admitted_page_can_resume_with_more_batch_space(self):
+        spec=analysis_plan.validate({"tasks":[task()]})["tasks"][0]
+        seed=paging.QueryPages(spec,remaining_bytes=1024).stopped("byte_budget")
+        result,calls,_=await self.run_query(seed=seed)
+        self.assertFalse(result["partial"])
+        self.assertEqual(calls,[(0,2),(2,2),(4,1)])
+        seed["pagination"]["next_offset"]=100
+        with self.assertRaisesRegex(paging.PageError,"invalid_empty"):
+            await self.run_query(seed=seed)
+
+    async def test_known_native_output_budget_shrinks_only_the_unadmitted_page(self):
+        calls=[]
+        async def sql(text,limit,offset):
+            calls.append((offset,limit))
+            if limit>2:raise batch.BackendError("backend rejected operation",{"error":{"kind":"output_too_large"}})
+            return page(text,offset,limit)
+        session=batch.Session(None,"dexsql",Path("fixture.apk"),time.monotonic()+10)
+        session.sql=sql
+        result=await session.execute(analysis_plan.validate({"tasks":[task(limit=8)]})["tasks"][0])
+        self.assertFalse(result["partial"])
+        self.assertEqual(calls,[(0,8),(0,4),(0,2),(2,2),(4,1)])
+        self.assertEqual(result["pagination"]["oversized_page_attempts_this_run"],2)
+        self.assertEqual(result["pagination"]["page_limit_cap"],2)
+
     async def test_page_budget_is_per_attempt_and_resume_never_replays_prefix(self):
         spec = task(pagination={"max_pages": 1})
         first, calls, _ = await self.run_query(spec)
@@ -203,6 +227,22 @@ class RecoveryTest(unittest.IsolatedAsyncioTestCase):
         def write(report, sealed): checkpoints.save(self.root / "checkpoint.json", report, req, TOOLS, sealed=sealed)
         return await batch.execute(self.apk, req, roots=[self.root], sample=self.sample, resume=resume, checkpoint=write)
 
+    async def test_batch_above_old_one_mib_budget_is_complete_and_checkpoint_is_readable(self):
+        async def large(sql,limit,offset):
+            value=page(sql,offset,limit,50)
+            for index,row in enumerate(value["typed_result"]["statements"][0]["rows"]):
+                row[0]["value"]="x"*7000+str(index)
+            value["rows"]=[[r[0]["value"]] for r in value["typed_result"]["statements"][0]["rows"]]
+            return value
+        self.effects=large
+        result=await self.execute(request([task(id="first",limit=100),task(id="second",limit=100)]))
+        self.assertTrue(result["complete"])
+        self.assertGreater(result["result_bytes"],1024*1024)
+        self.assertLessEqual(result["result_bytes"],2*1024*1024)
+        record=checkpoints.read_json(self.root/"checkpoint.json")
+        self.assertTrue(record["payload"]["sealed"])
+        self.assertTrue(checkpoints.sealed_digest_matches(record,TOOLS))
+
     async def test_eleven_completed_payloads_are_unchanged_and_only_missing_eight_are_queried(self):
         req, old, job = self.origin()
         previous = checkpoints.validate(old, job, req, self.sample, TOOLS, NATIVE)
@@ -312,6 +352,29 @@ class RecoveryTest(unittest.IsolatedAsyncioTestCase):
             with self.assertRaisesRegex(ValueError, "checkpoint_read_failed"):
                 checkpoints.load_actions(req, self.sample, TOOLS, NATIVE)
             self.assertEqual(3, api.call_count)
+
+    def test_authenticated_group_member_resume_checks_exact_sample(self):
+        req,report,job=self.origin()
+        req["resume"]={"run_id":1,"attempt":1,"request_id":"a"*32,"sample_index":0}
+        job.update(workflow_revision="d"*40,runner_revision="e"*40,group_index=0)
+        folder=self.root/"group-source"
+        member=folder/"remote-output/samples/0"
+        hostlab.write_json(member/"job.json",job);hostlab.write_json(member/"result.txt",report)
+        checkpoints.save(member/"checkpoint.json",report,req,TOOLS,sealed=True)
+        group={"schema":1,"runner_revision":"e"*40,"request_sha256":checkpoints.work_hash(req),"samples":[
+            {"index":0,"status":"failed","sample":{"version_code":self.sample["version_code"],
+             "apk_sha256":self.sample["sha256"],"sample_revision":self.sample["revision"]}}]}
+        group_path=folder/"remote-output/group.json";hostlab.write_json(group_path,group)
+        import remote_artifacts
+        with patch.dict(os.environ,{"GITHUB_REPOSITORY":"jichuo1/innocent-lab-host-analysis"}), \
+             patch.object(checkpoints,"gh",return_value=json.dumps({"run_attempt":1,"head_sha":"d"*40})), \
+             patch.object(remote_artifacts,"get",return_value={"root":str(folder),"artifact":{"id":2,"digest":"sha256:"+"f"*64}}):
+            loaded=checkpoints.load_actions(req,self.sample,TOOLS,NATIVE)
+            self.assertEqual(loaded["resume_origin"]["reused_complete_tasks"],11)
+            self.assertEqual(loaded["resume_origin"]["sample_index"],0)
+            group["samples"][0]["sample"]["apk_sha256"]="0"*64;hostlab.write_json(group_path,group)
+            with self.assertRaisesRegex(ValueError,"group_sample_or_request"):
+                checkpoints.load_actions(req,self.sample,TOOLS,NATIVE)
 
     def test_identity_tools_native_and_result_flags_fail_closed(self):
         req, report, job = self.origin()

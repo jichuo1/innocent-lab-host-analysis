@@ -51,11 +51,11 @@ tools/hostlab/hostlab.cmd dexq batch --version-code 9150200 --request request.js
 
 批次返回逐项 `complete/partial/error/skipped`、会话准备成本、版本和计划原因。任何截断或错误都不会标成完整成功，CLI 返回 2。
 失效数据集和未知结果不会自动重放；MCP SDK 负责 EOF、Windows Job Object／POSIX 进程组的关闭和终止升级。
-结果总预算 1 MiB，按完整任务结果记账；原始 SQL/native typed result 保留整数精度及分页字段。
+结果总预算 2 MiB，按完整任务结果记账；原始 SQL/native typed result 保留整数精度及分页字段。
 
 ## 查询续页与断点恢复
 
-DexSQL 批量 query 的 `limit` 是每页行数，默认在同一数据集中自动续页。每项默认总行数上限1000、每次执行最多8页、结果字节上限1 MiB，并共享原批次的总时限和1 MiB输出预算。可以显式传入 `pagination={"max_pages":8,"max_rows":1000,"max_bytes":1048576}`；硬范围分别为1–32、1–10000和1024–1048576。`max_pages=1` 保留单页行为；页数按每次恢复计算，行数/字节按累计结果计算。SQLite SQL仍按原请求执行，JADX路径不变。
+DexSQL 批量 query 的 `limit` 是每页行数，默认在同一数据集中自动续页。每项默认总行数上限1000、每次执行最多8页、结果字节上限1 MiB，并共享原批次的总时限和2 MiB输出预算。可以显式传入 `pagination={"max_pages":8,"max_rows":1000,"max_bytes":1048576}`；硬范围分别为1–32、1–10000和1024–1048576。`max_pages=1` 保留单页行为；页数按每次恢复计算，行数/字节按累计结果计算。SQLite SQL仍按原请求执行，JADX路径不变。
 
 续页要求调用者给出可复现的外层 `ORDER BY`，并选择唯一的排序键/消歧键；这是原生接口重执行 SQL 的契约，不能依赖未排序结果或随机值。缺少外层排序、游标不前进、模式或总行数变化、达到页数/行数/字节/后端offset预算时，仍返回 partial 和明确 `stop_reason`、`next_offset`，不伪装完整。空结果成功、整数精度、重复行、长SQL元数据缩略与原SQL保持兼容。原生范围仍为offset+limit不超过100000。
 
@@ -68,6 +68,14 @@ DexSQL 批量 query 的 `limit` 是每页行数，默认在同一数据集中自
 恢复提交默认使用稳定幂等键，未知派发和重复调用不重放；确认失败后要再次执行，需显式提供新的 `idempotency_key`。旧schema-1检查点只兼容已审计的工具哈希，后续检查点要求封存摘要及batch契约版本一致。原运行及其11项/其它已完成结果继续保留，不覆盖旧产物。
 
 Actions摘要逐项列出完成状态、返回/总行数、复用/新取行数、下一游标与停止原因；`job.json`保留原工作摘要并增加执行请求摘要和契约版本。恢复的结果包含原run/attempt与附件摘要，可独立复核实际复用了哪些数据。所有受信文件都在上传的有界产物内，仍不包含APK、DEX、数据库或凭据。
+
+已知返回 output_too_large 时，只对尚未接纳的当前页有界减小行数；最小为1行，超时、未知传输错误或已关闭数据集不自动重试。每任务最多10次缩页，沿用同一总时限；接纳页、缩页后的上限和本轮缩页次数写入分页元数据。单行仍超限时保留失败，需调用者显式用 substr() 拆值。
+
+明确属于单条只读SQL的 invalid_query / invalid_input / impl_defined / output_too_large 错误不会使仍有效的会话跳过其他独立任务；原错误仍保留，整批仍不算完整。未知错误与失效会话保持停止。
+
+从分组作业恢复单个成员时，在 resume 中增加 sample_index=0..11；新任务仍是单样本 batch，校验原组、成员索引、准确样本、请求、工具与封存检查点。完成任务和已接纳行复用，仅补剩余游标；原1 MiB任务可在新的2 MiB批量总预算内继续，每项查询自己声明的max_bytes上限保持不变。检查点与结果使用紧凑JSON写入，避免格式化空白挤占附件边界。
+
+DexSQL 0.1.0的 method_calls 调用者列是 method，目标列是 callee；先用 SELECT * FROM method_calls LIMIT 0 读取实际列定义。分组后排序应显式投影排序键，例如 SELECT f,o,n/8 AS bucket,... GROUP BY f,o,n/8 ORDER BY o,bucket,f。VALUES 派生表不接受 chunks(n) 这种列别名列表，可显式 SELECT column1 AS n FROM (VALUES(0),(1))。客户端不会自动改写原始SQL或切换其方言。
 
 ## 远端工具
 

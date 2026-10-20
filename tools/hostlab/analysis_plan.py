@@ -40,12 +40,15 @@ def validate(request):
     ids = set()
     if "resume" in request:
         resume = request["resume"]
-        if not isinstance(resume, dict) or set(resume) != {"run_id", "attempt", "request_id"}:
-            raise ValueError("resume needs run_id, attempt and request_id")
+        if (not isinstance(resume, dict) or not {"run_id", "attempt", "request_id"} <= set(resume)
+                or set(resume)-{"run_id", "attempt", "request_id", "sample_index"}):
+            raise ValueError("resume needs run_id, attempt, request_id and optional sample_index")
         if not isinstance(resume["request_id"], str) or not re.fullmatch(r"[0-9a-f]{32}", resume["request_id"]):
             raise ValueError("invalid resume request_id")
         normalized["resume"] = {"run_id": integer(resume["run_id"], 1, 10**15, "resume run_id"),
             "attempt": integer(resume["attempt"], 1, 1000, "resume attempt"), "request_id": resume["request_id"]}
+        if "sample_index" in resume:
+            normalized["resume"]["sample_index"] = integer(resume["sample_index"], 0, 11, "resume sample_index")
     fields = {"query": {"sql", "dialect", "offset", "pagination"}, "locate": {"kind", "name", "owner"},
               "refs": {"kind", "target", "detail"}, "decode": {"method", "file_id"}, "info": set()}
     for task in tasks:

@@ -19,7 +19,7 @@ import analysis_paging
 import hostlab
 import install_dexsql
 
-MAX_RESULT_BYTES = 1024 * 1024
+MAX_RESULT_BYTES = 2 * 1024 * 1024
 HERE = Path(__file__).resolve().parent
 
 
@@ -181,6 +181,14 @@ class Session:
                         page = await self.sql(task["sql"], count, pages.cursor)
                         if not pages.admit(page, count):
                             return pages.stopped()
+                    except BackendError as exc:
+                        error = exc.detail.get("error", {}) if isinstance(exc.detail, dict) else {}
+                        if (not self.dead and isinstance(error, dict) and error.get("kind") == "output_too_large"
+                                and not error.get("dataset_closed") and pages.shrink_oversized_page(count)):
+                            if progress is not None:
+                                progress(pages.stopped("native_page_budget_retry"))
+                            continue
+                        raise
                     except Exception:
                         # The last admitted page is already in the checkpoint; never admit half a page.
                         raise
@@ -264,6 +272,7 @@ async def execute(apk, request, *, roots, sample=None, resume=None, checkpoint=N
     planning["effective_threads"] = threads
     deadline = time.monotonic() + request["timeout_seconds"]
     report = {"schema": 1, "scope": "offline_static_only", "sample": sample, "plan": planning,
+              "result_budget_bytes": MAX_RESULT_BYTES,
               "sessions": [], "tasks": [], "complete": False, "backend_versions": {"sqlite": "legacy-schema-1", "dexsql": native}}
     task_map = {t["id"]:t for t in request["tasks"]}
     saved = {t["id"]: t for t in resume["tasks"]} if resume is not None else {}
@@ -354,6 +363,12 @@ async def execute(apk, request, *, roots, sample=None, resume=None, checkpoint=N
                                 report["tasks"].append({"id": name, "backend": backend, "status": "error",
                                     "reason": str(exc) if isinstance(exc, analysis_paging.PageError) else "backend_request_failed",
                                     "elapsed_ms": (time.monotonic() - began) * 1000, **failure(exc)})
+                            detail = exc.detail if isinstance(exc, BackendError) and isinstance(exc.detail, dict) else {}
+                            error = detail.get("error", {})
+                            if (task_map[name]["operation"] == "query" and not session.dead and isinstance(error, dict)
+                                    and not error.get("dataset_closed") and error.get("kind") in {
+                                        "invalid_query", "invalid_input", "impl_defined", "output_too_large"}):
+                                continue  # A rejected read-only statement does not invalidate the dataset.
                             # A failed/expired dataset is never silently reused or replayed.
                             break
                 finally:

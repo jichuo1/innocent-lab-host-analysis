@@ -92,6 +92,18 @@ class QueryPages:
         self.fetched_rows = 0
         self.requests = []
         self.reason = None
+        self.page_limit_cap = task["limit"]
+        self.oversized_attempts = 0
+        if self.result is not None:
+            self.page_limit_cap = self.result.get("pagination", {}).get("page_limit_cap", task["limit"])
+            if type(self.page_limit_cap) is not int or not 1 <= self.page_limit_cap <= task["limit"]:
+                raise PageError("invalid_checkpoint_page_limit")
+        if self.result is not None and "typed_result" not in self.result:
+            p = self.result.get("pagination", {})
+            if (self.result.get("rows") != [] or self.result.get("columns") != [] or self.result.get("partial") is not True
+                    or p.get("pages") != 0 or p.get("rows") != 0 or p.get("next_offset") != task["offset"]):
+                raise PageError("invalid_empty_checkpoint_page")
+            self.result = None  # No page was admitted under the previous exhausted batch budget.
         if self.result is not None:
             item = statement(self.result)
             if item["offset"] != task["offset"] or not sql_matches(item, task["sql"]):
@@ -120,7 +132,7 @@ class QueryPages:
         if remaining <= 0:
             self.reason = "row_budget"
             return 0
-        count = min(self.task["limit"], remaining)
+        count = min(self.page_limit_cap, remaining)
         if self.cursor is None:
             self.reason = "backend_truncated_without_cursor" if self.result["partial"] else "complete"
             return 0
@@ -139,6 +151,13 @@ class QueryPages:
             if previous.get("total_rows") is not None:
                 count = min(count, previous["total_rows"] - previous["next_offset"])
         return count
+
+    def shrink_oversized_page(self, requested):
+        if requested <= 1:
+            return False
+        self.page_limit_cap = max(1, requested//2)
+        self.oversized_attempts += 1
+        return True
 
     def admit(self, page, requested_limit):
         current = statement(page)
@@ -186,6 +205,7 @@ class QueryPages:
     def decorate(self, result):
         item = result["typed_result"]["statements"][0]
         result["pagination"] = {"pages": self.pages, "pages_this_run": self.pages-self.initial_pages, "rows": len(result["rows"]),
+            "page_limit_cap": self.page_limit_cap, "oversized_page_attempts_this_run": self.oversized_attempts,
             "reused_rows": self.reused_rows, "fetched_rows": self.fetched_rows,
             "start_offset": self.task["offset"], "next_offset": item["next_offset"],
             "total_rows": item.get("total_rows"), "limits": self.limits, "stop_reason": self.reason,
@@ -198,6 +218,7 @@ class QueryPages:
         if self.result is None:
             return {"columns": [], "rows": [], "partial": True, "pagination": {
                 "pages": 0, "rows": 0, "reused_rows": 0, "fetched_rows": 0,
+                "page_limit_cap": self.page_limit_cap, "oversized_page_attempts_this_run": self.oversized_attempts,
                 "next_offset": self.task["offset"], "total_rows": None, "limits": self.limits,
                 "stop_reason": self.reason}}
         result = copy.deepcopy(self.result)
