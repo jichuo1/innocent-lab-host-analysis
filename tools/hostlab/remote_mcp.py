@@ -13,6 +13,10 @@ import hostlab
 
 REPO = "jichuo1/innocent-lab-host-analysis"
 WORKFLOW = "host-analysis.yml"
+RESULT_PAGE_CHARS = 32000
+MAX_RESULT_PAGE_CHARS = 128000
+PREVIEW_FILES = {"inventory.json", "job.json", "result.txt", "summary.json", "summary.md", "class.java", "priority-report.md", "report.md", "group.json"}
+PAGEABLE_FILES = PREVIEW_FILES | {"priority-summary.json"}
 mcp = MCPServer(name="hostlab-remote", instructions="Run bounded APK analysis in GitHub Actions. For cross-version hook-point or structure investigations use plan_version_matrix/submit_version_matrix, advance its durable queue, then collect version_matrix_result pages. For one sample prefer plan_analysis then submit_analysis: related queries reuse input and prepared backends. Raw SQL keeps its declared sqlite/dexsql dialect. Legacy submit_job stays compatible. Reuse returned IDs; never replay an unknown dispatch. APKs stay on the runner. Static candidates do not establish working runtime hooks.")
 
 
@@ -35,9 +39,90 @@ def source_freshness(summary):
     return result
 
 
-def repository_report(request_id):
+def result_previews(files, out, result_offset, page_chars, result_file, default_file="result.txt"):
+    """Render the selected page first; every cursor describes text actually returned."""
+    names = {p: str(p.relative_to(out)) for p in files}
+    selection = result_file or default_file
+    selected = [p for p, name in names.items() if name.replace("\\", "/") == selection
+                or "/" not in selection and p.name == selection]
+    if len(selected) > 1:
+        raise ToolError("Multiple matching result files; select the exact relative result_file")
+    chosen = selected[0] if selected else None
+    if chosen is None and (result_file or result_offset):
+        raise ToolError("No matching result file to page; select a returned relative file path")
+    readable = [p for p in files if p.name in PREVIEW_FILES or p == chosen]
+    readable.sort(key=lambda p: (p != chosen, names[p]))
+    budget = max(page_chars * 3, page_chars + len(names.get(chosen, "")) + 2)
+    if budget > MAX_RESULT_PAGE_CHARS * 3:
+        raise ToolError("Result file label exceeds the text budget")
+    text, pages = [], {}
+    used = 0
+    truncated = False
+    for p in readable:
+        content = p.read_text(encoding="utf-8", errors="replace")
+        offset = result_offset if p == chosen else 0
+        header = names[p] + "\n"
+        room = max(0, budget-used-len(header)-(1 if text else 0))
+        page = content[offset:offset+min(page_chars, room)]
+        end = min(offset+len(page), len(content))
+        cursor = {"file": names[p], "offset": offset, "chars": len(page), "total_chars": len(content),
+                  "next_offset": end if end < len(content) else None, "page_chars": page_chars}
+        pages[names[p]] = cursor
+        truncated |= end < len(content)
+        if room or used+len(header)+(1 if text else 0) <= budget:
+            part = header+page
+            used += len(part)+(1 if text else 0)
+            text.append(part)
+    return {"text": "\n".join(text), "text_truncated": truncated,
+            "result_page": pages.get(names.get(chosen)), "file_pages": pages}
+
+
+def task_summary(files, out):
+    counts, failures = {}, []
+    clipped = False
+    sources = [p for p in files if p.name == "result.txt"]
+    for p in sources[:12]:
+        if p.stat().st_size > 4*1024*1024:
+            clipped = True
+            continue
+        try:
+            value = json.loads(p.read_text(encoding="utf-8"))
+        except (ValueError, UnicodeError):
+            continue
+        tasks = value.get("tasks") if isinstance(value, dict) else None
+        if not isinstance(tasks, list):
+            continue
+        clipped |= len(tasks) > 16
+        for task in tasks[:16]:
+            if not isinstance(task, dict) or task.get("status") not in {"complete", "partial", "error", "skipped"}:
+                continue
+            status = task["status"]
+            counts[status] = counts.get(status, 0)+1
+            if status not in {"partial", "error"}:
+                continue
+            if len(failures) == 32:
+                clipped = True
+                continue
+            failure = task.get("failure") if isinstance(task.get("failure"), dict) else task
+            detail = failure.get("detail") or {}
+            error = detail.get("error", {}) if isinstance(detail, dict) else {}
+            error = error if isinstance(error, dict) else {}
+            result = task.get("result") if isinstance(task.get("result"), dict) else {}
+            pagination = result.get("pagination") if isinstance(result.get("pagination"), dict) else {}
+            reason = pagination.get("stop_reason") or error.get("kind") or task.get("reason") or "incomplete"
+            reason = reason if isinstance(reason, str) and re.fullmatch(r"[A-Za-z0-9_:.-]{1,100}", reason) else "backend_error"
+            hint = "method_calls_uses_method" if error.get("message") == "unknown column `caller`" else None
+            failures.append({"file": str(p.relative_to(out)), "task": str(task.get("id", "unknown"))[:48],
+                             "status": status, "reason": reason, "hint": hint,
+                             "next_offset": pagination.get("next_offset") if type(pagination.get("next_offset")) is int else None})
+    return {"counts": counts, "failures": failures, "truncated": clipped or len(sources)>12}
+
+
+def repository_report(request_id, result_offset=0, page_chars=RESULT_PAGE_CHARS, result_file=""):
     if not re.fullmatch(r"[0-9a-f]{32}",request_id):
         raise ToolError("Invalid request ID")
+    if result_file and Path(result_file).name not in {"report.md", "summary.json"}:
+        return None
     try:
         payload=json.loads(gh(["api",f"repos/{REPO}/contents/index.json?ref=reports"]))
         index=json.loads(base64.b64decode(payload["content"]))
@@ -53,7 +138,6 @@ def repository_report(request_id):
     out=hostlab.STATE/"remote-results"/entry["report_id"]/"repository"
     out.mkdir(parents=True,exist_ok=True)
     files=[]
-    texts=[]
     for suffix in ("report.md","summary.json"):
         file_path=path.rsplit("/",1)[0]+"/"+suffix
         try:
@@ -64,11 +148,11 @@ def repository_report(request_id):
         target=out/suffix
         target.write_bytes(raw)
         files.append(str(target))
-        texts.append(raw.decode("utf-8",errors="replace")[:16000])
     summary_file = out / "summary.json"
     freshness = source_freshness(json.loads(summary_file.read_text(encoding="utf-8"))) if summary_file.exists() else {"status": "unavailable"}
     return {"report_url":f"https://github.com/{REPO}/blob/reports/{path}","release_url":entry.get("release_url"),
-            "files":files,"text":"\n".join(texts)[:24000],"source":"durable_reports_branch", "source_freshness": freshness}
+            "files":files,**result_previews([Path(p) for p in files],out,result_offset,page_chars,result_file,"report.md"),
+            "source":"durable_reports_branch", "source_freshness": freshness}
 
 
 def lookup(request_id):
@@ -317,23 +401,36 @@ def list_jobs() -> str:
 
 
 @mcp.tool()
-def job_result(request_id: str, result_offset: int = 0, sample_index: int = -1) -> str:
+def job_result(request_id: str, result_offset: int = 0, sample_index: int = -1,
+               page_chars: int = RESULT_PAGE_CHARS, result_file: str = "") -> str:
     """Download result artifacts and return bounded text plus local file paths. No APK or DEX.
 
-    result.txt is paged in 8000-character chunks (Unicode characters, zero-based offset).
-    Pass result_page.next_offset back as result_offset until it is null. Reading pages
+    Pages default to 32000 Unicode characters; page_chars accepts 1024..128000.
+    Combined previews are capped at three pages. result.txt (durable report: report.md)
+    is selected by default. Set result_file to job.json, summary.json, or another
+    returned text file's exact relative path to page metadata. file_pages lists cursors.
+    Pass result_page.next_offset back as result_offset, retaining result_file, until null. Reading pages
     reuses the downloaded artifact; it does not submit another Actions analysis job.
     Grouped jobs return a bounded group receipt and all file paths by default.
     Set sample_index=0..11 to inspect/page a specific member, including failed members.
     """
-    if not 0 <= result_offset <= 2147483647:
+    if type(result_offset) is not int or not 0 <= result_offset <= 2147483647:
         raise ToolError("result_offset must be 0..2147483647")
     if type(sample_index) is not int or not -1 <= sample_index <= 11:
         raise ToolError("sample_index must be -1..11")
-    durable=repository_report(request_id)
+    if type(page_chars) is not int or not 1024 <= page_chars <= MAX_RESULT_PAGE_CHARS:
+        raise ToolError("page_chars must be 1024..128000")
+    if not isinstance(result_file, str):
+        raise ToolError("result_file must name a returned text file")
+    result_file = result_file.replace("\\", "/")
+    if result_file and (len(result_file) > 4096 or re.match(r"^[A-Za-z]:", result_file)
+                        or any(part in {"", ".", ".."} for part in result_file.split("/"))
+                        or result_file.split("/")[-1] not in PAGEABLE_FILES):
+        raise ToolError("result_file must be a returned text file path (up to 4096 characters, no traversal)")
+    durable=repository_report(request_id,result_offset,page_chars,result_file)
     if durable:
-        if result_offset or sample_index != -1:
-            raise ToolError("result_offset applies only to result.txt; use the returned report files")
+        if sample_index != -1:
+            raise ToolError("sample_index applies only to grouped jobs")
         return json.dumps(durable,ensure_ascii=False)
     run = lookup(request_id)
     if run is None or run["status"] != "completed":
@@ -351,47 +448,23 @@ def job_result(request_id: str, result_offset: int = 0, sample_index: int = -1) 
         if len(groups) != 1:
             raise ToolError("Ambiguous runner group receipt")
         if sample_index == -1:
-            if result_offset:
-                raise ToolError("Select sample_index before paging a runner group member")
-            content = groups[0].read_text(encoding="utf-8")
             return json.dumps({"run": run["html_url"], "files": [str(p) for p in files],
-                "text": content[:8000], "text_truncated": len(content) > 8000, "result_page": None,
+                **result_previews(groups,out,result_offset,page_chars,result_file,"group.json"),
+                "task_summary": task_summary(files,out),
                 "grouped": True, "next_action": "job_result(request_id, sample_index=0..11) or version_matrix_result",
                 "collection": {key:collected[key] for key in ("cache_hit", "artifact", "integrity", "elapsed_ms", "run_attempt")}}, ensure_ascii=False)
         member = groups[0].parent / "samples" / str(sample_index)
-        files = [p for p in files if p.parent == member and p.name in {"job.json", "result.txt"}]
+        files = [p for p in files if p.parent == member and p.name in {"job.json", "result.txt", "summary.md"}]
         if not files:
             raise ToolError("Runner group member has no saved output; inspect the group receipt")
     elif sample_index != -1:
         raise ToolError("sample_index applies only to grouped jobs")
-    if sum(p.name == "result.txt" for p in files) > 1:
-        raise ToolError("Multiple result.txt files; cannot choose an unambiguous page source")
-    text = []
-    result_page = None
-    preview_truncated = False
-    for p in files:
-        if p.name in {"inventory.json", "job.json", "result.txt", "summary.json", "class.java", "priority-report.md"}:
-            content = p.read_text(encoding="utf-8", errors="replace")
-            if p.name == "result.txt":
-                page = content[result_offset:result_offset + 8000]
-                end = min(result_offset + len(page), len(content))
-                result_page = {"file": str(p.relative_to(out)), "offset": result_offset,
-                               "chars": len(page), "total_chars": len(content),
-                               "next_offset": end if end < len(content) else None}
-                preview_truncated |= end < len(content)
-            else:
-                page = content[:8000]
-                preview_truncated |= len(content) > 8000
-            text.append(str(p.relative_to(out)) + "\n" + page)
-    if result_offset and result_page is None:
-        raise ToolError("No result.txt to page; use the returned report files at offset 0")
-    combined = "\n".join(text)
-    preview_truncated |= len(combined) > 24000
+    rendered = result_previews(files,out,result_offset,page_chars,result_file)
     summaries = [p for p in files if p.name == "priority-summary.json"]
     freshness = source_freshness(json.loads(summaries[0].read_text(encoding="utf-8"))) if len(summaries) == 1 else None
     return json.dumps({"run": run["html_url"], "files": [str(p) for p in files],
-                       "text": combined[:24000], "text_truncated": preview_truncated,
-                       "result_page": result_page, "source_freshness": freshness,
+                       **rendered, "source_freshness": freshness,
+                       "task_summary": task_summary(files,out),
                        "collection": {key:collected[key] for key in ("cache_hit", "artifact", "integrity", "elapsed_ms", "run_attempt")}}, ensure_ascii=False)
 
 

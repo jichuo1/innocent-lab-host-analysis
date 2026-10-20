@@ -1,5 +1,6 @@
 """Long-value query and artifact paging regressions; no network or APK download."""
 from contextlib import closing, redirect_stderr
+import base64
 import importlib.util
 import io
 import json
@@ -170,7 +171,7 @@ class RemoteResultPagingTest(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.out = self.root / "remote-results/123"
         self.out.mkdir(parents=True)
-        self.value = "前" + "悟空🔍\n" * 4000 + "END完整结束"
+        self.value = "前" + "悟空🔍\n" * 12000 + "END完整结束"
         (self.out / "result.txt").write_text(self.value, encoding="utf-8", newline="\n")
         (self.out / "job.json").write_text('{"exit_code":0}', encoding="utf-8")
         for fixture in (patch.object(hostlab, "STATE", self.root),
@@ -184,8 +185,8 @@ class RemoteResultPagingTest(unittest.TestCase):
             fixture.start()
             self.addCleanup(fixture.stop)
 
-    def result(self, offset=0):
-        return json.loads(remote_mcp.job_result("a" * 32, result_offset=offset))
+    def result(self, offset=0, **options):
+        return json.loads(remote_mcp.job_result("a" * 32, result_offset=offset, **options))
 
     def test_all_pages_reconstruct_the_unicode_result_without_redispatch(self):
         reconstructed = []
@@ -196,7 +197,7 @@ class RemoteResultPagingTest(unittest.TestCase):
                 page = response["result_page"]
                 start = len(page["file"]) + 1
                 reconstructed.append(response["text"][start:start + page["chars"]])
-                self.assertLessEqual(len(response["text"]), 24000)
+                self.assertLessEqual(len(response["text"]), 96000)
                 self.assertEqual(page["offset"], offset)
                 self.assertEqual(page["total_chars"], len(self.value))
                 if page["next_offset"] is None:
@@ -217,11 +218,52 @@ class RemoteResultPagingTest(unittest.TestCase):
         self.assertIsNone(eof["result_page"]["next_offset"])
 
     def test_large_other_previews_cannot_displace_the_result_page(self):
-        (self.out / "class.java").write_text("x" * 20000, encoding="utf-8")
-        (self.out / "summary.json").write_text("y" * 20000, encoding="utf-8")
+        (self.out / "class.java").write_text("x" * 150000, encoding="utf-8")
+        (self.out / "summary.json").write_text("y" * 150000, encoding="utf-8")
         response = self.result()
         self.assertTrue(response["text_truncated"])
-        self.assertTrue(response["text"].startswith("result.txt\n" + self.value[:8000]))
+        self.assertTrue(response["text"].startswith("result.txt\n" + self.value[:32000]))
+        for name, page in response["file_pages"].items():
+            if page["chars"]:
+                start=response["text"].index(name+"\n")+len(name)+1
+                self.assertEqual(response["text"][start:start+page["chars"]],
+                                 (self.out/name).read_text(encoding="utf-8")[:page["chars"]])
+
+    def test_large_metadata_pages_reconstruct_the_entire_file_without_dispatch(self):
+        original=json.dumps({"metadata":self.value*5},ensure_ascii=False)
+        (self.out/"job.json").write_text(original,encoding="utf-8")
+        chunks=[];offset=0
+        with patch.object(remote_mcp,"gh") as gh:
+            while True:
+                value=self.result(offset,result_file="job.json",page_chars=128000)
+                page=value["result_page"];start=len(page["file"])+1
+                chunks.append(value["text"][start:start+page["chars"]])
+                self.assertLessEqual(len(value["text"]),384000)
+                if page["next_offset"] is None:break
+                offset=page["next_offset"]
+        self.assertEqual("".join(chunks),original)
+        gh.assert_not_called()
+
+    def test_invalid_output_options_are_rejected_before_remote_access(self):
+        with patch.object(remote_mcp,"repository_report") as repository:
+            for options in ({"page_chars":1023},{"page_chars":128001},{"page_chars":True},
+                            {"result_file":"../job.json"},{"result_file":"C:/job.json"},
+                            {"result_file":"base.apk"},{"result_offset":True}):
+                with self.subTest(options=options),self.assertRaises(remote_mcp.ToolError):
+                    remote_mcp.job_result("a"*32,**options)
+            repository.assert_not_called()
+
+    def test_task_summary_exposes_failure_codes_without_exception_or_sql_bodies(self):
+        value={"tasks":[{"id":"good","status":"complete"},
+            {"id":"bad","status":"error","detail":{"error":{"kind":"invalid_query","message":"unknown column `caller`"}}},
+            {"id":"private","status":"error","detail":{"error":{"kind":"invalid_input","message":"PRIVATE_SQL_BODY"}}},
+            {"id":"partial","status":"partial","result":{"pagination":{"stop_reason":"byte_budget","next_offset":4}}}]}
+        p=self.out/"result.txt";p.write_text(json.dumps(value),encoding="utf-8")
+        summary=remote_mcp.task_summary([p],self.out)
+        self.assertEqual(summary["counts"],{"complete":1,"error":2,"partial":1})
+        self.assertEqual(summary["failures"][0]["hint"],"method_calls_uses_method")
+        self.assertEqual(summary["failures"][-1]["next_offset"],4)
+        self.assertNotIn("PRIVATE_SQL_BODY",json.dumps(summary))
 
     def test_negative_offsets_and_missing_result_are_explicit_errors(self):
         with self.assertRaises(remote_mcp.ToolError):
@@ -237,6 +279,35 @@ class RemoteResultPagingTest(unittest.TestCase):
         (nested / "result.txt").write_text("different source", encoding="utf-8")
         with self.assertRaises(remote_mcp.ToolError):
             self.result()
+        value=self.result(result_file="nested/result.txt")
+        self.assertEqual(value["result_page"]["file"],str(Path("nested/result.txt")))
+        self.assertIn("different source",value["text"])
+
+
+class DurableMetadataPagingTest(unittest.TestCase):
+    def test_durable_summary_is_fully_pageable_without_artifact_or_analysis_dispatch(self):
+        report_path="samples/1/"+"b"*64+"/runs/123-a1/report.md"
+        metadata=json.dumps({"source_snapshot":{"records":"元数据🔍"*45000}},ensure_ascii=False)
+        def gh(args):
+            if "index.json" in args[-1]:
+                raw=json.dumps({"reports":[{"request_id":"a"*32,"created_at":"2026-10-21", "path":report_path,"report_id":"123-a1"}]})
+            elif "summary.json" in args[-1]:raw=metadata
+            else:raw="完整报告"*10000
+            return json.dumps({"content":base64.b64encode(raw.encode()).decode()})
+        with tempfile.TemporaryDirectory() as directory,patch.object(hostlab,"STATE",Path(directory)), \
+             patch.object(remote_mcp,"gh",side_effect=gh) as github, \
+             patch.object(remote_mcp,"source_freshness",return_value={"status":"fixture"}), \
+             patch("remote_artifacts.get",side_effect=AssertionError("durable pages must not download an artifact")):
+            parts=[];offset=0
+            while True:
+                value=json.loads(remote_mcp.job_result("a"*32,result_offset=offset,result_file="summary.json",page_chars=128000))
+                page=value["result_page"];start=len(page["file"])+1
+                parts.append(value["text"][start:start+page["chars"]])
+                self.assertEqual(value["source"],"durable_reports_branch")
+                if page["next_offset"] is None:break
+                offset=page["next_offset"]
+            self.assertEqual("".join(parts),metadata)
+            self.assertTrue(all(call.args[0][0]=="api" for call in github.call_args_list))
 
 
 if __name__ == "__main__":

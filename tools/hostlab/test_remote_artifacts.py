@@ -149,14 +149,14 @@ class ArtifactTest(unittest.TestCase):
 
     def test_job_result_unicode_pagination_preserves_interface_and_download_reuse(self):
         import remote_mcp
-        self.raw = archive_bytes([("remote-output/result.txt", "中" * 9000), ("remote-output/job.json", "{}")])
+        self.raw = archive_bytes([("remote-output/result.txt", "中" * 33000), ("remote-output/job.json", "{}")])
         self.artifact.update(size_in_bytes=len(self.raw), digest="sha256:" + hashlib.sha256(self.raw).hexdigest())
         with patch.object(remote_mcp, "REPO", "owner/repo"), patch.object(remote_mcp, "repository_report", return_value=None), \
              patch.object(remote_mcp, "lookup", return_value=self.run), patch.object(remote_mcp, "gh", side_effect=self.gh), \
              patch.object(artifacts, "download", side_effect=self.download):
             first = json.loads(remote_mcp.job_result(self.request))
             second = json.loads(remote_mcp.job_result(self.request, first["result_page"]["next_offset"]))
-        self.assertEqual(first["result_page"]["chars"], 8000)
+        self.assertEqual(first["result_page"]["chars"], 32000)
         self.assertEqual(second["result_page"]["chars"], 1000)
         self.assertIsNone(second["result_page"]["next_offset"])
         self.assertEqual(first["result_page"]["file"], str(Path("remote-output/result.txt")))

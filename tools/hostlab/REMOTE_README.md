@@ -18,8 +18,11 @@ Windows 双击 setup-remote.cmd；若装有 Codex CLI，会注册 hostlab-remote
 更长的值用同一宿主样本及稳定键读取 `length(value)`、`substr(value,1,8000)`、`substr(value,8001,8000)` 等，并设置 `max_cell_chars=16000`，避免控制字符转义挤掉尾部。
 SQLite `substr` 的起点从 1 开始；按返回的实际 sample_revision/apk_sha256 检查各段来自同一份样本。
 
-远程 `result.txt` 每次返回 8000 个 Unicode 字符，`job_result` 新增 `result_page` 元数据：
+远程 `job_result` 默认每页 32000 个 Unicode 字符、总预览 96000 字符；可通过 `page_chars=1024..128000` 调整，每次总预览不超过三页。超限仍明确标记，不把预览当完整证据。
 首次用 `job_result(request_id)`；若 `result_page.next_offset` 非空，将该值作为 `job_result(request_id, result_offset=该值)` 继续读取，直到游标为空。
+默认分页 `result.txt`，长期报告默认分页 `report.md`；需要完整元数据时可用 `job_result(request_id, result_file="job.json", page_chars=128000)`，后续保留 result_file 并传 next_offset。summary.json、group.json 和其他已返回文本文件也可分页；同名文件多于一份时，使用 file_pages 中的完整相对路径。分组成员仍先指定 sample_index。
+`file_pages` 为每份预览提供实际已显示字符数和下一游标；总预算不足的元数据也会留下可续读游标。读取旧结果不提交新分析，不重新下载或扫描 APK。SQL 单元格和查询执行预算独立于此显示上限。
+`task_summary` 在结果或分组回执中直接给出完成/部分/错误/跳过计数及最多32项失败原因与游标，避免大结果尾部的错误被预览遮住；不会输出SQL正文或异常原文。
 结果页位于 `text` 开头，在 `result_page.file + 换行` 之后，长度为 `result_page.chars`；其余内容是相关文件的摘要。
 `result_offset` 从 0 开始，按字符计数，不按 UTF-8 字节计数；读取后续页复用已下载的结果，不再启动 Actions 分析。
 `text_truncated` 明确标记是否仍有未显示的结果或其它文件内容；返回的本地文件路径可读取完整结果。

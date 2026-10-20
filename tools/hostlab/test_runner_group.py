@@ -128,7 +128,7 @@ class GroupTest(unittest.TestCase):
         import remote_mcp
         with tempfile.TemporaryDirectory() as temp:
             _, downloaded = self.prepare(Path(temp), ["complete", "failed"])
-            p = Path(temp) / "samples/1/result.txt"; p.write_text("中文" * 5000, encoding="utf-8")
+            p = Path(temp) / "samples/1/result.txt"; p.write_text("中文" * 17000, encoding="utf-8")
             downloaded.update(root=temp, cache_hit=True, artifact={}, integrity="verified", elapsed_ms=1, run_attempt=1)
             with patch.object(remote_mcp, "repository_report", return_value=None), \
                  patch.object(remote_mcp, "lookup", return_value={"status": "completed", "html_url": "https://example.invalid/run"}), \
@@ -137,8 +137,8 @@ class GroupTest(unittest.TestCase):
                 self.assertTrue(summary["grouped"])
                 self.assertEqual(len(summary["files"]), 5)
                 first = json.loads(remote_mcp.job_result("a" * 32, sample_index=1))
-                second = json.loads(remote_mcp.job_result("a" * 32, result_offset=8000, sample_index=1))
-                self.assertEqual(first["result_page"]["next_offset"], 8000)
+                second = json.loads(remote_mcp.job_result("a" * 32, result_offset=32000, sample_index=1))
+                self.assertEqual(first["result_page"]["next_offset"], 32000)
                 self.assertIsNone(second["result_page"]["next_offset"])
                 self.assertEqual(second["result_page"]["chars"], 2000)
                 self.assertTrue(all(Path(p).parent.name == "1" for p in first["files"]))
