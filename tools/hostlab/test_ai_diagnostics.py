@@ -45,6 +45,9 @@ def tool_call(arguments='{"ok":true}'):
 
 class AiDiagnosticsTest(unittest.TestCase):
     def setUp(self):
+        sleep = patch.object(probe.time, "sleep")
+        sleep.start()
+        self.addCleanup(sleep.stop)
         env = patch.dict(os.environ, ENV, clear=True)
         env.start()
         self.addCleanup(env.stop)

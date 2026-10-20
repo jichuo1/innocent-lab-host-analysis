@@ -164,6 +164,8 @@ def public_reply(message):
         function = call.get("function", {})
         name = function.get("name", "invalid_tool")
         name = name if isinstance(name, str) and re.fullmatch(r"[a-z_]{1,48}", name) else "invalid_tool"
+        if name not in allowed:
+            name = "invalid_tool"
         try:
             args = json.loads(function.get("arguments", "{}"))
             args = public_arguments(name, args) if isinstance(args, dict) else {}
@@ -286,6 +288,25 @@ class Coordinator:
         used_retries = sum(bool(row.get("transport_retry")) for row in self.checkpoint.value["attempts"][:self.position])
         return self.limits["max_requests"]-self.position-reserve_after-max(0, self.limits["transport_retries"]-used_retries)
 
+    def wait(self, delay):
+        if delay <= 0:
+            return
+        if self.deadline-time.monotonic() <= delay+1:
+            raise RuntimeError("AI deadline leaves no room for provider cooldown")
+        self.checkpoint.reserve_wait(delay)
+        while delay > 0:
+            step = min(60, delay)
+            time.sleep(step)
+            delay -= step
+
+    def wait_for_provider(self):
+        import ai_transport
+        provider = self.checkpoint.value["providers"].get(self.profile, {})
+        previous = max((row["started_at"] for row in self.checkpoint.value["attempts"]
+                        if row["profile"] == self.profile), default=0)
+        self.wait(max(provider.get("not_before", 0), provider.get("open_until", 0),
+                      previous+ai_transport.MIN_REQUEST_INTERVAL)-time.time())
+
     def request(self, stage, unit, messages, tools, force_tool):
         import ai_review as review
         session = "hostlab-"+ai_checkpoint.digest({"binding": self.checkpoint.value["binding_sha256"], "unit": unit})[:32]
@@ -313,6 +334,8 @@ class Coordinator:
                 info = SimpleNamespace(**{key: previous.get(key) for key in
                     ("reason", "kind", "retryable", "billing_unknown", "http_status", "retry_after")})
             else:
+                self.wait_for_provider()
+                remaining = self.deadline-time.monotonic()
                 token = self.checkpoint.claim(stage, unit, request_hash, self.profile, session,
                                              transport_retry=transport_retry)
                 self.position = len(self.checkpoint.value["attempts"])
@@ -354,14 +377,14 @@ class Coordinator:
             base = min(8, 2**self.checkpoint.value["transport_retries"])
             jitter = int(request_hash[:8], 16) % 250 / 1000
             retry_after = getattr(info, "retry_after", None)
-            delay = min(30.0, max(base+jitter, retry_after if type(retry_after) in {int, float} else 0))
+            # Retry-After belongs to the rejected provider, not its independent backup.
+            delay = max(base+jitter, retry_after if not fallback and type(retry_after) in {int, float} else 0)
             if self.deadline-time.monotonic() <= delay:
                 raise RuntimeError("AI deadline leaves no room for bounded retry backoff")
             self.checkpoint.value["attempts"][-1]["retry_delay_seconds"] = delay
             if auth_fallback:
                 self.checkpoint.value["attempts"][-1]["credential_fallback"] = "primary_to_backup"
-            self.checkpoint.reserve_wait(delay)
-            time.sleep(delay)
+            self.wait(delay)
             if fallback:
                 self.profile = "backup"
             transport_retry = True
@@ -454,7 +477,8 @@ def collect(coordinator, stage, unit, messages, tools, evidence, validate, *, al
                 elif name in offered and allow_deep:
                     result = evidence.run_tool(name, args)
                 else:
-                    raise RuntimeError("Tool is not allowed in this assigned unit")
+                    raise RuntimeError("Tool is not allowed in this assigned unit; allowed tools: "+
+                        ",".join(sorted(offered))+(". Call "+finish+" now." if force else ""))
             except Exception as exc:
                 result = {"error": review.redact(str(exc)[:300]) if isinstance(exc, RuntimeError) else type(exc).__name__}
                 # Errors are public protocol facts; never include source/result bodies.

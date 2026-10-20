@@ -14,6 +14,7 @@ import urllib.request
 import uuid
 
 from check_ai_connectivity import NoRedirect, MAX_ERROR_BYTES, configuration, credential_shape, error_summary, safe_request_id
+from ai_transport import MIN_REQUEST_INTERVAL
 
 OUTPUT = Path(__file__).resolve().parents[2] / "runtime/hostlab/probe"
 STAGES = (("minimal_chat", 128), ("stream", 1024), ("forced_tool", 1024))
@@ -260,6 +261,7 @@ def run(output=None):
     except FileExistsError:
         return dict(report, reason="existing_ledger_no_automatic_replay")
     for profile in (("primary", "backup") if selection == "all" else (selection,)):
+        previous_started = 0
         item = {"profile": profile, "status": "failed", "stages": [], "credential_shape": credential_shape(os.environ.get("AI_API_KEY_" + profile.upper(), ""))}
         report["profiles"].append(item)
         try:
@@ -269,6 +271,11 @@ def run(output=None):
             item["reason"] = "configuration_invalid"
             continue
         for stage, tokens in STAGES:
+            delay = max(0, previous_started+MIN_REQUEST_INTERVAL-time.monotonic()) if previous_started else 0
+            if deadline-time.monotonic()-5 <= delay:
+                item["reason"] = "total_deadline_exceeded"
+                break
+            time.sleep(delay)
             remaining = deadline - time.monotonic() - 5  # Reserve bounded worker reap time.
             if remaining <= 0:
                 item["reason"] = "total_deadline_exceeded"
@@ -283,6 +290,7 @@ def run(output=None):
                 item["reason"] = "total_deadline_exceeded"
                 break
             report["new_model_requests"] += 1
+            previous_started = time.monotonic()
             result = run_worker(profile, stage, min(STAGE_TIMEOUT, remaining), include_usage == "true")
             claim.update(status=result["status"], billing_unknown=result.get("billing_unknown", True), result=result)
             save_json(ledger_path, ledger)

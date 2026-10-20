@@ -50,6 +50,11 @@ def response(name,args):
 
 
 class DetailedReviewTest(unittest.TestCase):
+    def setUp(self):
+        sleep = patch.object(ai_review.time, "sleep")
+        sleep.start()
+        self.addCleanup(sleep.stop)
+
     def root(self,folder):
         root=Path(folder)
         (root/"priority-summary.json").write_text(json.dumps(summary()),encoding="utf-8")

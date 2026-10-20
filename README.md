@@ -9,4 +9,4 @@ AI 先生成详细逐路径草稿，再以同一模型的独立上下文复核�
 
 可浏览结论保存在 reports 分支，完整证据保存在本私有仓库 Release。失败记录也保留，只有完整 AI 报告更新 latest.json。
 
-当前默认使用已验证可调用的备用 glm-5.3-flash；主服务此前返回 HTTP 403。密钥仅存在 Actions Secrets。
+默认通道和模型读取 Actions Variables；2026-10-20 核对为 primary / glm-5.3，独立备用通道按配置有界切换。生成诊断与 AI 分析串行执行，遵守提供商冷却及完整 Retry-After；暂时错误、未完成分析均保留账本，不发布为完整报告。密钥仅存在 Actions Secrets。

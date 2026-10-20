@@ -335,6 +335,9 @@ class Checkpoint:
                         ("total_tokens", "prompt_tokens", "completion_tokens", "input_tokens", "output_tokens"))
             row.update(usage=usage, usage_unknown=not known, billing_unknown=not known)
         provider = self.value["providers"].setdefault(row["profile"], {"failures": 0, "open_until": 0})
+        cooldown = 60 if error.http_status == 429 else 15 if error.http_status == 503 else 0
+        if cooldown or row["retry_after"] is not None:
+            provider["not_before"] = time.time()+max(cooldown, row["retry_after"] or 0)
         provider["failures"] += 1
         if provider["failures"] >= 2:
             provider["open_until"] = time.time()+COOLDOWN_SECONDS

@@ -311,7 +311,7 @@ class TransportTest(unittest.TestCase):
         self.assertEqual(str(caught.exception), "API HTTP 429")
         self.assertTrue(caught.exception.retryable)
         self.assertTrue(caught.exception.billing_unknown)
-        self.assertEqual(caught.exception.retry_after, 60)
+        self.assertEqual(caught.exception.retry_after, 999)
         self.assertNotIn("secret", json.dumps(caught.exception.__dict__))
         self.assertEqual(build.return_value.open.call_count, 1)
 
@@ -326,6 +326,15 @@ class TransportTest(unittest.TestCase):
 
     def test_redirect_denied(self):
         self.assertIsNone(transport.NoRedirect().redirect_request(None, None, None, None, None, None))
+
+    def test_unavailable_tool_is_a_complete_response_for_safe_feedback(self):
+        raw = delta({"tool_calls": [{"index": 0, "id": "call-1", "type": "function",
+            "function": {"name": "functions.not_offered", "arguments": '{"private":"body"}'}}]}, "tool_calls")
+        raw += event({"choices": [], "usage": {"total_tokens": 14}})+event(b"[DONE]")
+        (message, usage, _), _ = self.request(raw)
+        self.assertEqual(message["tool_calls"][0]["function"]["name"], "functions.not_offered")
+        self.assertEqual(usage["_transport"]["unavailable_tool_calls"], 1)
+        self.assertFalse(usage["_usage_unknown"])
 
     def test_completed_secret_text_redacted(self):
         (message, _, _), _ = self.request(delta({"content": "transport-test-secret"}, "stop") + event(b"[DONE]"))

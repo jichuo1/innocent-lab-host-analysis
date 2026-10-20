@@ -28,6 +28,7 @@ class PipelineTest(unittest.TestCase):
         (self.root / "priority-summary.json").write_text(json.dumps(summary), encoding="utf-8")
         self.messages = []; self.responses = 0
         self.addCleanup(patch.stopall)
+        patch.object(ai_pipeline.time, "sleep").start()
         patch("sys.stdout", new_callable=io.StringIO).start()
 
     def provider(self, profile, messages, tools, force_tool=None, session_id=None, **options):
@@ -455,6 +456,73 @@ class PipelineTest(unittest.TestCase):
                     with self.assertRaises(RuntimeError):
                         ai_review.run(self.root)
                 api.assert_not_called()
+
+
+    def test_unavailable_tool_gets_feedback_without_execution_or_private_receipt(self):
+        injected = False
+        feedback = []
+        def api(profile, messages, tools, **options):
+            nonlocal injected
+            feedback.extend(row["content"] for row in messages if row["role"] == "tool")
+            if not injected:
+                injected = True
+                return response("functions.not_offered", {"private": "PRIVATE-TOOL-BODY"})
+            return self.provider(profile, messages, tools, **options)
+        original = ai_review.Evidence.run_tool
+        with patch.object(ai_review, "call_api", side_effect=api), \
+             patch.object(ai_review.Evidence, "run_tool", autospec=True, side_effect=original) as read:
+            ai_review.run(self.root)
+        self.assertNotIn("invalid_tool", [call.args[1] for call in read.call_args_list])
+        self.assertTrue(any("allowed tools:" in value for value in feedback))
+        ledger = (self.root/"ai-checkpoint.json").read_text()
+        self.assertNotIn("PRIVATE-TOOL-BODY", ledger)
+        self.assertEqual(json.loads((self.root/"ai-analysis.json").read_text())["status"], "completed")
+
+    def provider_retry_case(self, status, retry_after, *, fallback=False):
+        clock = [100.0]
+        calls = []
+        summary = json.loads((self.root/"priority-summary.json").read_text())
+        binding = ai_pipeline.build_binding(self.root, summary, ai_pipeline.draft_units(summary["page_path_matrix"]))
+        binding["policy"].update(initial_profile="primary", allow_fallback=fallback)
+        def api(profile, *args, **kwargs):
+            calls.append((profile, clock[0]))
+            if len(calls) == 1:
+                raise ai_transport.ApiError("API HTTP "+str(status), "http", True, True,
+                    http_status=status, retry_after=retry_after)
+            return response("finish_report", {})
+        with patch.object(ai_pipeline.time, "time", side_effect=lambda: clock[0]), \
+             patch.object(ai_pipeline.time, "monotonic", side_effect=lambda: clock[0]), \
+             patch.object(ai_pipeline.time, "sleep", side_effect=lambda seconds: clock.__setitem__(0, clock[0]+seconds)):
+            ledger = ai_checkpoint.Checkpoint(self.root, binding)
+            try:
+                runner = ai_pipeline.Coordinator(ledger, api, profile="primary", deadline=1900)
+                if retry_after > 1800 and not fallback:
+                    with self.assertRaisesRegex(RuntimeError, "deadline"):
+                        runner.request("draft", "d0", [], [], None)
+                else:
+                    runner.request("draft", "d0", [], [], None)
+                value = copy.deepcopy(ledger.value)
+            finally:
+                ledger.close()
+        return calls, value
+
+    def test_429_full_retry_after_and_compensation_are_preserved(self):
+        calls, ledger = self.provider_retry_case(429, 75)
+        self.assertEqual([profile for profile, _ in calls], ["primary", "primary"])
+        self.assertGreaterEqual(calls[1][1]-calls[0][1], 75)
+        self.assertEqual(ledger["transport_retries"], 1)
+        self.assertTrue(ledger["attempts"][0]["billing_unknown"])
+
+    def test_retry_after_beyond_deadline_never_posts_again(self):
+        calls, ledger = self.provider_retry_case(503, 4000)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(ledger["attempts"][0]["retry_after"], 4000)
+
+    def test_primary_cooldown_does_not_block_independent_backup(self):
+        calls, ledger = self.provider_retry_case(503, 4000, fallback=True)
+        self.assertEqual([profile for profile, _ in calls], ["primary", "backup"])
+        self.assertLess(calls[1][1]-calls[0][1], 15)
+        self.assertGreaterEqual(ledger["providers"]["primary"]["not_before"], 4100)
 
 
 if __name__ == "__main__": unittest.main()

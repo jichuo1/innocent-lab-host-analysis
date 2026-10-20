@@ -2,6 +2,15 @@ name: AI generation probe
 run-name: ai-generation-probe
 on:
   workflow_dispatch:
+    inputs:
+      profile:
+        type: choice
+        default: primary
+        options: [primary, backup, all]
+concurrency:
+  group: hostlab-ai-provider-slot
+  queue: max
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:
@@ -17,6 +26,7 @@ jobs:
           python-version: '3.13'
       - name: Probe generation with each profile
         env:
+          HOSTLAB_PROBE_PROFILE: ${{ inputs.profile || 'primary' }}
           AI_API_KEY_PRIMARY: ${{ secrets.AI_API_KEY_PRIMARY }}
           AI_API_KEY_BACKUP: ${{ secrets.AI_API_KEY_BACKUP }}
           AI_PRIMARY_BASE_URL: ${{ vars.AI_PRIMARY_BASE_URL }}

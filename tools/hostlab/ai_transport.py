@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import socket
@@ -18,6 +19,7 @@ MAX_STREAM_BYTES = 8 * 1024 * 1024
 MAX_STREAM_EVENTS = 65536
 MAX_EVENT_BYTES = 256 * 1024
 MAX_TOOL_CALLS = 8
+MIN_REQUEST_INTERVAL = 15
 
 
 class ApiError(RuntimeError):
@@ -97,7 +99,7 @@ def _clean_message(message):
             if (not isinstance(call.get("id"), str) or not call["id"] or len(call["id"]) > 256
                     or call.get("type", "function") != "function"
                     or not isinstance(function.get("name"), str)
-                    or not re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", function["name"])
+                    or not re.fullmatch(r"[a-zA-Z0-9_.-]{1,100}", function["name"])
                     or not isinstance(function.get("arguments"), str)
                     or len(function["arguments"]) > MAX_EVENT_BYTES):
                 raise ApiError("API tool call malformed")
@@ -124,9 +126,11 @@ def _socket_timeout(response, timeout):
 def _retry_after(headers):
     value = headers.get("Retry-After", "") if headers else ""
     if re.fullmatch(r"\d+(?:\.\d+)?", value):
-        return min(60.0, max(0.0, float(value)))
+        # A wait exceeding the caller's budget must stop it, never shorten it.
+        delay = float(value) if len(value) <= 128 else 1e300
+        return delay if math.isfinite(delay) else 1e300
     try:
-        return min(60.0, max(0.0, parsedate_to_datetime(value).timestamp()-time.time()))
+        return max(0.0, parsedate_to_datetime(value).timestamp()-time.time())
     except (ValueError, TypeError, OverflowError):
         return None
 
@@ -329,8 +333,11 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
                     for value in (call["id"], call["function"]["name"], call["function"]["arguments"]):
                         account_text(value)
             offered = {item.get("function", {}).get("name") for item in tools if isinstance(item, dict)}
-            if offered and any(call["function"]["name"] not in offered for call in clean.get("tool_calls", [])):
-                fail("API returned an unavailable tool")
+            # Execution belongs to the coordinator's exact offered-tool allowlist.
+            # Return a complete response for bounded protocol feedback, not a POST
+            # retry; unknown tool arguments are discarded from public receipts.
+            metrics["unavailable_tool_calls"] = sum(call["function"]["name"] not in offered
+                for call in clean.get("tool_calls", []))
             if any(_redact(call["function"]["name"]) != call["function"]["name"] for call in clean.get("tool_calls", [])):
                 fail("API returned an invalid tool name")
             known_usage = any(type(usage.get(key)) is int and usage[key] > 0
