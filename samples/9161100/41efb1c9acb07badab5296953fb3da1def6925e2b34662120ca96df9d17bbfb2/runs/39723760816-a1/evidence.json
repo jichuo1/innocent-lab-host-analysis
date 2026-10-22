@@ -1,0 +1,100 @@
+{
+  "release": "https://github.com/jichuo1/innocent-lab-host-analysis/releases/tag/analysis-9161100-41efb1c9acb0-39723760816-a1",
+  "files": [
+    {
+      "path": "remote-output/ai-analysis.json",
+      "bytes": 247637,
+      "sha256": "e0148c72cb4191aae045ec54d45858f35b0ccd97ed7d9617ceaee438e541c599"
+    },
+    {
+      "path": "remote-output/ai-checkpoint.json",
+      "bytes": 336964,
+      "sha256": "5003580af7186a82e220772110bc1809a4d20948a938c5a7ff21db5f5d4e086c"
+    },
+    {
+      "path": "remote-output/ai-draft.json",
+      "bytes": 77682,
+      "sha256": "e33975cc8729e2011730cb3dbbaccca26ac79b1ff0c5d811646722b246cd8760"
+    },
+    {
+      "path": "remote-output/ai-evidence.json",
+      "bytes": 359524,
+      "sha256": "efdbb6182fd30e847d0648deaadbf527c28dbf0e170b1900c1ee1a25e3880739"
+    },
+    {
+      "path": "remote-output/ai-review.json",
+      "bytes": 68213,
+      "sha256": "72810a0db7b514db9723c1f8715efb67d6cb367289dd67ba9604df296fae02f0"
+    },
+    {
+      "path": "remote-output/job.json",
+      "bytes": 222201,
+      "sha256": "083bd5b85abe6c1a4e63b73de731fed666848120f35259cb9055659239e1c7ee"
+    },
+    {
+      "path": "remote-output/priority-baseline.json",
+      "bytes": 94092220,
+      "sha256": "dead4f6de08fbbd8d789537d5ac1b6511c556c01e43db9d3aac9ec3ffe880fcf"
+    },
+    {
+      "path": "remote-output/priority-report.md",
+      "bytes": 121489,
+      "sha256": "355025e0da270c8fa9b6d855708020d25b4da25b7a46af67f6410e857caf5726"
+    },
+    {
+      "path": "remote-output/priority-summary.json",
+      "bytes": 3425761,
+      "sha256": "4ab6e08678ddfd62644803dc9433721e1f39e13814ac0d9fa6721aecc8970864"
+    },
+    {
+      "path": "remote-output/priority-target.json",
+      "bytes": 93871376,
+      "sha256": "9655b38afd6ecd74f80fd4644b33e6801006c333dc04b22806bcc1c47c6a00ef"
+    },
+    {
+      "path": "remote-output/result.txt",
+      "bytes": 478,
+      "sha256": "f512013caf1a0d7a7433dc48f26d8b990df948ca33ed915990ed77d082f9f5bd"
+    },
+    {
+      "path": "reports/9160200/a80c4e0189458c9d/20261022T044402460884Z/features.tsv",
+      "bytes": 9009,
+      "sha256": "d3afdb95719d9beb03927124d931271fd27d720f3d19c43900f810ba6c3e9eb3"
+    },
+    {
+      "path": "reports/9160200/a80c4e0189458c9d/20261022T044402460884Z/home-frame.log",
+      "bytes": 1853,
+      "sha256": "868056c17cd341e77ef54835ea0e9f7e14229631aa7c295e0cf65f7631e734ae"
+    },
+    {
+      "path": "reports/9160200/a80c4e0189458c9d/20261022T044402460884Z/intake.log",
+      "bytes": 7340,
+      "sha256": "6fef5c173f46c15ea0736199a8c4a7120c311ae1e7f18012d016a3af946c6f16"
+    },
+    {
+      "path": "reports/9160200/a80c4e0189458c9d/20261022T044402460884Z/summary.json",
+      "bytes": 11294,
+      "sha256": "8b7e8546bf47d38c8314ccb14688c7d40cf94f7a61bc4e1319cfa2cb60624e5a"
+    },
+    {
+      "path": "reports/9161100/41efb1c9acb07bad/20261022T044142499422Z/features.tsv",
+      "bytes": 9009,
+      "sha256": "a8f514333e75bfb1c2a082d1435db68570c72b18dfe3644efe02b1f0a227ecfc"
+    },
+    {
+      "path": "reports/9161100/41efb1c9acb07bad/20261022T044142499422Z/home-frame.log",
+      "bytes": 1853,
+      "sha256": "868056c17cd341e77ef54835ea0e9f7e14229631aa7c295e0cf65f7631e734ae"
+    },
+    {
+      "path": "reports/9161100/41efb1c9acb07bad/20261022T044142499422Z/intake.log",
+      "bytes": 7340,
+      "sha256": "ad98fcfe45daf01b1f499b397362f009732353fd9199a2dc14bbadf09b2a5808"
+    },
+    {
+      "path": "reports/9161100/41efb1c9acb07bad/20261022T044142499422Z/summary.json",
+      "bytes": 11294,
+      "sha256": "6876aff052165dfb6ec68bf320a2078e894eddd07384dd828dbb7df8da914d29"
+    }
+  ]
+}
