@@ -1,0 +1,90 @@
+{
+  "release": "https://github.com/jichuo1/innocent-lab-host-analysis/releases/tag/analysis-9170100-f0f880e841d0-39987464339-a1",
+  "files": [
+    {
+      "path": "remote-output/ai-analysis.json",
+      "bytes": 224313,
+      "sha256": "e0f2d1ef071cabb879e2d64e5e1a48e0bd563676e240620a9d8be85aeda9c301"
+    },
+    {
+      "path": "remote-output/ai-checkpoint.json",
+      "bytes": 345921,
+      "sha256": "2a6bd015abc5776c01b33e7a0c1cfa1ce328a49b79b933d2e932eef6fc871e66"
+    },
+    {
+      "path": "remote-output/ai-draft.json",
+      "bytes": 85198,
+      "sha256": "c1f9e113b9d8f72c83c38a72089856786d45f25afdbacc3a5dfcf24c227dfbee"
+    },
+    {
+      "path": "remote-output/ai-evidence.json",
+      "bytes": 371753,
+      "sha256": "8bf1667cedd47e40e89c6fc47f8e2d0d049209edb8af4762b1b1c3dd4ba01a2b"
+    },
+    {
+      "path": "remote-output/ai-resume-checkpoint.json",
+      "bytes": 130045,
+      "sha256": "89003da43221073feca38d180fac7e25e6f47bea87f91bb4484e500a9f476f7b"
+    },
+    {
+      "path": "remote-output/ai-resume-evidence.json",
+      "bytes": 322000,
+      "sha256": "59f59e01371da9af6e94b7eaf28a9613d0c47d0dcf203fbb6cbaa1b86cb851b6"
+    },
+    {
+      "path": "remote-output/ai-review.json",
+      "bytes": 54304,
+      "sha256": "d5f4779e68124dd827f026c8bf26711f4b767e75e3e4b2f6e9099f612a8976bd"
+    },
+    {
+      "path": "remote-output/job.json",
+      "bytes": 226654,
+      "sha256": "74ddead292d2a468ce6bedf37e7448d8aa3e4c9169b696a0e5b7f1134d0c0007"
+    },
+    {
+      "path": "remote-output/priority-baseline.json",
+      "bytes": 93871478,
+      "sha256": "25adbdb041b817ef3c5b75999b73d4c9f09da40a25d53bb0d0e7f897c0049ded"
+    },
+    {
+      "path": "remote-output/priority-report.md",
+      "bytes": 134221,
+      "sha256": "03bfb24c2da4d86458d337b7b96971d5de04f8f245e6a95dd9d431db87c3ae9f"
+    },
+    {
+      "path": "remote-output/priority-summary.json",
+      "bytes": 5535426,
+      "sha256": "9933866e59f78667c115744daa318e1c3d8dabdf9e67b95be03f4b4301828229"
+    },
+    {
+      "path": "remote-output/priority-target.json",
+      "bytes": 96440784,
+      "sha256": "146e64c88681c64215f035e1d2cbbdb8f324b1b7b0a3b046dd2d5cb2cda86a5a"
+    },
+    {
+      "path": "remote-output/static-manifest.json",
+      "bytes": 1696,
+      "sha256": "b9d0e29b82bdb5e255a6fd2eb5b54e0a67de8ad81e72613cd1e9cfc1029d653b"
+    },
+    {
+      "path": "reports/9161100/41efb1c9acb07bad/20261023T160341859149Z/features.tsv",
+      "bytes": 9034,
+      "sha256": "4d294a4d5499301a6d2f71cda0a8915ef3adf5ca6e316a664a76319b518e52aa"
+    },
+    {
+      "path": "reports/9161100/41efb1c9acb07bad/20261023T160341859149Z/summary.json",
+      "bytes": 11719,
+      "sha256": "5a009c062d29b81f6d027febecf3758a710e56c468a692e3c100f8d94803fe38"
+    },
+    {
+      "path": "reports/9170100/f0f880e841d017db/20261023T160103448241Z/features.tsv",
+      "bytes": 8849,
+      "sha256": "2820d56b861ccbc9e1555fea6673e3e3fe33f5d70bcce72b2846a5a01ce2b6b2"
+    },
+    {
+      "path": "reports/9170100/f0f880e841d017db/20261023T160103448241Z/summary.json",
+      "bytes": 11644,
+      "sha256": "1efe10069c5feb2d8da2744420fa1e7efdfdeff6d65288d1abeffb118f9139dd"
+    }
+  ]
+}
