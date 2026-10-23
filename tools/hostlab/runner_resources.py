@@ -16,6 +16,21 @@ CGROUP = Path("/sys/fs/cgroup")
 MAX_RECORDS = 7200
 MAX_BYTES = 1024 * 1024
 GIB = 1024**3
+
+
+def audit_heap_mib():
+    """Leave native/OS headroom; never grow a Java heap beyond measured capacity."""
+    raw = linux_raw() if platform.system() == "Linux" else windows_raw() if platform.system() == "Windows" else {}
+    available = raw.get("memory_available_bytes")
+    if available is None:
+        return 4096
+    # Large audits are serial. Reserve at least 2 GiB for JVM native memory and Python.
+    budget = min(8192, int(min(available * 0.70, available - 2 * GIB) / (1024**2)))
+    budget = budget // 256 * 256
+    if budget < 1024:
+        raise RuntimeError("Insufficient available memory for a bounded full audit")
+    return budget
+
 FIELDS = (
     "cpu_usage_fraction", "cpu_iowait_fraction", "cpu_steal_fraction", "effective_cpus",
     "memory_available_bytes", "memory_limit_bytes", "cgroup_memory_current_bytes", "tree_rss_bytes",

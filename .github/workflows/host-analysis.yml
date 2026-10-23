@@ -121,7 +121,7 @@ jobs:
           HOSTLAB_SHA: ${{ inputs.apk_sha256 }}
           HOSTLAB_BASELINE_SHA: ${{ inputs.baseline_sha256 }}
           HOSTLAB_RUNNER_REVISION: ${{ inputs.runner_revision }}
-          JAVA_TOOL_OPTIONS: '-Xmx4g'
+          JAVA_TOOL_OPTIONS: '-XX:+ExitOnOutOfMemoryError'
           GH_TOKEN: ${{ github.token }}
         run: python tools/hostlab/remote_job.py
       - name: AI evidence review

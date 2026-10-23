@@ -144,7 +144,7 @@ class RemoteQueryInputTest(unittest.TestCase):
                     patch.object(hostlab, "CONFIG", root / "config.json"), \
                     patch.object(hostlab, "api_private", return_value=(None, "b" * 40)), \
                     patch.object(hostlab, "manifest", return_value={"samples": [sample]}), \
-                    patch.object(remote_job.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run:
+                    patch.object(remote_job.process_control, "run", return_value=0) as run:
                 self.assertEqual(remote_job.main(), 0)
             command = run.call_args.args[0]
             self.assertEqual(command[command.index("--max-cell-chars") + 1], "12000")

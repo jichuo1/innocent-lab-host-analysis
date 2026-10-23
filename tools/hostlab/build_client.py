@@ -10,6 +10,7 @@ files = [here / name for name in ("hostlab.py", "analyze.py", "dexq_cli.py", "re
                                   "setup-client.cmd", "hostlab.cmd", "upload-apk.cmd")]
 files += [here / "test_dexq_mcp.py", here / "bench_dexq.py"]
 files += [here / "remote_mcp.py", here / "remote_job.py", here / "host-analysis.yml", here / "install_jadx.py"]
+files += [here / "process_control.py", here / "test_audit_stability.py"]
 files += [here / name for name in ("install_dexsql.py", "analysis_plan.py", "analysis_batch.py", "remote_schedule.py",
                                    "analysis_paging.py", "analysis_checkpoint.py", "test_analysis_pagination.py",
                                    "plan_ci.py", "verify_backends.py", "test_analysis_scheduler.py", "requirements-query.txt", "DEXSQL.md")]

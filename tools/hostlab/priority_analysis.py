@@ -6,19 +6,28 @@ import os
 import sys
 import zipfile
 import hashlib
+import time
 import analyze
 import hostlab
 import surface_workers as W
 import source_snapshot
 import snapshot_transport
+import runner_resources
 
 
 def scan_apk(apk, sample):
+    started = time.monotonic()
     with zipfile.ZipFile(apk) as archive:
         names = [n for n in archive.namelist() if __import__("re").fullmatch(r"classes\d*\.dex", n)]
     names.sort(key=lambda n:int(__import__("re").sub(r"\D", "", n) or 1))
+    if not names or len(names) != len(set(names)):
+        raise RuntimeError("APK must contain a nonempty, unambiguous DEX inventory")
     jobs = [(str(apk), name, idx) for idx, name in enumerate(names)]
-    with ProcessPoolExecutor(max_workers=min(2, os.cpu_count() or 1), initializer=W.W.init_worker) as pool:
+    snapshot = runner_resources.Probe(apk.parent).collect(time.monotonic())
+    available = snapshot.get("memory_available_bytes")
+    workers = min(2 if available is not None and available >= 4 * runner_resources.GIB else 1,
+                  max(1, int(snapshot.get("effective_cpus") or 1)))
+    with ProcessPoolExecutor(max_workers=workers, initializer=W.W.init_worker) as pool:
         report = W.summarize(list(pool.map(W.scan, jobs)))
     report["sample"] = sample
     resources = {}
@@ -32,6 +41,8 @@ def scan_apk(apk, sample):
                     digest.update(chunk)
             resources[entry.filename] = digest.hexdigest()
     report["resource_fingerprints"] = resources
+    report["scan_execution"] = {"workers": workers, "dex_files": len(names),
+                                "elapsed_ms": (time.monotonic()-started)*1000}
     return report
 
 
@@ -62,12 +73,17 @@ def resolve(code, sha, revision):
 
 
 def audit_sample(sample, revision):
+    folder = hostlab.STATE / "reports" / str(sample["version_code"]) / sample["sha256"][:16]
+    previous = set(folder.glob("*/summary.json"))
     rc = analyze.main(["audit", "--version-code", str(sample["version_code"]),
                        "--sha256", sample["sha256"], "--revision", revision])
-    folder = hostlab.STATE / "reports" / str(sample["version_code"]) / sample["sha256"][:16]
-    paths = sorted(folder.glob("*/summary.json"))
-    report = json.loads(paths[-1].read_text(encoding="utf-8")) if paths else {}
-    if rc not in (0, 1) or not report.get("features"):
+    paths = set(folder.glob("*/summary.json")) - previous
+    report = json.loads(next(iter(paths)).read_text(encoding="utf-8")) if len(paths) == 1 else {}
+    from analysis.run_intake import EXPECTED_FEATURES
+    if (rc not in (0, 1) or not report.get("audit_complete") or
+            set(report.get("features", {})) != set(EXPECTED_FEATURES) or
+            report.get("sample", {}).get("sha256") != sample["sha256"] or
+            report.get("sample", {}).get("revision") != revision):
         raise RuntimeError("Standard audit did not produce usable FEATURE evidence")
     return {"exit_code": rc, "features": report["features"], "runtime_verified": False,
             "scope": "legacy_offline_auditor_snapshot_not_production_coverage"}

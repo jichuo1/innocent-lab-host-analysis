@@ -41,7 +41,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: hostlab-${{ (inputs.operation == 'batch_group' && inputs.request_id) || inputs.apk_sha256 || (inputs.operation == 'batch' && inputs.version_code) || inputs.request_id }}
+  group: ${{ ((inputs.operation == 'multipath_audit' || inputs.operation == 'regenerate_ai') && 'hostlab-ai-provider-slot') || format('hostlab-{0}', (inputs.operation == 'batch_group' && inputs.request_id) || inputs.apk_sha256 || (inputs.operation == 'batch' && inputs.version_code) || inputs.request_id) }}
   queue: max
   cancel-in-progress: false
 jobs:
@@ -121,7 +121,7 @@ jobs:
           HOSTLAB_SHA: ${{ inputs.apk_sha256 }}
           HOSTLAB_BASELINE_SHA: ${{ inputs.baseline_sha256 }}
           HOSTLAB_RUNNER_REVISION: ${{ inputs.runner_revision }}
-          JAVA_TOOL_OPTIONS: '-Xmx4g'
+          JAVA_TOOL_OPTIONS: '-XX:+ExitOnOutOfMemoryError'
           GH_TOKEN: ${{ github.token }}
         run: python tools/hostlab/remote_job.py
       - name: AI evidence review
@@ -133,8 +133,12 @@ jobs:
           AI_API_KEY_BACKUP: ${{ secrets.AI_API_KEY_BACKUP }}
           AI_PRIMARY_BASE_URL: ${{ vars.AI_PRIMARY_BASE_URL }}
           AI_PRIMARY_MODEL: ${{ vars.AI_PRIMARY_MODEL }}
+          AI_PRIMARY_TOOL_CHOICE_MODE: ${{ vars.AI_PRIMARY_TOOL_CHOICE_MODE }}
+          AI_PRIMARY_OUTPUT_TOKEN_PARAMETER: ${{ vars.AI_PRIMARY_OUTPUT_TOKEN_PARAMETER }}
           AI_BACKUP_BASE_URL: ${{ vars.AI_BACKUP_BASE_URL }}
           AI_BACKUP_MODEL: ${{ vars.AI_BACKUP_MODEL }}
+          AI_BACKUP_TOOL_CHOICE_MODE: ${{ vars.AI_BACKUP_TOOL_CHOICE_MODE }}
+          AI_BACKUP_OUTPUT_TOKEN_PARAMETER: ${{ vars.AI_BACKUP_OUTPUT_TOKEN_PARAMETER }}
           AI_ALLOW_FALLBACK: ${{ vars.AI_ALLOW_FALLBACK }}
           AI_DEFAULT_PROFILE: ${{ vars.AI_DEFAULT_PROFILE }}
         run: python tools/hostlab/ai_review.py

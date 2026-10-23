@@ -13,6 +13,8 @@ import sys
 import tempfile
 import time
 import hostlab
+import process_control
+import runner_resources
 
 HERE = Path(__file__).resolve().parent
 SUITE = HERE / "analysis"
@@ -139,19 +141,19 @@ def fetch_sample(row, repo, revision, *, timings=None):
 
 
 def tool_hashes():
-    files = [HERE / "analyze.py", HERE / "hostlab.py", *sorted(SUITE.glob("*.py")),
+    files = [HERE / "analyze.py", HERE / "hostlab.py", HERE / "process_control.py",
+             HERE / "runner_resources.py", HERE / "remote_job.py", HERE / "priority_analysis.py",
+             *sorted(SUITE.glob("*.py")),
              *sorted(SUITE.glob("*.java"))]
     return {str(p.relative_to(HERE)).replace("\\", "/"): hostlab.digest(p) for p in files}
 
 
 def execute(command, log, env, timeout):
     with log.open("w", encoding="utf-8") as stream:
-        try:
-            return subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT,
-                                  env=env, timeout=timeout, check=False).returncode
-        except subprocess.TimeoutExpired:
+        rc = process_control.run(command, stdout=stream, env=env, timeout=timeout)
+        if rc == 124:
             stream.write("\nHOSTLAB_TIMEOUT\n")
-            return 124
+        return rc
 
 
 def features(path):
@@ -225,6 +227,8 @@ def main(argv):
     out = hostlab.STATE / "reports" / str(sample["version_code"]) / sample["sha256"][:16] / stamp
     out.mkdir(parents=True)
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    if needs_java:
+        env["HOSTLAB_AUDIT_HEAP_MIB"] = str(runner_resources.audit_heap_mib())
     if jar:
         env["HOSTLAB_JADX_JAR"] = str(jar)
     try:
@@ -233,6 +237,7 @@ def main(argv):
         pass
     report = {"scope": "offline_static_only", "sample": sample, "tools": tool_hashes(),
               "jadx_sha256": hostlab.digest(jar) if jar else None, "features": {}}
+    report["java_heap_mib"] = int(env["HOSTLAB_AUDIT_HEAP_MIB"]) if needs_java else None
     if args.command == "decompile":
         classes = out / "classes"
         classes.mkdir()
@@ -240,13 +245,11 @@ def main(argv):
                       str(SUITE / "SingleClassDump.java")], out / "compile.log", env, args.timeout)
         if rc == 0:
             with (out / "class.java").open("w", encoding="utf-8") as source, (out / "decompile.log").open("w", encoding="utf-8") as log:
-                try:
-                    rc = subprocess.run(["java", "-Xmx4g", "-Dhostlab.output=" + str(out / "jadx-output"), "-cp", str(classes) + os.pathsep + str(jar),
-                                         "SingleClassDump", str(apk), args.class_name], stdout=source,
-                                        stderr=log, env=env, timeout=args.timeout, check=False).returncode
-                except subprocess.TimeoutExpired:
+                rc = process_control.run(["java", "-Xmx" + env["HOSTLAB_AUDIT_HEAP_MIB"] + "m", "-XX:+ExitOnOutOfMemoryError", "-Dhostlab.output=" + str(out / "jadx-output"), "-cp", str(classes) + os.pathsep + str(jar),
+                                     "SingleClassDump", str(apk), args.class_name], stdout=source,
+                                    stderr=log, env=env, timeout=args.timeout)
+                if rc == 124:
                     log.write("\nHOSTLAB_TIMEOUT\n")
-                    rc = 124
         report.update({"class": args.class_name, "exit_code": rc,
                        "source_written": rc == 0 and (out / "class.java").is_file() and (out / "class.java").stat().st_size > 0})
         hostlab.write_json(out / "summary.json", report)
@@ -266,11 +269,17 @@ def main(argv):
         rc = execute(command, out / "intake.log", env, args.timeout)
         home_rc = execute([sys.executable, str(sandbox / "home_frame_audit.py"), str(apk)],
                           out / "home-frame.log", env, args.timeout)
+    from analysis.run_intake import EXPECTED_FEATURES
+    rows = features(out / "features.tsv")
+    completed = ((out / "features.tsv").is_file() and
+                 "META\taudit_complete\ttrue" in (out / "features.tsv").read_text(encoding="utf-8").splitlines() and
+                 set(rows) == set(EXPECTED_FEATURES) and rc in (0, 1) and home_rc == 0)
     report.update({"mode": args.mode, "intake_exit_code": rc, "home_probe_exit_code": home_rc,
-                   "features": features(out / "features.tsv"),
+                   "audit_complete": completed,
+                   "features": rows,
                    "coverage_gaps": "See intake.log; feature set does not cover all installers",
                    "runtime_verified": False})
     hostlab.write_json(out / "summary.json", report)
     print("Report: " + str(out / "summary.json"))
     print(f"Intake exit={rc}; home probe exit={home_rc}; features={len(report['features'])}")
-    return rc or home_rc
+    return rc or home_rc or (1 if args.mode == "full" and not completed else 0)

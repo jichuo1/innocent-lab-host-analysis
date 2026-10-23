@@ -1,10 +1,10 @@
 name: Analysis tooling tests
 on:
   pull_request:
-    paths: ['tools/hostlab/**/*.py', 'tools/hostlab/examples/*.json', 'tools/hostlab/requirements*.txt', '.github/workflows/host-analysis.yml', '.github/workflows/tooling-tests.yml']
+    paths: ['tools/hostlab/**/*.py', 'tools/hostlab/**/*.java', 'tools/hostlab/examples/*.json', 'tools/hostlab/requirements*.txt', '.github/workflows/host-analysis.yml', '.github/workflows/tooling-tests.yml']
   push:
     branches: [main]
-    paths: ['tools/hostlab/**/*.py', 'tools/hostlab/examples/*.json', 'tools/hostlab/requirements*.txt', '.github/workflows/host-analysis.yml', '.github/workflows/tooling-tests.yml']
+    paths: ['tools/hostlab/**/*.py', 'tools/hostlab/**/*.java', 'tools/hostlab/examples/*.json', 'tools/hostlab/requirements*.txt', '.github/workflows/host-analysis.yml', '.github/workflows/tooling-tests.yml']
 permissions:
   contents: read
 jobs:
@@ -21,6 +21,15 @@ jobs:
         with:
           python-version: '3.13'
       - run: python -m pip install -r tools/hostlab/requirements.txt
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Compile audit against verified pinned JADX
+        run: |
+          python tools/hostlab/install_jadx.py
+          mkdir -p runtime/hostlab/audit-compile
+          javac -J-Xmx512m -encoding UTF-8 -cp tools/hostlab/vendor/jadx-1.5.6-all.jar -d runtime/hostlab/audit-compile tools/hostlab/analysis/HostCompatibilityAudit.java tools/hostlab/analysis/SingleClassDump.java
       - name: Offline source, dispatch, AI and report checks
         working-directory: tools/hostlab
         run: python -B -m unittest discover -p 'test_*.py' -v

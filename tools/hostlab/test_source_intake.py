@@ -77,7 +77,7 @@ class SdkPlatformTests(unittest.TestCase):
         with patch.object(hostlab, "sdk_tool", return_value=Path("sdk/apksigner")):
             with patch.object(hostlab.sys, "platform", "linux"):
                 self.assertEqual(hostlab.sdk_command("apksigner", "verify", "a.apk"),
-                                 ["sdk/apksigner", "verify", "a.apk"])
+                                 [str(Path("sdk/apksigner")), "verify", "a.apk"])
             with patch.object(hostlab.sys, "platform", "win32"):
                 self.assertEqual(hostlab.sdk_command("apksigner", "verify")[:3], ["cmd.exe", "/d", "/c"])
 

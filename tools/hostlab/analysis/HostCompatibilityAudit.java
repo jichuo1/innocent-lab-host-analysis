@@ -10,6 +10,7 @@ import java.io.BufferedWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -70,11 +71,15 @@ public final class HostCompatibilityAudit {
         jadxArgs.setSkipResources(true);
         jadxArgs.setSkipSources(true);
         jadxArgs.setDeobfuscationOn(false);
+        // Structural checks use raw DEX names; Java identifier aliases are unnecessary.
+        // Deobfuscation=false alone still runs the global RenameVisitor in JADX 1.5.6.
+        jadxArgs.setRenameFlags(Set.of());
         jadxArgs.setThreadsCount(1);
         jadxArgs.setUseImports(false);
         jadxArgs.setDebugInfo(false);
         jadxArgs.setDisabledPlugins(Set.of("java-input"));
         jadxArgs.getDisabledPasses().add("UsageInfoVisitor");
+        jadxArgs.getDisabledPasses().add("RenameVisitor");
 
         Files.createDirectories(output.getParent());
         try (JadxDecompiler decompiler = new JadxDecompiler(jadxArgs)) {
@@ -84,7 +89,8 @@ public final class HostCompatibilityAudit {
             for (ClassNode cls : allClasses) {
                 classes.put(rawName(cls), cls);
             }
-            try (BufferedWriter writer = Files.newBufferedWriter(output, StandardCharsets.UTF_8)) {
+            Path partial = output.resolveSibling(output.getFileName() + ".partial");
+            try (BufferedWriter writer = Files.newBufferedWriter(partial, StandardCharsets.UTF_8)) {
                 HostCompatibilityAudit audit = new HostCompatibilityAudit(
                     classes,
                     allClasses,
@@ -94,7 +100,10 @@ public final class HostCompatibilityAudit {
                 audit.write("META", "apk", apk.getFileName().toString());
                 audit.write("META", "class_count", Integer.toString(allClasses.size()));
                 audit.run();
+                audit.write("META", "audit_complete", "true");
             }
+            Files.move(partial, output, StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.ATOMIC_MOVE);
         }
     }
 

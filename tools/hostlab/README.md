@@ -233,5 +233,12 @@ tools/hostlab/.venv/Scripts/python.exe tools/hostlab/upload_inventory.py
 
 ## 可选原生后端与调度
 
+完整审计只使用原始 DEX 名称，关闭 JADX 的全局 Java 名称改写和 UsageInfo 索引，保留全部 FEATURE 检查。
+Java 堆按实测可用内存预算，保留至少 2 GiB 及 30% 余量，上限 8 GiB；遥测缺失回退到 4 GiB，
+不足 1 GiB 审计堆时在启动前明确失败。JVM 内存溢出直接退出，不自动重试或跳过审计。
+多路径扫描在内存不足 4 GiB 或内存未知时使用一个 worker，其余最多两个；所有 DEX 仍逐一处理。
+超时清理 Python/Java/worker 后代，结果只有完整结束才原子发布；残缺、旧报告、样本错配不能进入 AI 审查。
+资源采样及总耗时保存在结果产物中；采样 RSS 峰值不等于操作系统精确峰值。
+
 DexSQL 可选后端、批量执行、计划原因、远端去重和兼容边界见 [DEXSQL.md](DEXSQL.md)。
 旧 SQLite/JADX 命令保持原有默认值；相关查询优先打包成一次 `plan_analysis` / `submit_analysis`，共用样本与准备成本。

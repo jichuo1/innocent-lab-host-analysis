@@ -294,6 +294,7 @@ def compile_and_run_audit(apk: str, tsv_path: str) -> int:
     print(f"== compile audit (jadx={jadx}) ==")
     compile_cmd = [
         javac,
+        "-J-Xmx512m",
         "-encoding",
         "UTF-8",
         "-cp",
@@ -303,7 +304,10 @@ def compile_and_run_audit(apk: str, tsv_path: str) -> int:
         src,
     ]
     try:
-        subprocess.check_call(compile_cmd)
+        subprocess.check_call(compile_cmd, timeout=180)
+    except subprocess.TimeoutExpired:
+        print("javac timed out", file=sys.stderr)
+        return 1
     except subprocess.CalledProcessError:
         print("javac failed", file=sys.stderr)
         return 1
@@ -314,6 +318,8 @@ def compile_and_run_audit(apk: str, tsv_path: str) -> int:
     sep = ";" if os.name == "nt" else ":"
     run_cmd = [
         java,
+        "-Xmx" + str(int(os.environ.get("HOSTLAB_AUDIT_HEAP_MIB", "4096"))) + "m",
+        "-XX:+ExitOnOutOfMemoryError",
         "-cp",
         classes_dir + sep + jadx,
         "HostCompatibilityAudit",
@@ -321,7 +327,7 @@ def compile_and_run_audit(apk: str, tsv_path: str) -> int:
         os.path.abspath(tsv_path),
     ]
     print(f"== run audit -> {tsv_path} ==")
-    print("    (9.10-class APKs take several minutes)")
+    print("    heap MiB=" + os.environ.get("HOSTLAB_AUDIT_HEAP_MIB", "4096"), flush=True)
     try:
         subprocess.check_call(run_cmd)
     except subprocess.CalledProcessError:

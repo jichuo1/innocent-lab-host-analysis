@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import process_control
 import sys
 import time
 import hostlab
@@ -15,7 +16,7 @@ import snapshot_transport
 def batch_tool_hashes():
     here = Path(__file__).resolve().parent
     names = ("analysis_plan.py", "analysis_batch.py", "analysis_paging.py", "analysis_checkpoint.py", "install_dexsql.py", "analyze.py", "hostlab.py",
-             "remote_job.py", "prepare_runtime.py", "runner_group.py", "runner_worker.py", "runner_resources.py", "adaptive_schedule.py",
+             "remote_job.py", "process_control.py", "prepare_runtime.py", "runner_group.py", "runner_worker.py", "runner_resources.py", "adaptive_schedule.py",
              "dexq/server.py", "dexq/dexq_workers.py")
     return {name: hostlab.digest(here / name) for name in names}
 
@@ -261,13 +262,16 @@ def main():
         raise RuntimeError("Unsupported operation")
     output = hostlab.STATE / "remote-output"
     output.mkdir(parents=True, exist_ok=True)
-    with (output / "result.txt").open("w", encoding="utf-8") as stream:
-        try:
-            rc = subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT,
-                                timeout=1500, check=False).returncode
-        except subprocess.TimeoutExpired:
-            stream.write("Task timed out\n")
-            rc = 124
+    sampler = analyze.runner_resources.make_sampler(origin=entry_started, disk_path=hostlab.STATE)
+    sampler.start()
+    sampler.set_phase(operation)
+    try:
+        with (output / "result.txt").open("w", encoding="utf-8") as stream:
+            rc = process_control.run(command, stdout=stream, timeout=1500)
+            if rc == 124:
+                stream.write("Task timed out\n")
+    finally:
+        resources = sampler.stop(output / "resources.json")
     tools = analyze.tool_hashes()
     if operation in {"query", "decode", "string_refs", "info"}:
         here = Path(__file__).resolve().parent
@@ -275,7 +279,8 @@ def main():
             tools[name] = hostlab.digest(here / name)
     job = {"version_code": int(code), "operation": operation,
         "apk_sha256": row["sha256"], "sample_revision": head, "exit_code": rc,
-        "scope": "offline_static_only", "tools": tools}
+        "scope": "offline_static_only", "tools": tools,
+        "resources": resources, "total_ms": (time.monotonic()-entry_started)*1000}
     if operation == "query":
         job["max_cell_chars"] = max_cell_chars
     if module_source is not None:

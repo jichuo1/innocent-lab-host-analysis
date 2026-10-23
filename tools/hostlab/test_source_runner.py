@@ -55,7 +55,7 @@ class RunnerSourceTest(unittest.TestCase):
              patch.object(snapshot_transport,"load_for_analysis",return_value=(ctx,binding)), \
              patch.object(snapshot_transport,"cache_snapshot") as cache, \
              patch.object(hostlab,"api_private",side_effect=AssertionError("APK access")), \
-             patch.object(remote_job.subprocess,"run",side_effect=AssertionError("scan")):
+             patch.object(remote_job.process_control,"run",side_effect=AssertionError("scan")):
             self.assertEqual(remote_job.main(),0)
             job=json.loads((hostlab.STATE/"remote-output/job.json").read_text())
             self.assertEqual(job["scope"],"source_metadata_only")
@@ -70,7 +70,7 @@ class RunnerSourceTest(unittest.TestCase):
     def test_missing_source_stops_before_sample_access(self):
         with patch.dict(os.environ,self.env(),clear=True), \
              patch.object(snapshot_transport,"load_for_analysis",side_effect=RuntimeError("missing")), \
-             patch.object(hostlab,"api_private") as sample_access, patch.object(remote_job.subprocess,"run") as run:
+             patch.object(hostlab,"api_private") as sample_access, patch.object(remote_job.process_control,"run") as run:
             with self.assertRaisesRegex(RuntimeError,"missing"):
                 remote_job.main()
             sample_access.assert_not_called()
@@ -92,7 +92,7 @@ class RunnerSourceTest(unittest.TestCase):
              patch.object(hostlab,"manifest",return_value={"samples":[sample()]}), \
              patch.object(hostlab,"select",return_value=sample()), \
              patch.object(hostlab,"write_json") as write, \
-             patch.object(remote_job.subprocess,"run",return_value=SimpleNamespace(returncode=0)), \
+             patch.object(remote_job.process_control,"run",return_value=0), \
              patch.object(remote_job.analyze,"tool_hashes",return_value={}):
             self.assertEqual(remote_job.main(),0)
             load.assert_not_called()

@@ -295,15 +295,25 @@ class RunnerWorkerTest(unittest.TestCase):
 
     def test_deadline_joins_running_downloads_and_does_not_claim_they_ended(self):
         entered, release = threading.Event(), threading.Event()
+        count = 0
+        lock = threading.Lock()
 
         def fetch(row, repo, revision, *, timings):
-            entered.set()
+            nonlocal count
+            with lock:
+                count += 1
+                if count == 2:
+                    entered.set()
             if not release.wait(3):
                 raise RuntimeError("test fetch release missing")
             return self.fetch_fixture(row, repo, revision, timings=timings)
 
         self.fetch.side_effect = fetch
-        with patch.object(runner_worker, "MAX_GROUP_SECONDS", 0.04), ThreadPoolExecutor(max_workers=1) as pool:
+        # Expire after both transfers have actually started, independent of host load.
+        # A 40ms wall clock can expire during setup and admit only one transfer.
+        clock = SimpleNamespace(monotonic=lambda: time.monotonic() + (1000 if entered.is_set() else 0))
+        with patch.object(runner_worker, "time", clock), \
+             patch.object(runner_worker, "MAX_GROUP_SECONDS", 2), ThreadPoolExecutor(max_workers=1) as pool:
             running = pool.submit(runner_worker.run, self.payload)
             try:
                 self.assertTrue(entered.wait(2))
