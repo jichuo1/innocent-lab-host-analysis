@@ -4,6 +4,7 @@
 
 | 样本 | 分析结论 | AI | 源码快照 / UTC / 时效 | 报告 | 完整证据 |
 |---|---|---|---|---|---|
+| 未完成 / 9170100 | ANALYSIS_FAILED | not_completed | legacy / 未知 / legacy_unverified | [查看](failures/39985147665-a1/report.md) | — |
 | 9.17.0 / 9170100 | AI_ANALYSIS_FAILED | failed | 2fa2d3b70f73 / 2026-10-15T14:19:32.431433Z / published_unverified_worktree | [查看](samples/9170100/f0f880e841d017db335b3919e6d4792961f2e08aa9993da661b626d52cfcb955/runs/39983150017-a1/report.md) | — |
 | 未完成 / 9170100 | ANALYSIS_FAILED | not_completed | legacy / 未知 / legacy_unverified | [查看](failures/39979516078-a1/report.md) | — |
 | 9.16.1 / 9161100 | REVIEW_REQUIRED | completed | 2fa2d3b70f73 / 2026-10-15T14:19:32.431433Z / published_unverified_worktree | [查看](samples/9161100/41efb1c9acb07badab5296953fb3da1def6925e2b34662120ca96df9d17bbfb2/runs/39723760816-a1/report.md) | [下载](https://github.com/jichuo1/innocent-lab-host-analysis/releases/tag/analysis-9161100-41efb1c9acb0-39723760816-a1) |
