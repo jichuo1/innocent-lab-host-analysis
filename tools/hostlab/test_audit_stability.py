@@ -11,6 +11,7 @@ import zipfile
 from unittest.mock import patch
 
 import analyze
+import ai_review
 from analysis.run_intake import EXPECTED_FEATURES
 import hostlab
 import priority_analysis
@@ -154,6 +155,37 @@ class ScanAdmissionTest(unittest.TestCase):
                     self.assertEqual(factory.call_args.kwargs["max_workers"], expected)
                     self.assertEqual(len(pool.map.call_args.args[1]), 2)
                     self.assertEqual(result["scan_execution"]["dex_files"], 2)
+
+
+class AiDecompileTest(unittest.TestCase):
+    def invoke(self, rc, write_new):
+        with tempfile.TemporaryDirectory() as folder, patch.object(hostlab, "STATE", Path(folder)):
+            evidence = ai_review.Evidence(Path(folder), {})
+            evidence.data["target"] = {"sample": {"version_code": 1, "sha256": "a"*64, "revision": "b"*40},
+                                       "class_records": [{"class": "Lexample/Actual;"}], "invoke_edges": []}
+            reports = Path(folder) / "reports/1" / ("a"*16)
+            old = reports / "old/class.java"
+            old.parent.mkdir(parents=True)
+            old.write_text("stale source")
+            def run(command, *, stdout, timeout):
+                self.assertEqual(timeout, 150)
+                self.assertEqual(stdout, subprocess.DEVNULL)
+                self.assertEqual(command[command.index("--revision")+1], "b"*40)
+                if write_new:
+                    new = reports / "new/class.java"
+                    new.parent.mkdir(parents=True)
+                    new.write_text("current source")
+                return rc
+            with patch.object(process_control, "run", side_effect=run):
+                return evidence.run_tool("decompile_class", {"class_name": "example.Actual"})
+
+    def test_decompile_reads_only_current_successful_output(self):
+        self.assertEqual(self.invoke(0, True)["source"], "current source")
+
+    def test_timeout_nonzero_and_missing_output_cannot_reuse_old_source(self):
+        for rc, write_new in ((124, False), (1, True), (0, False)):
+            with self.subTest(rc=rc, write_new=write_new), self.assertRaisesRegex(RuntimeError, "decompile failed"):
+                self.invoke(rc, write_new)
 
 
 if __name__ == "__main__":

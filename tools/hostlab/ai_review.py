@@ -12,6 +12,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import hostlab
+import process_control
 import ai_prompts
 import source_snapshot
 import snapshot_transport
@@ -297,15 +298,16 @@ class Evidence:
             if descriptor not in allowed or not re.fullmatch(r"[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+", class_name):
                 raise RuntimeError("Class must be a real member in the frozen evidence")
             sample = data["sample"]
+            folder = hostlab.STATE / "reports" / str(sample["version_code"]) / sample["sha256"][:16]
+            previous = set(folder.glob("*/class.java"))
             command = [sys.executable, str(Path(__file__).with_name("hostlab.py")), "decompile",
                        "--version-code", str(sample["version_code"]), "--sha256", sample["sha256"],
                        "--revision", sample["revision"], "--class", class_name, "--timeout", "120"]
-            rc = subprocess.run(command, capture_output=True, timeout=150, check=False).returncode
-            folder = hostlab.STATE / "reports" / str(sample["version_code"]) / sample["sha256"][:16]
-            sources = sorted(folder.glob("*/class.java"))
-            if rc or not sources:
+            rc = process_control.run(command, stdout=subprocess.DEVNULL, timeout=150)
+            sources = set(folder.glob("*/class.java")) - previous
+            if rc or len(sources) != 1:
                 raise RuntimeError("Class decompile failed or timed out")
-            source = sources[-1]
+            source = next(iter(sources))
             text = source.read_text(encoding="utf-8", errors="replace")
             result = {"class": class_name, "side": side, "source_sha256": hostlab.digest(source),
                       "source": text[:10000], "truncated": len(text) > 10000}

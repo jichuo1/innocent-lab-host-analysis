@@ -201,7 +201,7 @@ class PipelineTest(unittest.TestCase):
         def api(*args, **kwargs):
             offered.extend(tool["function"]["name"] for tool in args[2])
             return self.provider(*args, **kwargs)
-        with patch.object(ai_review, "call_api", side_effect=api), patch.object(ai_review.subprocess, "run") as process:
+        with patch.object(ai_review, "call_api", side_effect=api), patch.object(ai_review.process_control, "run") as process:
             ai_review.run(self.root)
         self.assertNotIn("decompile_class", offered)
         process.assert_not_called()
