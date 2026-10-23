@@ -15,7 +15,7 @@ import ai_checkpoint
 import ai_prompts
 import hostlab
 
-MAX_OUTPUT = 8192
+MAX_OUTPUT = ai_checkpoint.OUTPUT_TOKENS
 MAX_DRAFT_UNITS = 6
 UNIT_PAGES = 2
 UNIT_PATHS = 10
@@ -38,6 +38,9 @@ def execution_policy(summary):
     elif recovery == "completion-v3":
         policy.update(recovery_policy=recovery, max_requests=40, transport_retries=6,
                       max_output=16384, deadline_seconds=4800, total_timeout=600, adaptive_timeout=True)
+    # A versioned descriptor keeps historical 8k/16k ledgers valid without silently
+    # changing their binding. New requests and explicit migrations use the full cap.
+    policy.update(output_budget=ai_checkpoint.OUTPUT_BUDGET, max_output=MAX_OUTPUT)
     return policy
 
 

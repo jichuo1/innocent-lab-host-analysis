@@ -39,6 +39,9 @@ def limits(profile="default"):
 
 
 def file_limit(name, policy):
+    if name in {"remote-output/ai-checkpoint.json", "remote-output/ai-resume-checkpoint.json",
+                "remote-output/ai-completion-checkpoint.json", "remote-output/ai-final-checkpoint.json"}:
+        return 64 * 1024 * 1024
     return (policy["large_json_bytes"] if name in {
         "remote-output/priority-target.json", "remote-output/priority-baseline.json"} else policy["file_bytes"])
 

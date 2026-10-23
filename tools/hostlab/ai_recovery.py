@@ -24,6 +24,12 @@ FINAL_FILES = {"ai-checkpoint.json": "ai-final-checkpoint.json", "ai-evidence.js
 RECOVERY_FILES = {POLICY: FILES, COMPLETION_POLICY: COMPLETION_FILES, FINAL_POLICY: FINAL_FILES}
 MUTABLE_CODE = {"ai_pipeline.py", "ai_checkpoint.py", "ai_transport.py"}
 BOUND_CODE = MUTABLE_CODE | {"ai_prompts.py", "ai_review.py"}
+# This exact change only replaces the decompiler subprocess wrapper. Frozen recovery
+# disables that tool; validators and prompts are unchanged. No arbitrary reviewer drift.
+FROZEN_REVIEWER_MIGRATION = (
+    "5fece6d07a49eafb993cb3da530b1564c03844efe701706df58fa0a108c4ecfb",
+    "c11e3134bc28797b27a3394976cc46ca03192a483d5c9ca943149265cc5732e3",
+)
 
 
 def _read(path):
@@ -187,11 +193,27 @@ def _binding(old, new):
         return
     if new_policy not in RECOVERY_FILES or old_policy != checkpoint.PARENT_POLICY[new_policy]:
         raise checkpoint.CheckpointError("explicit extended recovery policy required")
+    comparable = copy.deepcopy(old)
+    names = {"priority-target.json"} | ({"priority-baseline.json"} if old.get("baseline") else set())
+    if (old.get("no_apk_access") is False and new.get("no_apk_access") is True and
+            old.get("static_manifest_sha256") is None and set(old.get("static_files", {})) == names and
+            set(new.get("static_files", {})) == names | {"static-manifest.json"} and
+            all(old["static_files"][name] == new["static_files"][name] for name in names) and
+            checkpoint.HEX.fullmatch(str(new.get("static_manifest_sha256", ""))) and
+            new["static_files"]["static-manifest.json"] == new["static_manifest_sha256"]):
+        comparable.update(no_apk_access=True, static_files=new["static_files"],
+                          static_manifest_sha256=new["static_manifest_sha256"])
+    unchanged_code = BOUND_CODE - MUTABLE_CODE
+    if (new.get("no_apk_access") is True and
+            (old.get("code", {}).get("ai_review.py"), new.get("code", {}).get("ai_review.py")) == FROZEN_REVIEWER_MIGRATION):
+        unchanged_code = unchanged_code - {"ai_review.py"}
     if (set(old) != set(new) or set(old.get("code", {})) != BOUND_CODE or set(new.get("code", {})) != BOUND_CODE
-            or any(old[key] != new[key] for key in old if key not in {"code", "policy"})
-            or any(old["code"][key] != new["code"][key] for key in BOUND_CODE-MUTABLE_CODE)):
+            or any(comparable[key] != new[key] for key in old if key not in {"code", "policy"})
+            or any(old["code"][key] != new["code"][key] for key in unchanged_code)):
         raise checkpoint.CheckpointError("recovery source/static/prompt/acceptance/provider/plan binding changed")
     expected_policy = {**old["policy"], **checkpoint.RECOVERY_LIMITS[new_policy], "recovery_policy": new_policy}
+    if "output_budget" in new["policy"]:
+        expected_policy.update(output_budget=checkpoint.OUTPUT_BUDGET, max_output=checkpoint.OUTPUT_TOKENS)
     if new["policy"] != expected_policy:
         raise checkpoint.CheckpointError("recovery changed an unapproved policy field")
     for value in (*old["code"].values(), *new["code"].values()):

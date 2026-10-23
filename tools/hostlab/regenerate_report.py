@@ -186,10 +186,19 @@ def main():
     manifest_hash = hashlib.sha256(raw_manifest).hexdigest()
     checkpoint = checkpoint_summary = checkpoint_source = None
     if options.get("checkpoint_run"):
-        _, checkpoint = verified_artifact(options["checkpoint_run"])
-        checkpoint_manifest = one_file(checkpoint, "static-manifest.json")
+        checkpoint_run, checkpoint = verified_artifact(options["checkpoint_run"])
+        checkpoint_manifest = one_file(checkpoint, "static-manifest.json", required=False)
         checkpoint_summary = json.loads(one_file(checkpoint, "priority-summary.json").read_text(encoding="utf-8"))
-        if hostlab.digest(checkpoint_manifest) != manifest_hash or checkpoint_summary.get("static_manifest_sha256") != manifest_hash:
+        if checkpoint_manifest is None:
+            # The first multipath run has pinned dataset hashes but no restore manifest.
+            # Only its own verified artifact may bootstrap that manifest, never another run.
+            if (options["checkpoint_run"] != source_run or
+                    checkpoint_summary.get("static_manifest_sha256") is not None):
+                raise RuntimeError("Checkpoint static manifest is missing")
+            _, _, _, _, original_manifest = frozen_inputs(checkpoint_run, checkpoint, int(os.environ["HOSTLAB_VERSION"]))
+            if hashlib.sha256(source_snapshot.serialize(original_manifest)).hexdigest() != manifest_hash:
+                raise RuntimeError("Original checkpoint static bytes differ")
+        elif hostlab.digest(checkpoint_manifest) != manifest_hash or checkpoint_summary.get("static_manifest_sha256") != manifest_hash:
             raise RuntimeError("Checkpoint static manifest differs; start a new generation explicitly")
         checkpoint_source = checkpoint_summary.get("source_snapshot") or {}
         if not isinstance(checkpoint_source.get("binding"), dict) or not checkpoint_source["binding"]:

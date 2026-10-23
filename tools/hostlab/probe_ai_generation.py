@@ -17,11 +17,11 @@ from check_ai_connectivity import NoRedirect, MAX_ERROR_BYTES, configuration, cr
 from ai_transport import request_interval, _retry_after, select_tools
 
 OUTPUT = Path(__file__).resolve().parents[2] / "runtime/hostlab/probe"
-STAGES = (("minimal_chat", 128), ("stream", 1024), ("forced_tool", 1024))
+STAGES = (("minimal_chat", 8192), ("stream", 8192), ("forced_tool", 8192))
 TOTAL_TIMEOUT = 180
 STAGE_TIMEOUT = 50
-MAX_RESPONSE_BYTES = 256 * 1024
-MAX_EVENT_BYTES = 64 * 1024
+MAX_RESPONSE_BYTES = 4 * 1024 * 1024
+MAX_EVENT_BYTES = 256 * 1024
 TOOL_NAME = "hostlab_probe_echo"
 USAGE_KEYS = frozenset({"prompt_tokens", "completion_tokens", "total_tokens", "input_tokens", "output_tokens", "cached_tokens", "reasoning_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"})
 USAGE_DETAILS = frozenset({"prompt_tokens_details", "completion_tokens_details", "input_tokens_details", "output_tokens_details"})

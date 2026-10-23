@@ -99,7 +99,7 @@ class AiDiagnosticsTest(unittest.TestCase):
             config = catalog.configuration("primary")
             body = probe.payload(config, "minimal_chat", True)
             self.assertEqual(config["base"], "https://api.openai.com/v1")
-            self.assertEqual(body["max_completion_tokens"], 128)
+            self.assertEqual(body["max_completion_tokens"], 8192)
             self.assertNotIn("max_tokens", body)
         for suffix in ("responses", "messages"):
             with patch.dict(os.environ, {"AI_PRIMARY_BASE_URL": "https://api.river.ai/v1/"+suffix}):
@@ -174,7 +174,7 @@ class AiDiagnosticsTest(unittest.TestCase):
         sent = json.loads(request.data)
         self.assertEqual("https://api.river.ai/v1/chat/completions", request.full_url)
         self.assertEqual("Bearer " + SECRET, request.get_header("Authorization"))
-        self.assertEqual(128, sent["max_tokens"])
+        self.assertEqual(8192, sent["max_tokens"])
         self.assertFalse(sent["stream"])
         self.assertNotIn("tools", sent)
         self.assertNotIn("response_format", sent)
@@ -199,7 +199,7 @@ class AiDiagnosticsTest(unittest.TestCase):
         self.assertFalse(result["validation"]["tool_executed"])
         sent = json.loads(opener.open.call_args.args[0].data)
         self.assertEqual({"type": "function", "function": {"name": probe.TOOL_NAME}}, sent["tool_choice"])
-        self.assertEqual(1024, sent["max_tokens"])
+        self.assertEqual(8192, sent["max_tokens"])
         invalid, _ = self.attempt_with(Response(completion(None, "tool_calls", calls=[tool_call('{"ok":true,"body":"' + PRIVATE + '"}')])), "forced_tool")
         self.assertEqual("incomplete", invalid["status"])
 

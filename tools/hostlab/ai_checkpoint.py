@@ -14,8 +14,10 @@ import uuid
 
 import remote_schedule
 
-MAX_BYTES = 8 * 1024 * 1024
-MAX_PUBLIC_RESPONSE_BYTES = 128 * 1024
+MAX_BYTES = 64 * 1024 * 1024
+MAX_PUBLIC_RESPONSE_BYTES = 2 * 1024 * 1024
+OUTPUT_BUDGET = "generous-v1"
+OUTPUT_TOKENS = 65536
 MAX_REQUESTS = 16
 MAX_TRANSPORT_RETRIES = 2
 COOLDOWN_SECONDS = 60
@@ -45,6 +47,8 @@ def policy_limits(binding):
                 "total_timeout": 240, "idle_timeout": 45, "stream": True}
     if extended:
         expected.update(RECOVERY_LIMITS[recovery])
+    if "output_budget" in policy:
+        expected.update(output_budget=OUTPUT_BUDGET, max_output=OUTPUT_TOKENS)
     if (set(policy) != set(expected) | {"initial_profile", "allow_fallback"} | ({"recovery_policy"} if extended else set())
             or policy.get("initial_profile") not in {"primary", "backup"}
             or type(policy.get("allow_fallback")) is not bool
@@ -163,7 +167,7 @@ def validate(value):
         if (not isinstance(clean, dict) or set(clean)-{"role", "content", "tool_calls"}
                 or clean.get("role") != "assistant" or clean.get("content") is not None
                 or not isinstance(clean.get("tool_calls", []), list) or len(clean.get("tool_calls", [])) > 8
-                or len(json.dumps(clean, ensure_ascii=False).encode()) > 128*1024):
+                or len(json.dumps(clean, ensure_ascii=False).encode()) > MAX_PUBLIC_RESPONSE_BYTES):
             raise CheckpointError("invalid public checkpoint response")
         for call in clean.get("tool_calls", []):
             function = call.get("function") if isinstance(call, dict) else None

@@ -92,6 +92,21 @@ class RegenerateCheckpointTest(unittest.TestCase):
         self.assertNotIn("ai_recovery_policy", self.restored())
         self.assertNotIn("ai_recovery_inputs", self.restored())
 
+    def test_initial_multipath_checkpoint_derives_manifest_only_from_its_own_verified_artifact(self):
+        restore = Mock(return_value={"parent_run": 987, "checkpoint_sha256": "a"*64, "evidence_sha256": "b"*64})
+        with patch.dict("sys.modules", {"ai_recovery": SimpleNamespace(restore_inputs=restore)}), \
+             patch.dict("os.environ", {"HOSTLAB_ARGUMENT": '{"static_run":987,"checkpoint_run":987,"recovery_policy":"extended-v1"}'}):
+            regen.main()
+        self.assertTrue(self.restored()["ai_no_apk_access"])
+        self.assertEqual(self.restored()["checkpoint_from_run"], 987)
+        self.assertTrue((hostlab.STATE/"remote-output/static-manifest.json").is_file())
+        restore.assert_called_once()
+
+    def test_other_run_cannot_bootstrap_a_missing_checkpoint_manifest(self):
+        with patch.dict("os.environ", {"HOSTLAB_ARGUMENT": '{"static_run":987,"checkpoint_run":988,"recovery_policy":"extended-v1"}'}):
+            with self.assertRaisesRegex(RuntimeError, "manifest is missing"):
+                regen.main()
+
     def test_completion_policy_is_explicit_and_uses_its_own_verified_parent(self):
         checkpoint_files = self.checkpoint()
         restore = Mock(return_value={"parent_run": 988, "checkpoint_sha256": "a"*64, "evidence_sha256": "b"*64})

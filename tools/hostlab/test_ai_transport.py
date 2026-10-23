@@ -61,7 +61,7 @@ class TransportTest(unittest.TestCase):
         self.assertIsNone(request.get_header("X-opencode-session"))
         payload = json.loads(request.data)
         self.assertTrue(payload["stream"])
-        self.assertEqual(payload["max_tokens"], 8192)
+        self.assertEqual(payload["max_tokens"], 65536)
         self.assertEqual(request.get_header("User-agent"), "HostLab-AIReview/2")
 
     def test_session_header_is_preserved_only_for_exact_opencode_host(self):
@@ -113,7 +113,7 @@ class TransportTest(unittest.TestCase):
         raw = b": " + b" "*90 + b"\n\n" + delta({"content": "ok"}, "stop") + event(b"[DONE]")
         with patch.object(transport, "MAX_STREAM_BYTES", 180):
             with self.assertRaises(transport.ApiError):
-                self.request(raw)
+                self.request(raw, max_output=8192)
             (message, _, _), _ = self.request(raw, max_output=16384)
         self.assertEqual(message["content"], "ok")
 
@@ -155,7 +155,7 @@ class TransportTest(unittest.TestCase):
     def test_json_retains_its_original_scaled_wire_budget(self):
         raw = json.dumps({"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}], "metadata": "x"*50}).encode()
         with patch.object(transport, "MAX_RESPONSE_BYTES", 100), self.assertRaisesRegex(transport.ApiError, "API response exceeds bound"):
-            self.request(raw, "application/json")
+            self.request(raw, "application/json", max_output=8192)
         with patch.object(transport, "MAX_RESPONSE_BYTES", 100):
             (message, _, _), _ = self.request(raw, "application/json", max_output=16384)
         self.assertEqual(message["content"], "ok")
@@ -244,7 +244,7 @@ class TransportTest(unittest.TestCase):
 
     def test_response_bound(self):
         with patch.object(transport, "MAX_STREAM_BYTES", 20), self.assertRaises(transport.ApiError) as caught:
-            self.request(delta({"content": "too long"}, "stop") + event(b"[DONE]"))
+            self.request(delta({"content": "too long"}, "stop") + event(b"[DONE]"), max_output=8192)
         self.assertEqual(str(caught.exception), "API response exceeds bound")
 
     def test_absolute_deadline_even_with_heartbeats(self):
@@ -272,7 +272,7 @@ class TransportTest(unittest.TestCase):
                 request = build.return_value.open.call_args.args[0]
                 self.assertEqual(request.full_url.count("/chat/completions"), 1)
                 payload = json.loads(request.data)
-                self.assertEqual(payload[field], 8192)
+                self.assertEqual(payload[field], 65536)
                 self.assertEqual(len({"max_tokens", "max_completion_tokens"}.intersection(payload)), 1)
 
     def test_unsupported_endpoint_or_token_parameter_never_posts(self):

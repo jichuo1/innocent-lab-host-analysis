@@ -15,9 +15,11 @@ import urllib.parse
 import urllib.request
 
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+MAX_REQUEST_BYTES = 8 * 1024 * 1024
 MAX_STREAM_BYTES = 8 * 1024 * 1024
-MAX_STREAM_EVENTS = 65536
-MAX_EVENT_BYTES = 256 * 1024
+MAX_STREAM_EVENTS = 262144
+MAX_EVENT_BYTES = 1024 * 1024
+MAX_TOOL_ARGUMENT_CHARS = 1024 * 1024
 MAX_TOOL_CALLS = 8
 MIN_REQUEST_INTERVAL = 15
 
@@ -121,7 +123,7 @@ def _clean_message(message):
                     or not isinstance(function.get("name"), str)
                     or not re.fullmatch(r"[a-zA-Z0-9_.-]{1,100}", function["name"])
                     or not isinstance(function.get("arguments"), str)
-                    or len(function["arguments"]) > MAX_EVENT_BYTES):
+                    or len(function["arguments"]) > MAX_TOOL_ARGUMENT_CHARS):
                 raise ApiError("API tool call malformed")
             result.append({"id": _redact(call["id"]), "type": "function", "function": {
                 "name": function["name"], "arguments": _redact(function["arguments"])}})
@@ -156,7 +158,7 @@ def _retry_after(headers):
 
 
 def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
-             max_output=8192, total_timeout=240, idle_timeout=45, stream=True):
+             max_output=65536, total_timeout=240, idle_timeout=45, stream=True):
     started = time.monotonic()
     metrics = {"streaming": bool(stream), "response_bytes": 0, "events": 0, "assembled_bytes": 0,
                "headers_ms": None, "first_event_ms": None, "first_visible_delta_ms": None}
@@ -189,7 +191,7 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
     if stream:
         payload["stream_options"] = {"include_usage": True}
     body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    if len(body) > 2 * 1024 * 1024:
+    if len(body) > MAX_REQUEST_BYTES:
         raise ApiError("API request exceeds bound", "configuration", False, False)
     metrics["request_bytes"] = len(body)
     headers = {"Authorization": "Bearer " + key, "Content-Type": "application/json",
@@ -285,7 +287,7 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
                                 fail("API tool fragment must be text")
                             account_text(value)
                             owner[field] += value
-                            if len(owner[field]) > MAX_EVENT_BYTES:
+                            if len(owner[field]) > (MAX_TOOL_ARGUMENT_CHARS if field == "arguments" else MAX_EVENT_BYTES):
                                 fail("API tool fragment exceeds bound")
 
             while not done:
@@ -390,7 +392,7 @@ def _call_api(profile, messages, tools, force_tool=None, session_id=None, *,
 
 
 def call_api(profile, messages, tools, force_tool=None, session_id=None, *,
-             max_output=8192, total_timeout=240, idle_timeout=45, stream=True):
+             max_output=65536, total_timeout=240, idle_timeout=45, stream=True):
     """Isolate DNS/TLS/headers too: terminate and reap a stalled single-POST worker.
 
     Private messages travel through pipes only. A killed request remains potentially
@@ -403,7 +405,7 @@ def call_api(profile, messages, tools, force_tool=None, session_id=None, *,
                 "session_id": session_id, "max_output": max_output, "total_timeout": total_timeout,
                 "idle_timeout": idle_timeout, "stream": stream}
     raw = json.dumps(envelope, ensure_ascii=False, separators=(",", ":")).encode()
-    if len(raw) > 2 * 1024 * 1024:
+    if len(raw) > MAX_REQUEST_BYTES:
         raise ApiError("API request exceeds bound", "configuration", False, False)
     started = time.monotonic()
     try:
@@ -437,8 +439,8 @@ if __name__ == "__main__":
     try:
         if sys.argv[1:] != ["--worker"]:
             raise ApiError("API worker invocation invalid", "configuration", False, False)
-        raw = sys.stdin.buffer.read(2 * 1024 * 1024 + 1)
-        if len(raw) > 2 * 1024 * 1024:
+        raw = sys.stdin.buffer.read(MAX_REQUEST_BYTES + 1)
+        if len(raw) > MAX_REQUEST_BYTES:
             raise ApiError("API worker input exceeds bound", "configuration", False, False)
         result = {"result": _call_api(**json.loads(raw))}
     except ApiError as error:

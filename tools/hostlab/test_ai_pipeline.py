@@ -74,7 +74,8 @@ class PipelineTest(unittest.TestCase):
 
     def test_public_receipt_overflow_records_known_reply_failure_not_unknown_post(self):
         message = response("finish_report", {"overview": "中"*45000})[0]
-        with patch.object(ai_review, "call_api", return_value=(message, {"total_tokens": 19}, "test-model")) as api:
+        with patch.object(ai_checkpoint, "MAX_PUBLIC_RESPONSE_BYTES", 128*1024), \
+             patch.object(ai_review, "call_api", return_value=(message, {"total_tokens": 19}, "test-model")) as api:
             with self.assertRaises(RuntimeError):
                 ai_review.run(self.root)
         self.assertEqual(api.call_count, 1)
@@ -337,6 +338,9 @@ class PipelineTest(unittest.TestCase):
             evidence.run_tool(name, args)
         units = ai_pipeline.draft_units(summary["page_path_matrix"])
         binding = ai_pipeline.build_binding(origin, summary, units)
+        # Historical 8k receipt; new invocations use the versioned 64k budget.
+        binding["policy"].pop("output_budget")
+        binding["policy"]["max_output"] = 8192
         ledger = ai_checkpoint.Checkpoint(origin, binding)
         ids = fixtures.page_evidence_ids(origin)
         for index in range(9):
@@ -385,7 +389,7 @@ class PipelineTest(unittest.TestCase):
         def api(profile, messages, tools, force_tool=None, session_id=None, **options):
             seen.append(copy.deepcopy(messages))
             self.assertEqual(profile, "backup")
-            self.assertEqual(options["max_output"], 16384)
+            self.assertEqual(options["max_output"], 65536)
             self.assertLessEqual(options["total_timeout"], 240)
             data = json.loads(messages[1]["content"])
             if len(seen) == 1:
