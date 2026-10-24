@@ -1,5 +1,6 @@
 """Native audits retain exact evidence, bounded transport and fail-closed gates."""
 import hashlib
+from collections import deque
 import json
 import os
 from pathlib import Path
@@ -18,7 +19,7 @@ import native_cli
 from native_graph import Graph, Method, Type, UnsupportedAudit, field_type, method_types, parse_type
 from native_rules import CATALOG, HERE, Rules
 from native_session import literal
-from native_surface import legacy_body_order, prefix
+from native_surface import code_locations, legacy_body_order, prefix
 import plan_ci
 import verify_audits
 
@@ -108,12 +109,39 @@ class RuleContractTest(unittest.TestCase):
         for value in ("x\ny", "x\ry", "x\0y"):
             with self.assertRaises(ValueError): literal(value)
 
+    def test_code_locations_filter_is_bounded_file_local_and_preserves_units(self):
+        statements = []
+        class Session:
+            def rows(self, sql, **bounds):
+                statements.append(sql)
+                lower, upper = map(int, re.search(r"BETWEEN (\d+) AND (\d+)", sql).groups())
+                indices = range(lower, upper+1)
+                self_test.assertLess(len(sql.encode()), 256)
+                return iter({"method_idx":str(i), "insns_off":str(i*4), "insns_size":"3"} for i in indices if i%2)
+        self_test = self
+        methods = {2: dict.fromkeys(range(17000)), 9: {1: None}}
+        result = code_locations(Session(), methods)
+        self.assertEqual(len(statements), 2)
+        self.assertEqual(set(result), {(2,i) for i in range(17000) if i%2}|{(9,1)})
+        self.assertEqual(result[(9,1)], (4,6))
+        self.assertEqual(code_locations(Session(), {}), {})
+        self.assertEqual(code_locations(Session(), {2:{}}), {})
+        self.assertEqual(code_locations(Session(), {2:{1:None,5:None}}), {(2,1):(4,6), (2,5):(20,6)})
+
+    def test_unrequested_code_item_cannot_enter_fingerprint_input(self):
+        session = MagicMock()
+        session.rows.return_value = [{"method_idx":"99", "insns_off":"4", "insns_size":"3"}]
+        with self.assertRaisesRegex(RuntimeError, "requested method range"):
+            code_locations(session, {1: {1: None}})
+
 
 class TransportTest(unittest.TestCase):
     def session(self):
         session = native_cli.CliSession.__new__(native_cli.CliSession)
         session.deadline, session.queries = time.monotonic()+1, 0
         session.messages = queue.Queue()
+        session.closed = native_cli.threading.Event()
+        session.lines, session.pending, session.eof = deque(), b"", False
         session.write = MagicMock()
         return session
 
@@ -130,6 +158,53 @@ class TransportTest(unittest.TestCase):
             session = self.session()
             for line in lines: session.messages.put(line)
             with self.subTest(lines=lines), self.assertRaises(RuntimeError): list(session.table("SELECT x", expected=["name"]))
+
+    def test_chunk_boundaries_preserve_utf8_crlf_and_multiple_lines(self):
+        session = self.session()
+        raw = "| 中文 |\r\n| value |\n".encode()
+        for byte in raw: session.messages.put(bytes([byte]))
+        session.messages.put(b"last without newline")
+        session.messages.put(b"")
+        self.assertEqual(session.line(), "| 中文 |\r\n".encode())
+        self.assertEqual(session.line(), b"| value |\n")
+        self.assertEqual(session.line(), b"last without newline")
+        self.assertEqual(session.line(), b"")
+
+    def test_coalesced_results_preserve_next_table_and_fragmented_marker(self):
+        session = self.session()
+        session.messages.put(b"| name |\n| 61 |\n| hostlab_boundary |\n| __hostlab_end_fi")
+        session.messages.put(b"xed |\n| name |\n| 62 |\n| hostlab_boundary |\n| __hostlab_end_fixed |\n")
+        with patch.object(native_cli.uuid, "uuid4", return_value=type("Id", (), {"hex":"fixed"})()):
+            self.assertEqual(list(session.table("SELECT x"))[-1][1], ["61"])
+            self.assertEqual(list(session.table("SELECT x"))[-1][1], ["62"])
+
+    def test_chunked_transport_keeps_line_budget_for_complete_and_fragmented_rows(self):
+        for chunks in ([b"x"*(4*1024*1024)+b"\n"], [b"x"*(4*1024*1024), b"x"]):
+            session = self.session()
+            for chunk in chunks: session.messages.put(chunk)
+            with self.assertRaisesRegex(RuntimeError, "row exceeds"): session.line()
+
+    def test_expired_deadline_also_rejects_already_buffered_data(self):
+        session = self.session()
+        session.lines.append(b"| buffered |\n")
+        session.deadline = time.monotonic()-1
+        with self.assertRaises(TimeoutError): session.line()
+
+    def test_reader_uses_available_bounded_chunks_and_preserves_short_replies(self):
+        session = self.session()
+        session.process = MagicMock()
+        session.process.stdout.read1.side_effect = [b"header\nro", b"w\n", b""]
+        session.read()
+        self.assertEqual([session.line(), session.line(), session.line()], [b"header\n", b"row\n", b""])
+        self.assertEqual([c.args for c in session.process.stdout.read1.call_args_list], [(65536,)]*3)
+        session.process.stdout.readline.assert_not_called()
+
+    def test_reader_io_failure_is_delivered_instead_of_waiting_until_deadline(self):
+        session = self.session()
+        session.process = MagicMock()
+        session.process.stdout.read1.side_effect = OSError("private detail")
+        session.read()
+        with self.assertRaisesRegex(RuntimeError, "output read failed"): session.line()
 
     def encoded(self, cells, **bounds):
         session = self.session()

@@ -8,6 +8,7 @@ import threading
 import time
 import uuid
 from concurrent.futures import Future, TimeoutError as FutureTimeout
+from collections import deque
 
 import analysis_batch as batch
 import install_dexsql
@@ -22,6 +23,9 @@ class CliSession:
         self.queries = 0
         self.messages = queue.Queue(maxsize=8)
         self.closed = threading.Event()
+        self.lines = deque()
+        self.pending = b""
+        self.eof = False
 
     def __enter__(self):
         started = time.monotonic()
@@ -46,15 +50,45 @@ class CliSession:
 
     def read(self):
         while not self.closed.is_set():
-            line = self.process.stdout.readline(4*1024*1024+1)
-            item = line if len(line) <= 4*1024*1024 else RuntimeError("native CLI row exceeds its byte budget")
+            try:
+                # read1 returns available pipe bytes without waiting for a full
+                # block. Small shape/marker replies must remain responsive.
+                item = self.process.stdout.read1(64*1024)
+            except (OSError, ValueError):
+                item = RuntimeError("native audit CLI output read failed")
             while not self.closed.is_set():
                 try:
                     self.messages.put(item, timeout=.1)
                     break
                 except queue.Full:
                     continue
-            if not line or isinstance(item, Exception): break
+            if not item or isinstance(item, Exception): break
+
+    def line(self):
+        while not self.lines:
+            if self.eof:
+                return b""
+            remaining = self.deadline-time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("native audit deadline exhausted")
+            try:
+                chunk = self.messages.get(timeout=remaining)
+            except queue.Empty:
+                raise TimeoutError("native audit CLI response timed out") from None
+            if isinstance(chunk, Exception):
+                raise chunk
+            if not chunk:
+                self.eof = True
+                line, self.pending = self.pending, b""
+                return line
+            fragments = (self.pending+chunk).split(b"\n")
+            self.pending = fragments.pop()
+            if len(self.pending) > 4*1024*1024 or any(len(part)+1 > 4*1024*1024 for part in fragments):
+                raise RuntimeError("native CLI row exceeds its byte budget")
+            self.lines.extend(part+b"\n" for part in fragments)
+        if time.monotonic() >= self.deadline:
+            raise TimeoutError("native audit deadline exhausted")
+        return self.lines.popleft()
 
     def write(self, sql):
         if time.monotonic() >= self.deadline:
@@ -83,11 +117,7 @@ class CliSession:
         self.write(sql.rstrip(";\n")+";\nSELECT '"+marker+"' AS hostlab_boundary;\n")
         columns, used = None, 0
         while True:
-            remaining = self.deadline-time.monotonic()
-            if remaining <= 0: raise TimeoutError("native audit deadline exhausted")
-            try: line = self.messages.get(timeout=remaining)
-            except queue.Empty: raise TimeoutError("native audit CLI response timed out") from None
-            if isinstance(line, Exception): raise line
+            line = self.line()
             if not line: raise RuntimeError("native audit CLI exited before a complete result")
             used += len(line)
             if used > 512*1024*1024: raise RuntimeError("native audit CLI response exceeds byte budget")

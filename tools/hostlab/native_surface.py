@@ -46,6 +46,25 @@ def per_file(session, select, condition, order, *, group=None, **bounds):
         yield from session.rows(sql+" ORDER BY file_id,"+order, **bounds)
 
 
+def code_locations(session, methods):
+    result = {}
+    for file, values in methods.items():
+        if not values:
+            continue
+        lower, upper = min(values), max(values)
+        # One constant-size predicate per DEX narrows transport without repeated
+        # large IN-list evaluation. Preserve the original exact membership test.
+        sql = ("SELECT method_idx,insns_off,insns_size FROM code_items WHERE file_id="+str(file)+
+               " AND method_idx BETWEEN "+str(lower)+" AND "+str(upper)+" ORDER BY method_idx")
+        for row in session.rows(sql, max_rows=200000):
+            index = int(row["method_idx"])
+            if not lower <= index <= upper:
+                raise RuntimeError("native code location is outside the requested method range")
+            if index in values:
+                result[(file, index)] = int(row["insns_off"]), int(row["insns_size"])*2
+    return result
+
+
 def scan(session):
     names = sorted(session.files.values(), key=lambda n:int(re.sub(r"\D", "", n) or 1))
     if any("#" in n for n in names):
@@ -78,11 +97,7 @@ def scan(session):
         records[(file, owner)]["methods"].append((name, proto))
         methods.setdefault(file, {})[index] = (owner, name, proto)
         identities[(file, owner, name, proto)] = index
-    code = {}
-    for file, values in methods.items():
-        for row in session.rows("SELECT method_idx,insns_off,insns_size FROM code_items WHERE file_id="+str(file)+" ORDER BY method_idx", max_rows=200000):
-            if int(row["method_idx"]) in values:
-                code[(file, int(row["method_idx"]))] = int(row["insns_off"]), int(row["insns_size"])*2
+    code = code_locations(session, methods)
     with zipfile.ZipFile(session.apk) as archive:
         for file, values in methods.items():
             info = archive.getinfo(session.files[file])
