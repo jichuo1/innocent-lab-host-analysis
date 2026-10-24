@@ -112,12 +112,15 @@ def run_validation(argument, row, repo, revision):
     import uuid
     import verify_backends
     options = json.loads(argument or "{}")
-    if not isinstance(options, dict) or set(options) - {"rounds", "jadx", "audit"}:
+    if not isinstance(options, dict) or set(options) - {"rounds", "jadx", "audit", "native_reference"}:
         raise ValueError("unsupported validation options")
     rounds = options.get("rounds", 2)
     if (type(rounds) is not int or rounds not in {1,2,3} or
             type(options.get("jadx", True)) is not bool or type(options.get("audit", False)) is not bool):
         raise ValueError("invalid validation rounds/JADX flag")
+    if "native_reference" in options and (not options.get("audit") or
+            not isinstance(options["native_reference"], str) or not re.fullmatch(r"[0-9a-f]{40}", options["native_reference"])):
+        raise ValueError("native_reference requires audit=true and an immutable commit SHA")
     output = hostlab.STATE / "remote-output"
     output.mkdir(parents=True, exist_ok=True)
     work = hostlab.STATE / "backend-validation" / uuid.uuid4().hex
@@ -134,7 +137,8 @@ def run_validation(argument, row, repo, revision):
                 raise ValueError("audit validation requires an exact baseline SHA")
             analyze.fetch_sample(baseline, repo, revision)
             hostlab.write_json(hostlab.CONFIG, {"repo": repo})
-            proof = verify_audits.verify([row, baseline], revision, work, rounds=rounds)
+            proof = verify_audits.verify([row, baseline], revision, work, rounds=rounds,
+                                         native_reference=options.get("native_reference"))
         else:
             proof = asyncio.run(verify_backends.verify(apk, sample, work, rounds=rounds, jadx=options.get("jadx", True)))
         shutil.copyfile(work / "verification.json", output / "verification.json")

@@ -7,6 +7,7 @@ from pathlib import Path
 import queue
 import re
 import tempfile
+import subprocess
 import time
 import unittest
 from unittest.mock import MagicMock, patch
@@ -22,6 +23,7 @@ from native_session import literal
 from native_surface import code_locations, legacy_body_order, prefix
 import plan_ci
 import verify_audits
+import remote_job
 
 
 def complete():
@@ -237,6 +239,28 @@ class TransportTest(unittest.TestCase):
 
 
 class CompletenessTest(unittest.TestCase):
+    def test_reference_materializes_exact_source_only_without_checkout_changes(self):
+        revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=hostlab.ROOT, text=True).strip()
+        with tempfile.TemporaryDirectory() as folder:
+            root, hashes = verify_audits.reference_tree(revision, Path(folder)/"reference")
+            raw = subprocess.check_output(["git", "show", revision+":tools/hostlab/native_cli.py"], cwd=hostlab.ROOT)
+            self.assertEqual(hashes["tools/hostlab/native_cli.py"], hashlib.sha256(raw).hexdigest())
+            self.assertEqual((root/"tools/hostlab/native_cli.py").read_bytes(), raw)
+            self.assertTrue((root/"tools/hostlab/analysis/audit_catalog.json").is_file())
+            self.assertTrue(all(Path(name).suffix in {".py", ".java", ".json"} for name in hashes))
+
+    def test_reference_rejects_mutable_or_shell_like_input_before_git(self):
+        for revision in ("main", "../other", "a"*39, "a"*40+"; command", None):
+            with self.subTest(revision=revision), patch.object(verify_audits.subprocess, "run") as git:
+                with self.assertRaises(ValueError): verify_audits.reference_tree(revision, Path("unused"))
+                git.assert_not_called()
+
+    def test_remote_reference_requires_explicit_audit_and_full_sha(self):
+        for options in ({"native_reference":"main", "audit":True}, {"native_reference":"a"*40}, {"native_reference":None, "audit":True}):
+            with self.subTest(options=options), patch.object(analyze, "fetch_sample") as fetch:
+                with self.assertRaises(ValueError): remote_job.run_validation(json.dumps(options), {}, "unused", "b"*40)
+                fetch.assert_not_called()
+
     def test_partial_or_tampered_results_never_publish_completion(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder)/"features.tsv"
