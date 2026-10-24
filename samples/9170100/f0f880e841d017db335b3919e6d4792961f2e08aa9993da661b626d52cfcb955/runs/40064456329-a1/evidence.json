@@ -1,0 +1,105 @@
+{
+  "release": "https://github.com/jichuo1/innocent-lab-host-analysis/releases/tag/analysis-9170100-f0f880e841d0-40064456329-a1",
+  "files": [
+    {
+      "path": "remote-output/ai-analysis.json",
+      "bytes": 236270,
+      "sha256": "96b7fba0113a1ac3d8d4b937c61638b6632dbb2f10250f8f6f6d9e670a738a59"
+    },
+    {
+      "path": "remote-output/ai-checkpoint.json",
+      "bytes": 345799,
+      "sha256": "41a836b74541ecfeed427ac00cdfe9bf69a154d7012a01ccff323534a6cd0e52"
+    },
+    {
+      "path": "remote-output/ai-draft.json",
+      "bytes": 76393,
+      "sha256": "fc446ac593625ad65955115826a6781a7ca655a15ed4276903a0cfa90ac7ab4a"
+    },
+    {
+      "path": "remote-output/ai-evidence.json",
+      "bytes": 371728,
+      "sha256": "0b40c055e8bdbc304beca94d06655992b9a90542d49fb32f9b1e08cdaaa58dcc"
+    },
+    {
+      "path": "remote-output/ai-review.json",
+      "bytes": 64015,
+      "sha256": "1431e5f868226c40fff34077c874064e631e1fc56d9cd8fe0398cb121ccc0ef3"
+    },
+    {
+      "path": "remote-output/job.json",
+      "bytes": 225544,
+      "sha256": "cf8a97115ceada39e5444b077ee7f71af514a28ef4c9d183ce33d14c181fc6a9"
+    },
+    {
+      "path": "remote-output/priority-baseline.json",
+      "bytes": 93871503,
+      "sha256": "4fb26e0dfa905598df9c4553dda73038233947abc29d0c4381009a5004371021"
+    },
+    {
+      "path": "remote-output/priority-report.md",
+      "bytes": 127806,
+      "sha256": "b826b733fd04fcb8865fb46896277f9a684bb2dceeee3c622bd37bc43fd5aefa"
+    },
+    {
+      "path": "remote-output/priority-summary.json",
+      "bytes": 5542554,
+      "sha256": "836f899464ec935cb6aba41d08c03d17d55176288329d400c1c6ee901274bbcb"
+    },
+    {
+      "path": "remote-output/priority-target.json",
+      "bytes": 96440803,
+      "sha256": "1d12ae59b2068c6b83e8bdec9fb0d9ee393fbb9b6e535f7ea043b8d1fa88f1ed"
+    },
+    {
+      "path": "remote-output/resources.json",
+      "bytes": 317724,
+      "sha256": "611677490f6a839f4059ed9711fb7bd0bbd7992a28f35ee63fd42864de7f476c"
+    },
+    {
+      "path": "remote-output/result.txt",
+      "bytes": 479,
+      "sha256": "78f0c7a64f640c8ab85134f833f3d3970e27a3f150096b1685928dbf5fe504ab"
+    },
+    {
+      "path": "reports/9161100/41efb1c9acb07bad/20261024T050040381537Z/features.tsv",
+      "bytes": 9034,
+      "sha256": "885bf752efe9356405bcea1b2b9504c17b8221387a59251cb1b0308e07c60f8c"
+    },
+    {
+      "path": "reports/9161100/41efb1c9acb07bad/20261024T050040381537Z/home-frame.log",
+      "bytes": 1853,
+      "sha256": "868056c17cd341e77ef54835ea0e9f7e14229631aa7c295e0cf65f7631e734ae"
+    },
+    {
+      "path": "reports/9161100/41efb1c9acb07bad/20261024T050040381537Z/intake.log",
+      "bytes": 3496,
+      "sha256": "6ad2c5a9d5fd8ba9d0291d24690ebbe020e979b1eb8bebd400c212e53be2059d"
+    },
+    {
+      "path": "reports/9161100/41efb1c9acb07bad/20261024T050040381537Z/summary.json",
+      "bytes": 13369,
+      "sha256": "f3c14616b700e2f73ea316e3f237559312780466e698ced21f7d154c39dbb763"
+    },
+    {
+      "path": "reports/9170100/f0f880e841d017db/20261024T045914183698Z/features.tsv",
+      "bytes": 8849,
+      "sha256": "c4864dfdb6c46cca864550515d4857eae3ac77ade02b07a1f7070daaad04209b"
+    },
+    {
+      "path": "reports/9170100/f0f880e841d017db/20261024T045914183698Z/home-frame.log",
+      "bytes": 1853,
+      "sha256": "293d7910237abaa3b11f75ce3d3af7826506e18ed0871508fdd6821b476130a0"
+    },
+    {
+      "path": "reports/9170100/f0f880e841d017db/20261024T045914183698Z/intake.log",
+      "bytes": 3473,
+      "sha256": "c6e6c367f9977ba40ac7c830f52ad0bdfa59b8e16dea0ce94c79245872d31ddb"
+    },
+    {
+      "path": "reports/9170100/f0f880e841d017db/20261024T045914183698Z/summary.json",
+      "bytes": 13288,
+      "sha256": "2d123f1281a47a3d6e6ce00d85071c61bd54b8159ba4e309e17d759d877473b2"
+    }
+  ]
+}
