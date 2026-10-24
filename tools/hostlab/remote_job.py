@@ -112,10 +112,11 @@ def run_validation(argument, row, repo, revision):
     import uuid
     import verify_backends
     options = json.loads(argument or "{}")
-    if not isinstance(options, dict) or set(options) - {"rounds", "jadx"}:
+    if not isinstance(options, dict) or set(options) - {"rounds", "jadx", "audit"}:
         raise ValueError("unsupported validation options")
     rounds = options.get("rounds", 2)
-    if type(rounds) is not int or rounds not in {1,2,3} or type(options.get("jadx", True)) is not bool:
+    if (type(rounds) is not int or rounds not in {1,2,3} or
+            type(options.get("jadx", True)) is not bool or type(options.get("audit", False)) is not bool):
         raise ValueError("invalid validation rounds/JADX flag")
     output = hostlab.STATE / "remote-output"
     output.mkdir(parents=True, exist_ok=True)
@@ -125,16 +126,34 @@ def run_validation(argument, row, repo, revision):
     try:
         apk = analyze.fetch_sample(row, repo, revision)
         sample = {**row, "source": "huggingface", "repo": repo, "revision": revision}
-        proof = asyncio.run(verify_backends.verify(apk, sample, work, rounds=rounds, jadx=options.get("jadx", True)))
+        if options.get("audit"):
+            import verify_audits
+            baseline_sha = os.environ.get("HOSTLAB_BASELINE_SHA", "")
+            baseline = next((r for r in hostlab.manifest(repo, revision)["samples"] if r["sha256"] == baseline_sha), None)
+            if not baseline:
+                raise ValueError("audit validation requires an exact baseline SHA")
+            analyze.fetch_sample(baseline, repo, revision)
+            hostlab.write_json(hostlab.CONFIG, {"repo": repo})
+            proof = verify_audits.verify([row, baseline], revision, work, rounds=rounds)
+        else:
+            proof = asyncio.run(verify_backends.verify(apk, sample, work, rounds=rounds, jadx=options.get("jadx", True)))
         shutil.copyfile(work / "verification.json", output / "verification.json")
         result.update(complete=True, verification=proof)
         rc = 0
     except Exception as exc:
         result.update(error=type(exc).__name__, message=str(exc)[:1000])
+        if (work / "verification.json").is_file():
+            shutil.copyfile(work / "verification.json", output / "verification.json")
+        for log in work.glob("round-*/worker.log"):
+            # Preserve bounded failure diagnostics without copying worker evidence/APKs.
+            with log.open("rb") as stream:
+                stream.seek(max(0, log.stat().st_size-65536))
+                raw = stream.read(65536)
+            (output / (log.parent.name+".log")).write_bytes(raw)
         if (work / "failure.json").is_file():
             shutil.copyfile(work / "failure.json", output / "failure.json")
     (output / "result.txt").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    names = ("verify_backends.py", "analysis_batch.py", "analysis_plan.py", "install_dexsql.py", "remote_job.py")
+    names = ("verify_backends.py", "verify_audits.py", "analysis_batch.py", "analysis_plan.py", "install_dexsql.py", "remote_job.py")
     hostlab.write_json(output / "job.json", {"operation": "backend_validation", "version_code": row["version_code"],
         "apk_sha256": row["sha256"], "sample_revision": revision, "exit_code": rc,
         "scope": "offline_static_only", "complete": result["complete"],

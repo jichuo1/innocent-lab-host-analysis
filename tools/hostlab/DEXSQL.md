@@ -13,6 +13,32 @@ tools/hostlab/hostlab.cmd dexq refs --version-code 9150200 --backend dexsql --de
 Linux/macOS 直接使用当前 Python 调用 `tools/hostlab/hostlab.py`。`HOSTLAB_DEXSQL` 可指定已有程序，仍必须通过本平台固定哈希校验；不会向该覆盖路径下载或写入。
 LICENSE、LICENSE-AUXILIARY 和导出的第三方声明保留在程序目录；客户端包分发安装器与许可，不夹带缓存或本地程序。
 
+## 结构审计与多路径扫描
+
+`analyze.py audit --backend dexsql` 使用 runner 内固定哈希的原生 CLI；`--backend legacy`
+保留原 JADX 结构审计与 Androguard 多路径扫描，`--backend auto` 优先原生，只在不可用或明确不支持时回退。
+迁移验收期间默认保持 legacy。`HOSTLAB_AUDIT_BACKEND` 可显式选择策略，报告记录实际后端及回退原因。
+云端用户继续提交现有 audit/multipath_audit，不需要在本地安装 CLI，也不需要重载共享 MCP。
+
+原生路径复用同一份家族、页面和协议规则；27 项 FEATURE、DISCOVERY、父类/接口、泛型 Signature、
+字符串引用、真实调用边、调用次数、协议双路径、未知调用者、原始方法体和资源指纹都保留。
+LIKE 仅作候选预过滤，最终分类保持原来的大小写规则；file_id 映射回旧报告的数字 DEX 顺序。
+方法体按旧描述符顺序排序后，对同一份原始 DEX 指令字节计算哈希。
+JADX CLI 仍供单类伪源码与后续语义复核，Java 保留用于必要的回退；原生结构路径不启动 JVM。
+
+内部批量提取使用一个 `query --interactive` 进程，SQL 投影用无损 hex 单元格和独立结束标记，
+区分 null/空串并保留 Unicode、控制字符与大整数。SQL 256 KiB、单行 4 MiB、单次传输512 MiB、
+解码结果默认128 MiB/500000行均为硬上限；特定调用边查询有显式有界额度，超限一律失败，不截断伪装完成。
+共享总时限覆盖准备、写入和读取，异常终止自有进程树。外部 MCP 的分页与返回格式不变。
+输入 SHA 前后重验、完整物理 DEX 清单、原有 intake 漂移/home-frame/FEATURE 门禁继续执行。
+重复定义、未知泛型外部类语义或 DEX041 原始指纹等明确未等价形态走有原因的旧实现回退；
+未知运行错误、超时、损坏结果均失败，不以换后端隐藏问题。
+
+云端 `backend_validation` 的 `argument={"audit":true,"rounds":2}` 配合准确的目标 SHA、基线 SHA、
+sample_revision 和 runner_revision，串行双跑两个 APK，交替先后顺序，逐字段比较完整证据多重集。
+它还比较跨版本变化/资源差异/审计结论，并保存各轮耗时、内存采样及源码哈希。
+验证不调用付费 AI，不把 APK、DEX 或反编译目录上传为产物；仅全部证据一致后才能切换默认策略。
+
 ## 请求与计划
 
 相关问题放在一个 JSON 请求文件中。示例：

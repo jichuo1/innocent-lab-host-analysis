@@ -20,6 +20,8 @@ def requirements(operation, argument):
         native_only = native and not optional and len(plan["groups"]) == 1
     elif operation == "backend_validation":
         native = True
+    elif operation in {"audit", "multipath_audit"}:
+        native = optional = True
     return {"needs_dexsql": str(native).lower(), "dexsql_optional": str(optional).lower(),
             "needs_java":str(operation in {"audit","decompile","multipath_audit","backend_validation"}).lower(),
             "requirements": "requirements-query.txt" if native_only else "requirements.txt"}

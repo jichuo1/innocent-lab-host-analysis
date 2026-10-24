@@ -142,8 +142,9 @@ def fetch_sample(row, repo, revision, *, timings=None):
 
 def tool_hashes():
     files = [HERE / "analyze.py", HERE / "hostlab.py", HERE / "process_control.py",
-             HERE / "runner_resources.py", HERE / "remote_job.py", HERE / "priority_analysis.py",
-             *sorted(SUITE.glob("*.py")),
+             HERE / "runner_resources.py", HERE / "remote_job.py", HERE / "priority_analysis.py", HERE / "surface_workers.py",
+             *[HERE / n for n in ("audit_common.py", "native_audit.py", "native_cli.py", "native_session.py", "native_graph.py", "native_rules.py", "native_surface.py")],
+             SUITE / "audit_catalog.json", *sorted(SUITE.glob("*.py")),
              *sorted(SUITE.glob("*.java"))]
     return {str(p.relative_to(HERE)).replace("\\", "/"): hostlab.digest(p) for p in files}
 
@@ -167,7 +168,7 @@ def features(path):
     return result
 
 
-def main(argv):
+def main(argv, *, surface_output=None):
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     doctor = sub.add_parser("doctor")
@@ -183,6 +184,7 @@ def main(argv):
         p.add_argument("--timeout", type=int, default=900)
         if name == "audit":
             p.add_argument("--mode", choices=("basic", "full"), default="full")
+            p.add_argument("--backend", choices=("auto", "dexsql", "legacy"), default=os.environ.get("HOSTLAB_AUDIT_BACKEND", "legacy"))
         else:
             p.add_argument("--class", dest="class_name", required=True)
     compare = sub.add_parser("compare")
@@ -217,7 +219,25 @@ def main(argv):
     if args.timeout < 1 or args.timeout > 3600:
         raise RuntimeError("Timeout must be between 1 and 3600 seconds")
     jar = jar_path(args.jadx_jar)
-    needs_java = args.command == "decompile" or args.mode == "full"
+    native = None
+    fallback = None
+    backend = "legacy"
+    if args.command == "audit" and args.mode == "full" and args.backend != "legacy":
+        import install_dexsql
+        if install_dexsql.status()["available"]:
+            backend = "dexsql"
+        elif args.backend == "dexsql":
+            raise RuntimeError("Requested pinned DexSQL audit backend is unavailable")
+        else:
+            fallback = "dexsql_unavailable"
+    needs_java = args.command == "decompile" or args.mode == "full" and backend == "legacy"
+    if needs_java and jar is None:
+        # A structural-only job need not download JADX; semantic reads and explicit
+        # reference/fallback runs obtain the same pinned JAR on demand.
+        rc = process_control.run([sys.executable, str(HERE/"install_jadx.py")], stdout=sys.stderr, timeout=120)
+        if rc:
+            raise RuntimeError("Pinned JADX preparation failed")
+        jar = jar_path(args.jadx_jar)
     if needs_java and (not jar or not shutil.which("java") or not shutil.which("javac")):
         raise RuntimeError("Run doctor; install JDK and set HOSTLAB_JADX_JAR")
     if args.command == "decompile" and not re.fullmatch(r"[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+", args.class_name):
@@ -256,6 +276,29 @@ def main(argv):
         print("Report: " + str(out / "summary.json"))
         print("Source: " + str(out / "class.java"))
         return rc or (0 if report["source_written"] else 1)
+    if backend == "dexsql":
+        import native_audit
+        try:
+            native = native_audit.run(apk, sha256=sample["sha256"], surface=surface_output is not None, timeout=args.timeout)
+        except native_audit.UnsupportedAudit as exc:
+            if args.backend != "auto": raise
+            fallback, backend = str(exc), "legacy"
+            jar = jar_path(args.jadx_jar)
+            if jar is None:
+                rc = process_control.run([sys.executable, str(HERE/"install_jadx.py")], stdout=sys.stderr, timeout=120)
+                if rc: raise RuntimeError("Pinned JADX fallback preparation failed")
+                jar = jar_path(args.jadx_jar)
+            if not jar or not shutil.which("java") or not shutil.which("javac"):
+                raise RuntimeError("Native audit is unsupported and verified Java fallback is unavailable")
+            env["HOSTLAB_JADX_JAR"] = str(jar)
+            env["HOSTLAB_AUDIT_HEAP_MIB"] = str(runner_resources.audit_heap_mib())
+            report.update(jadx_sha256=hostlab.digest(jar), java_heap_mib=int(env["HOSTLAB_AUDIT_HEAP_MIB"]))
+        else:
+            native_audit.write_tsv(out/"features.tsv", native, apk.name)
+            if surface_output is not None:
+                surface_output["report"] = native["surface"]
+            report["native_audit"] = {k:v for k,v in native.items() if k not in {"features", "discoveries", "surface"}}
+    report.update(audit_backend=backend, backend_fallback_reason=fallback)
     # Each invocation compiles in its own directory; concurrent audits do not share classes.
     with tempfile.TemporaryDirectory(prefix="hostlab-audit-") as temp:
         sandbox = Path(temp)
@@ -264,9 +307,15 @@ def main(argv):
                 shutil.copyfile(file, sandbox / file.name)
         command = [sys.executable, str(sandbox / "run_intake.py"), str(apk),
                    "--tsv", str(out / "features.tsv")]
-        if args.mode == "full":
+        if args.mode == "full" and backend == "legacy":
             command.append("--audit")
         rc = execute(command, out / "intake.log", env, args.timeout)
+        if native is not None and backend == "dexsql" and rc in (0, 1):
+            import contextlib
+            from analysis.run_intake import print_feature_report
+            with (out/"intake.log").open("a", encoding="utf-8") as stream, contextlib.redirect_stdout(stream):
+                problems = print_feature_report(str(out/"features.tsv"), None)
+            rc = 1 if rc or problems else 0
         home_rc = execute([sys.executable, str(sandbox / "home_frame_audit.py"), str(apk)],
                           out / "home-frame.log", env, args.timeout)
     from analysis.run_intake import EXPECTED_FEATURES

@@ -12,6 +12,9 @@ files += [here / "test_dexq_mcp.py", here / "bench_dexq.py"]
 files += [here / "remote_mcp.py", here / "remote_job.py", here / "host-analysis.yml", here / "install_jadx.py"]
 files += [here / "process_control.py", here / "test_audit_stability.py"]
 files += [here / "test_ai_output_budget.py"]
+files += [here / name for name in ("audit_common.py", "native_audit.py", "native_cli.py", "native_session.py",
+          "native_graph.py", "native_rules.py", "native_surface.py", "verify_audits.py", "test_native_audit.py")]
+files += [here / "analysis/audit_catalog.json"]
 files += [here / name for name in ("install_dexsql.py", "analysis_plan.py", "analysis_batch.py", "remote_schedule.py",
                                    "analysis_paging.py", "analysis_checkpoint.py", "test_analysis_pagination.py",
                                    "plan_ci.py", "verify_backends.py", "test_analysis_scheduler.py", "requirements-query.txt", "DEXSQL.md")]

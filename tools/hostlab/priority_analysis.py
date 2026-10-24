@@ -13,6 +13,7 @@ import surface_workers as W
 import source_snapshot
 import snapshot_transport
 import runner_resources
+from audit_common import resource_fingerprints
 
 
 def scan_apk(apk, sample):
@@ -30,17 +31,7 @@ def scan_apk(apk, sample):
     with ProcessPoolExecutor(max_workers=workers, initializer=W.W.init_worker) as pool:
         report = W.summarize(list(pool.map(W.scan, jobs)))
     report["sample"] = sample
-    resources = {}
-    with zipfile.ZipFile(apk) as archive:
-        for entry in archive.infolist():
-            if entry.filename != "resources.arsc" and not (entry.filename.startswith("res/") and entry.filename.endswith(".xml")):
-                continue
-            digest = hashlib.sha256()
-            with archive.open(entry) as stream:
-                for chunk in iter(lambda: stream.read(65536), b""):
-                    digest.update(chunk)
-            resources[entry.filename] = digest.hexdigest()
-    report["resource_fingerprints"] = resources
+    report["resource_fingerprints"] = resource_fingerprints(apk)
     report["scan_execution"] = {"workers": workers, "dex_files": len(names),
                                 "elapsed_ms": (time.monotonic()-started)*1000}
     return report
@@ -72,11 +63,12 @@ def resolve(code, sha, revision):
     return analyze.inputs(SimpleNamespace(apk=None, version_code=code, sha256=sha, revision=revision))
 
 
-def audit_sample(sample, revision):
+def audit_sample(sample, revision, *, surface=None):
     folder = hostlab.STATE / "reports" / str(sample["version_code"]) / sample["sha256"][:16]
     previous = set(folder.glob("*/summary.json"))
-    rc = analyze.main(["audit", "--version-code", str(sample["version_code"]),
-                       "--sha256", sample["sha256"], "--revision", revision])
+    argv = ["audit", "--version-code", str(sample["version_code"]),
+            "--sha256", sample["sha256"], "--revision", revision]
+    rc = analyze.main(argv, surface_output=surface) if surface is not None else analyze.main(argv)
     paths = set(folder.glob("*/summary.json")) - previous
     report = json.loads(next(iter(paths)).read_text(encoding="utf-8")) if len(paths) == 1 else {}
     from analysis.run_intake import EXPECTED_FEATURES
@@ -86,7 +78,9 @@ def audit_sample(sample, revision):
             report.get("sample", {}).get("revision") != revision):
         raise RuntimeError("Standard audit did not produce usable FEATURE evidence")
     return {"exit_code": rc, "features": report["features"], "runtime_verified": False,
-            "scope": "legacy_offline_auditor_snapshot_not_production_coverage"}
+            "audit_backend": report.get("audit_backend", "legacy"),
+            "backend_fallback_reason": report.get("backend_fallback_reason"),
+            "scope": "offline_auditor_snapshot_not_production_coverage"}
 
 
 def main():
@@ -101,8 +95,10 @@ def main():
     source_context["freshness"] = ("dispatch_worktree_snapshot" if binding.get("origin") == "worktree"
                                    else "published_unverified_worktree")
     target_apk, target_sample = resolve(code, sha, revision)
-    target_audit = audit_sample(target_sample, revision)
-    target = scan_apk(target_apk, target_sample)
+    shared = {}
+    target_audit = audit_sample(target_sample, revision, surface=shared)
+    target = shared.get("report") or scan_apk(target_apk, target_sample)
+    target["sample"] = target_sample
     hostlab.write_json(out / "priority-target.json", target)
     baseline_sha = os.environ.get("HOSTLAB_BASELINE_SHA", "")
     baseline = None
@@ -114,8 +110,10 @@ def main():
         if row.get("certificate_sha256") != target_sample.get("certificate_sha256"):
             raise RuntimeError("Baseline signing lineage differs")
         apk, sample = resolve(row["version_code"], baseline_sha, revision)
-        baseline_audit = audit_sample(sample, revision)
-        baseline = scan_apk(apk, sample)
+        shared = {}
+        baseline_audit = audit_sample(sample, revision, surface=shared)
+        baseline = shared.get("report") or scan_apk(apk, sample)
+        baseline["sample"] = sample
         hostlab.write_json(out / "priority-baseline.json", baseline)
     changes = W.compare(baseline, target) if baseline else []
     resource_diff = resource_changes(baseline, target) if baseline else None
