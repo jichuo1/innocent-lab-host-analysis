@@ -184,13 +184,15 @@ def main(argv, *, surface_output=None):
         p.add_argument("--timeout", type=int, default=900)
         if name == "audit":
             p.add_argument("--mode", choices=("basic", "full"), default="full")
-            p.add_argument("--backend", choices=("auto", "dexsql", "legacy"), default=os.environ.get("HOSTLAB_AUDIT_BACKEND", "legacy"))
+            p.add_argument("--backend", choices=("auto", "dexsql", "legacy"), default=os.environ.get("HOSTLAB_AUDIT_BACKEND", "auto"))
         else:
             p.add_argument("--class", dest="class_name", required=True)
     compare = sub.add_parser("compare")
     compare.add_argument("--base", type=Path, required=True, help="Base summary.json")
     compare.add_argument("--target", type=Path, required=True, help="Target summary.json")
     args = parser.parse_args(argv)
+    if args.command == "audit" and args.backend not in {"auto", "dexsql", "legacy"}:
+        raise ValueError("HOSTLAB_AUDIT_BACKEND must be auto, dexsql or legacy")
     if args.command == "doctor":
         report = {"python": sys.version.split()[0], "java": shutil.which("java"),
                   "javac": shutil.which("javac"), "jadx_jar": str(jar_path(args.jadx_jar) or "missing")}

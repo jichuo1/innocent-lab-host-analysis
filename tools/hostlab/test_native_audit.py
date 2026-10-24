@@ -1,6 +1,7 @@
 """Native audits retain exact evidence, bounded transport and fail-closed gates."""
 import hashlib
 import json
+import os
 from pathlib import Path
 import queue
 import re
@@ -190,7 +191,9 @@ class CompletenessTest(unittest.TestCase):
              patch.object(analyze, "execute", side_effect=[basic_rc, 0]) as execute, \
              patch.object(analyze.process_control, "run") as process:
             carrier = {}
-            rc = analyze.main(["audit", "--apk", folder, "--backend", backend], surface_output=carrier)
+            argv = ["audit", "--apk", folder]
+            if backend is not None: argv += ["--backend", backend]
+            rc = analyze.main(argv, surface_output=carrier)
             report = json.loads(next(Path(folder).glob("reports/*/*/*/summary.json")).read_text())
             self.assertTrue(all("java" not in str(c.args[0]) and "--audit" not in c.args[0] for c in execute.call_args_list))
             process.assert_not_called()
@@ -202,6 +205,17 @@ class CompletenessTest(unittest.TestCase):
         self.assertTrue(report["audit_complete"])
         self.assertEqual(report["audit_backend"], "dexsql")
         self.assertIn("report", carrier)
+
+    def test_default_prefers_available_native_after_cloud_equivalence_acceptance(self):
+        with patch.dict(os.environ):
+            os.environ.pop("HOSTLAB_AUDIT_BACKEND", None)
+            _, report, _ = self.invoke(None)
+        self.assertEqual(report["audit_backend"], "dexsql")
+
+    def test_invalid_environment_policy_fails_before_input_fetch(self):
+        with patch.dict(os.environ, HOSTLAB_AUDIT_BACKEND="invalid"), patch.object(analyze, "inputs") as inputs:
+            with self.assertRaises(ValueError): analyze.main(["audit", "--apk", "."])
+            inputs.assert_not_called()
 
     def test_basic_gate_timeout_cannot_become_complete_native_audit(self):
         rc, report, _ = self.invoke(basic_rc=124)

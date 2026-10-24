@@ -17,7 +17,7 @@ LICENSE、LICENSE-AUXILIARY 和导出的第三方声明保留在程序目录；�
 
 `analyze.py audit --backend dexsql` 使用 runner 内固定哈希的原生 CLI；`--backend legacy`
 保留原 JADX 结构审计与 Androguard 多路径扫描，`--backend auto` 优先原生，只在不可用或明确不支持时回退。
-迁移验收期间默认保持 legacy。`HOSTLAB_AUDIT_BACKEND` 可显式选择策略，报告记录实际后端及回退原因。
+默认策略为 auto，优先 DexSQL。`HOSTLAB_AUDIT_BACKEND` 可显式选择策略，报告记录实际后端及回退原因。
 云端用户继续提交现有 audit/multipath_audit，不需要在本地安装 CLI，也不需要重载共享 MCP。
 
 原生路径复用同一份家族、页面和协议规则；27 项 FEATURE、DISCOVERY、父类/接口、泛型 Signature、
@@ -38,6 +38,21 @@ JADX CLI 仍供单类伪源码与后续语义复核，Java 保留用于必要的
 sample_revision 和 runner_revision，串行双跑两个 APK，交替先后顺序，逐字段比较完整证据多重集。
 它还比较跨版本变化/资源差异/审计结论，并保存各轮耗时、内存采样及源码哈希。
 验证不调用付费 AI，不把 APK、DEX 或反编译目录上传为产物；仅全部证据一致后才能切换默认策略。
+
+2026-10-24 [云端两轮完整双跑](https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/40061414146)
+在候选 `e4ab3d1af6a13f40695f4be37bfd66f88c5b4c02` 上完成，输入固定于
+sample revision `1c744580ec53f13d57339e162246945e5004e577`。
+目标 `9170100/f0f880e841d017db335b3919e6d4792961f2e08aa9993da661b626d52cfcb955` 与
+基线 `9161100/41efb1c9acb07badab5296953fb3da1def6925e2b34662120ca96df9d17bbfb2`
+各轮20类完整证据均一致，跨版本103项变化、资源差异及结论也一致，源码哈希结束重验成立。
+
+| APK | 旧实现耗时中位数 | 原生耗时中位数 | 耗时减少 | 旧进程树 RSS 采样峰值 | 原生采样峰值 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 9170100 | 163.98 s | 105.87 s | 35.4% | 6996–7175 MiB | 1261–1266 MiB |
+| 9161100 | 150.67 s | 94.44 s | 37.3% | 6661–6782 MiB | 1187–1196 MiB |
+
+这些是同一 Linux runner、每后端/样本两轮新进程、交替顺序、保留 OS 文件缓存的完整静态门禁与扫描测量；
+样本下载在分析计时外，采样 RSS 不是内核记录的真实瞬时峰值。静态结果仍为 REVIEW_REQUIRED，运行期未知。
 
 ## 请求与计划
 
