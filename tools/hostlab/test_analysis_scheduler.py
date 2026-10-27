@@ -296,6 +296,33 @@ class ExecutionTest(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(report["complete"])
             self.assertEqual(report["result_budget_bytes"],2*1024*1024)
 
+    async def test_missing_method_keeps_its_kind_and_does_not_skip_the_next_task(self):
+        with tempfile.TemporaryDirectory() as temp:
+            apk=Path(temp)/"app.apk"
+            with zipfile.ZipFile(apk,"w") as archive:archive.writestr("classes.dex",b"fixture")
+            client=SimpleNamespace(call_tool=AsyncMock())
+            class Context:
+                async def __aenter__(self):return client
+                async def __aexit__(self,*args):return False
+            async def opened(session):
+                session.dataset="opened";session.files={0:"classes.dex"}
+                return {"backend":"dexsql"}
+            spec={"backend":"dexsql","tasks":[{"id":"gone","operation":"decode","method":"Lx/y;-><clinit>()V"},
+                                              {"id":"manifest","operation":"info"}]}
+            missing=analysis_batch.BackendError("backend rejected operation",{"dataset_id":"dataset-1",
+                "error":{"kind":"not_found","message":"method is not defined in the selected DEX"}})
+            with patch.object(analysis_batch,"Client",return_value=Context()), \
+                 patch.object(analysis_batch.install_dexsql,"status",return_value={"available":True}), \
+                 patch.object(analysis_batch.install_dexsql,"verify",return_value=Path("fixture.exe")), \
+                 patch.object(analysis_batch.Session,"open",opened), \
+                 patch.object(analysis_batch.Session,"execute",side_effect=[missing,{"partial":False,"rows":[]}]) as execute:
+                report=await analysis_batch.execute(apk,spec,roots=[temp])
+            self.assertEqual([t["status"] for t in report["tasks"]],["error","complete"])
+            self.assertEqual(report["tasks"][0]["reason"],"not_found")
+            self.assertEqual(report["tasks"][0]["detail"]["error"]["message"],"method is not defined in the selected DEX")
+            self.assertEqual(execute.call_count,2)
+            client.call_tool.assert_awaited_once_with("close_dataset",{"dataset_id":"opened"})
+
     async def test_failed_session_is_closed_and_remaining_tasks_are_not_replayed(self):
         with tempfile.TemporaryDirectory() as temp:
             apk = Path(temp)/"app.apk"

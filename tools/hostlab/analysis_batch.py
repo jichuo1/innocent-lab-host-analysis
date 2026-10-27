@@ -20,8 +20,9 @@ import hostlab
 import install_dexsql
 
 MAX_RESULT_BYTES = 2 * 1024 * 1024
-# Refusals that leave the prepared dataset usable and cannot change on replay.
-REJECTED_KINDS = {"invalid_query", "invalid_input", "impl_defined", "output_too_large"}
+# Statement-level failures: the prepared dataset stays usable, and replaying the
+# same request cannot change the answer. A missing method or class is one of them.
+STATEMENT_FAILURES = {"invalid_query", "invalid_input", "impl_defined", "output_too_large", "not_found"}
 HERE = Path(__file__).resolve().parent
 
 
@@ -39,13 +40,13 @@ def failure(exc):
 
 
 def request_reason(exc, default):
-    """A statement the backend refused keeps its own kind; only unknown transport is generic."""
+    """A statement-level failure keeps its own kind; only unknown transport is generic."""
     if isinstance(exc, analysis_paging.PageError):
         return str(exc)
     detail = getattr(exc, "detail", None)
     error = detail.get("error") if isinstance(detail, dict) else None
     kind = error.get("kind") if isinstance(error, dict) else None
-    return kind if kind in REJECTED_KINDS else default
+    return kind if kind in STATEMENT_FAILURES else default
 
 
 def cache_directory():
@@ -377,9 +378,9 @@ async def execute(apk, request, *, roots, sample=None, resume=None, checkpoint=N
                                     "elapsed_ms": (time.monotonic() - began) * 1000, **failure(exc)})
                             detail = exc.detail if isinstance(exc, BackendError) and isinstance(exc.detail, dict) else {}
                             error = detail.get("error", {})
-                            if (task_map[name]["operation"] == "query" and not session.dead and isinstance(error, dict)
-                                    and not error.get("dataset_closed") and error.get("kind") in REJECTED_KINDS):
-                                continue  # A rejected read-only statement does not invalidate the dataset.
+                            if (not session.dead and isinstance(error, dict)
+                                    and not error.get("dataset_closed") and error.get("kind") in STATEMENT_FAILURES):
+                                continue  # A refused or missing read-only object does not invalidate the dataset.
                             # A failed/expired dataset is never silently reused or replayed.
                             break
                 finally:

@@ -26,7 +26,9 @@ SQLite `substr` 的起点从 1 开始；按返回的实际 sample_revision/apk_s
 （deterministic/transient）和最多 8 个 `failure_reasons`，步骤日志同时打印一行摘要。
 同一 payload 的确定性失败在 6 小时内不自动重派，返回 `replay_blocked`、上次 `request_id` 和原因；
 修正后可用 `submit_analysis(..., force=true)` 或 `submit_job(..., allow_replay=true)` 显式授权一次付费重跑。
-`invalid_query` 不再被记成 `backend_request_failed`；命中原生表名却走旧索引时附带 `hint`。
+语句级失败（`invalid_query`/`invalid_input`/`impl_defined`/`output_too_large`/`not_found`）保留自身
+`kind`，不再一律记成 `backend_request_failed`，也不会让同一会话里的后续任务被跳过；
+命中原生表名却走旧索引时附带 `hint`。`not_found` 表示该 APK 里没有这个方法或类，重派不会改变结果。
 
 远程 `job_result` 默认每页 32000 个 Unicode 字符、总预览 96000 字符；可通过 `page_chars=1024..128000` 调整，每次总预览不超过三页。超限仍明确标记，不把预览当完整证据。
 首次用 `job_result(request_id)`；若 `result_page.next_offset` 非空，将该值作为 `job_result(request_id, result_offset=该值)` 继续读取，直到游标为空。

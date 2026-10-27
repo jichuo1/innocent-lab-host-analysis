@@ -235,6 +235,9 @@ class RemoteQueryInputTest(unittest.TestCase):
             {"error": {"kind": "invalid_query", "message": "unknown column `return_descriptor`"}})
         self.assertEqual(analysis_batch.request_reason(rejected, "backend_request_failed"), "invalid_query")
         closed = analysis_batch.BackendError("deadline", {"error": {"kind": "dataset_closed"}})
+        missing = analysis_batch.BackendError("backend rejected operation",
+            {"error": {"kind": "not_found", "message": "method is not defined in the selected DEX"}})
+        self.assertEqual(analysis_batch.request_reason(missing, "backend_request_failed"), "not_found")
         self.assertEqual(analysis_batch.request_reason(closed, "backend_request_failed"), "backend_request_failed")
         self.assertEqual(analysis_batch.request_reason(RuntimeError("boom"), "page_request_failed"),
                          "page_request_failed")
