@@ -249,7 +249,10 @@ class RemoteQueryInputTest(unittest.TestCase):
             {"id": "part", "status": "partial", "result": {"pagination": {"stop_reason": "row_budget"}}},
             {"id": "hidden", "status": "error", "reason": "SELECT * FROM classes"}]}
         self.assertEqual(remote_job.task_reasons(report), ["invalid_query", "row_budget"])
-        self.assertEqual(retry_policy.classify(remote_job.task_reasons(report)), "deterministic")
+        # A rejected statement alone would be deterministic; the resumable partial keeps
+        # the payload replayable, otherwise the admitted cursor could never continue.
+        self.assertEqual(retry_policy.classify(remote_job.task_reasons(report)), "progressable")
+        self.assertEqual(retry_policy.classify(["invalid_query"]), "deterministic")
 
     def test_runner_rejects_invalid_input_before_remote_access(self):
         for size in ("", "0", "-1", "16001", "1;anything"):

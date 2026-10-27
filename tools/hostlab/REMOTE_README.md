@@ -23,7 +23,11 @@ SQLite `substr` 的起点从 1 开始；按返回的实际 sample_revision/apk_s
 单条命令不猜测 schema：`backend="dexsql"` 而原生程序未验真时直接失败，不回退到旧索引；
 原生页自行限制单元格，因此 `max_cell_chars` 只适用于 sqlite 后端，混用会拒绝派发。
 `job.json` 记录 `dexq_backend` 与 `backend_reason`；失败时记录 `failure.kind`、`retry_class`
-（deterministic/transient）和最多 8 个 `failure_reasons`，步骤日志同时打印一行摘要。
+（deterministic/progressable/unknown）和最多 8 个 `failure_reasons`，步骤日志同时打印一行摘要。
+分页预算 `page_budget`/`row_budget`/`byte_budget` 属于 `progressable`：本次只取到有界页/行/字节，
+游标停在 `next_offset`（例如 400/3225），再次提交同一请求会从中断处继续，不会被重放闸门拦下。
+`deterministic` 只用于同一请求再付费也无法改变的情形：SQL/参数被拒、目标方法或类不存在、单语句输出超限。
+单次运行的硬上限是 8 页、1000 行、1 MiB；任务里的 `limit` 是每页行数，`limit=50` 时 8 页只能取 400 行。
 同一 payload 的确定性失败在 6 小时内不自动重派，返回 `replay_blocked`、上次 `request_id` 和原因；
 修正后可用 `submit_analysis(..., force=true)` 或 `submit_job(..., allow_replay=true)` 显式授权一次付费重跑。
 语句级失败（`invalid_query`/`invalid_input`/`impl_defined`/`output_too_large`/`not_found`）保留自身

@@ -147,8 +147,10 @@ MCP 名称建议 `hostlab-remote`；不要与本地 dexq 服务混淆。
 工具：submit_job(version_code, operation, argument)、job_status(request_id)、list_jobs()、job_result(request_id)。
 operation 可选 info、query、decode、string_refs、decompile、audit；argument 分别为 SQL/方法签名/字符串/类名等。
 query/decode/string_refs/info 可用 backend="sqlite"（默认，旧 schema）或 backend="dexsql"（原生关系）；单条命令不猜测 schema。
-同一 payload 的确定性失败（SQL/参数被拒、行数/字节预算、类不存在）在 6 小时内不自动重派：submit 返回 replay_blocked，
+同一 payload 的确定性失败（SQL/参数被拒、目标方法或类不存在、单语句输出超限）在 6 小时内不自动重派：submit 返回 replay_blocked，
 修正后可显式 force=true / allow_replay=true 授权一次付费重跑。失败原因见 job.json 的 failure/retry_class/failure_reasons。
+分页预算（page_budget/row_budget/byte_budget）是 progressable：部分结果停在 next_offset，再次提交会继续推进，不会被拦。
+单次运行上限 8 页 / 1000 行 / 1 MiB；任务里的 limit 是每页行数，limit=50 时一次最多 400 行。
 提交后返回 request_id，稍后查状态，完成后取结果。AI 不应把 submit 成功当成分析完成。
 job_result 只下载结果附件，不下载 APK/DEX/完整索引；附件保留 14 天，过期需重跑。
 当前没有跨任务索引缓存，每次任务重新取包并按需索引；先保证证据一致，再优化缓存。

@@ -220,9 +220,15 @@ class ScheduleTest(unittest.TestCase):
         self.assertNotEqual(forced["request_id"], first["request_id"])
         self.assertEqual(len(self.dispatches), 2)
 
-    def test_transient_failure_is_replayed_without_force(self):
+    def test_progressable_failure_is_replayed_without_force(self):
         self.submit()
-        self.fail_receipt("transient", ["backend_request_failed"])
+        self.fail_receipt("progressable", ["backend_request_failed"])
+        self.assertTrue(self.submit()["dispatched"])
+        self.assertEqual(len(self.dispatches), 2)
+
+    def test_partial_page_budget_stays_resumable(self):
+        self.submit()
+        self.fail_receipt("progressable", ["page_budget"])
         self.assertTrue(self.submit()["dispatched"])
         self.assertEqual(len(self.dispatches), 2)
 

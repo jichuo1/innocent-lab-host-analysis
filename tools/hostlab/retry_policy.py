@@ -2,8 +2,9 @@
 
 The runner is the only authority on why a job stopped. The words below travel in
 job.json so a caller can tell a deterministic rejection (the same request cannot
-succeed by paying for it again) from a transport or capacity failure that a later
-attempt may resolve. Nothing here reads artifacts, APKs, logs or the network.
+succeed by paying for it again) from a stop that another attempt can still advance,
+whether by resuming an admitted page cursor or by retrying unknown transport.
+Nothing here reads artifacts, APKs, logs or the network.
 """
 
 from __future__ import annotations
@@ -17,17 +18,20 @@ DETERMINISTIC = frozenset({
     "invalid_input",        # backend rejected the task parameters
     "impl_defined",         # statement shape this engine refuses by design
     "output_too_large",     # the same projection exceeds the same transport budget
-    "row_budget",           # the same SQL needs more rows than the admitted limit
-    "byte_budget",          # the same rows exceed the same result budget
     "class_not_found",      # the requested class is absent from this APK
     "decompile_empty",      # the decompiler emits no source for this class
     "not_found",            # decode/reference target is absent from this sample
 })
-# Unknown transport state, exhausted capacity or a killed runner may resolve alone.
-TRANSIENT = frozenset({
+# Another attempt can still make progress: the checkpoint resumes a partial page
+# cursors, unknown transport may heal, and exhausted capacity may come back.
+PROGRESSABLE = frozenset({
+    "page_budget",          # bounded pages per run; the cursor continues next time
+    "row_budget",           # bounded rows per run; the cursor continues next time
+    "byte_budget",          # bounded bytes per run; the cursor continues next time
+    "resume_pending",       # a completed prefix was sealed, the rest still to fetch
+    "native_page_budget_retry",
     "backend_request_failed",
     "page_request_failed",
-    "native_page_budget_retry",
     "analysis_deadline_or_session_failure",
     "backend_session_failed_or_deadline",
     "timeout",
@@ -64,12 +68,12 @@ def reasons(values, limit=MAX_REASONS):
 
 
 def classify(values):
-    """'deterministic', 'transient' or 'unknown' for one failed job's reasons."""
+    """'deterministic', 'progressable' or 'unknown' for one failed job's reasons."""
     words = reasons(values, limit=32)
     if not words:
         return "unknown"
-    if any(word in TRANSIENT for word in words):
-        return "transient"
+    if any(word in PROGRESSABLE for word in words):
+        return "progressable"
     if all(word in DETERMINISTIC for word in words):
         return "deterministic"
     return "unknown"

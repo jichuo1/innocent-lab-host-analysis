@@ -15,7 +15,8 @@ import hostlab
 import retry_policy
 
 ANNOTATIONS = {"retry_class", "failure_reasons"}
-RETRY_CLASSES = {"deterministic", "transient", "unknown"}
+# "transient" is the earlier name of "progressable"; older receipts may still carry it.
+RETRY_CLASSES = {"deterministic", "progressable", "unknown", "transient"}
 
 
 def admission_lock(path):
