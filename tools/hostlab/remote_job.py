@@ -142,7 +142,10 @@ def run_validation(argument, row, repo, revision):
     import shutil
     import uuid
     import verify_backends
-    options = json.loads(argument or "{}")
+    try:
+        options = json.loads(argument or "{}")
+    except ValueError:
+        raise ValueError("argument must be valid JSON") from None
     if not isinstance(options, dict) or set(options) - {"rounds", "jadx", "audit", "native_reference"}:
         raise ValueError("unsupported validation options")
     rounds = options.get("rounds", 2)
@@ -219,11 +222,16 @@ def main():
     batch_request = None
     if operation in {"batch", "batch_group"}:
         import analysis_plan
+        try:
+            parsed = json.loads(argument or "{}")
+        except ValueError:
+            # A malformed request must fail as data, not as a raw decoder traceback.
+            raise RuntimeError("argument must be valid JSON") from None
         if operation == "batch":
-            batch_request = analysis_plan.validate(json.loads(argument))
+            batch_request = analysis_plan.validate(parsed)
         else:
             import runner_group
-            group_request = runner_group.validate(json.loads(argument))
+            group_request = runner_group.validate(parsed)
             if int(code) != group_request["samples"][0]["version_code"]:
                 raise RuntimeError("Group compatibility version does not match its first sample")
         runner_revision = os.environ.get("HOSTLAB_RUNNER_REVISION", "")

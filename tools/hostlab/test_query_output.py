@@ -242,6 +242,17 @@ class RemoteQueryInputTest(unittest.TestCase):
         self.assertEqual(analysis_batch.request_reason(RuntimeError("boom"), "page_request_failed"),
                          "page_request_failed")
 
+    def test_malformed_request_json_fails_as_data_not_as_a_decoder_traceback(self):
+        env = {"HOSTLAB_VERSION": "9140200", "HOSTLAB_OPERATION": "batch",
+               "HOSTLAB_ARGUMENT": '{"schema":1,"backend":"dexsql","tasks":'}
+        with patch.dict(os.environ, env, clear=True), patch.object(hostlab, "api_private") as api, \
+                self.assertRaisesRegex(RuntimeError, "valid JSON"):
+            remote_job.main()
+        api.assert_not_called()
+        with self.assertRaisesRegex(ValueError, "valid JSON"):
+            remote_job.run_validation('{"audit":true,',
+                                     {"version_code": 9140200, "sha256": "a" * 64}, "owner/repo", "b" * 40)
+
     def test_validation_failure_records_a_bounded_kind_and_retry_class(self):
         row = {"version_code": 9140200, "sha256": "a" * 64}
         with tempfile.TemporaryDirectory() as directory, \
