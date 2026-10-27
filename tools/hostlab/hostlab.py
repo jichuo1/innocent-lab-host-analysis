@@ -18,12 +18,31 @@ STATE = ROOT / "runtime" / "hostlab"
 CONFIG = STATE / "config.json"
 
 
+# Per-process memo for large already-verified binaries (JADX jar, DexSQL). The key
+# binds path, size and mtime, so a replaced file is re-hashed; source files stay
+# small enough to be hashed on every call.
+_DIGEST_MEMO = {}
+_DIGEST_MEMO_MIN_BYTES = 4 * 1024 * 1024
+_DIGEST_MEMO_LIMIT = 16
+
+
 def digest(path):
+    path = Path(path)
+    info = path.stat()
+    key = None
+    if info.st_size >= _DIGEST_MEMO_MIN_BYTES:
+        key = (str(path.resolve()), info.st_size, info.st_mtime_ns)
+        cached = _DIGEST_MEMO.get(key)
+        if cached is not None:
+            return cached
     h = hashlib.sha256()
     with open(path, "rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             h.update(chunk)
-    return h.hexdigest()
+    value = h.hexdigest()
+    if key is not None and len(_DIGEST_MEMO) < _DIGEST_MEMO_LIMIT:
+        _DIGEST_MEMO[key] = value
+    return value
 
 
 def sdk_tool(name):

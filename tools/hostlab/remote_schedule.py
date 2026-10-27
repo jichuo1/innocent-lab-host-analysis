@@ -86,6 +86,9 @@ def reconcile(receipt, run):
 
 
 def active_receipt(receipt):
+    # A refused dispatch never ran, so it occupies nothing and a corrected one may follow.
+    if receipt.get("status") == "rejected":
+        return False
     return receipt.get("state_uncertain") is True or receipt.get("status") != "completed"
 
 
@@ -179,10 +182,14 @@ def _submit(identity, inputs, plan, gh, lookup, runs, *, repository, workflow,
             if run is not None:
                 old = reconcile(old, run)
                 hostlab.write_json(record_path, old)
-            if run is None or active_receipt(old):
+            if old.get("status") == "rejected":
+                pass  # The workflow refused the request: nothing is queued and nothing to reuse.
+            elif run is None or active_receipt(old):
                 return {**old, "reused": True, "dispatched": False,
                         "status": public_status(old)}
-            if idempotency_key or reuse_completed and old.get("conclusion") == "success" and time.time() - old["created_at"] < 86400:
+            if (old.get("status") != "rejected" and
+                    (idempotency_key or reuse_completed and old.get("conclusion") == "success"
+                     and time.time() - old["created_at"] < 86400)):
                 return {**old, "reused": True, "dispatched": False, "status": "completed"}
             if not force and retry_policy.blocks_replay(old):
                 # Same payload, same sample, same runner source: the paid outcome cannot change.
@@ -272,7 +279,15 @@ def annotate(request_id, **fields):
     if lock is None:
         return None
     try:
-        cases = list(directory.glob("*.json"))
+        # Receipts older than the replay window cannot be gated, so they are not read.
+        cutoff = time.time() - retry_policy.REPLAY_WINDOW_SECONDS - 60
+        cases = []
+        for path in directory.glob("*.json"):
+            try:
+                if path.stat().st_mtime >= cutoff:
+                    cases.append(path)
+            except OSError:
+                continue
         journal = hostlab.STATE / "remote-requests" / (request_id + ".json")
         if journal.exists():
             cases.append(journal)

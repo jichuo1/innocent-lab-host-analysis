@@ -76,6 +76,29 @@ class DispatchTest(unittest.TestCase):
         self.assertEqual(result["dispatch"]["error_type"], "TimeoutError")
         sender.assert_called_once()
 
+    def test_definitive_api_rejection_is_safe_to_correct_and_resubmit(self):
+        sender = Mock(side_effect=remote_mcp.ToolError(
+            "GitHub operation failed; check gh login and private analysis repository access: "
+            "gh: Unexpected inputs provided (HTTP 422)"))
+        result = remote_dispatch.dispatch("owner/repo", "host-analysis.yml", {"request_id": "c"*32}, sender)
+        self.assertEqual(result["status"], "rejected")
+        self.assertFalse(result["dispatched"])
+        self.assertEqual(result["reason"], "dispatch_rejected")
+        self.assertEqual(result["dispatch"]["rejected_by"], "unexpected inputs provided")
+        self.assertIn("submit again", result["next_action"])
+        self.assertNotIn("do not submit again", result["next_action"])
+        sender.assert_called_once()
+        self.assertIsNone(remote_dispatch.rejection_marker("connection reset by peer"))
+        self.assertEqual(remote_dispatch.rejection_marker("gh: Not Found (HTTP 404)"), "not found (http 404)")
+
+    def test_gh_surfaces_the_bounded_api_rejection_instead_of_only_a_generic_word(self):
+        outcome = Mock(returncode=1, stdout="", stderr="gh: Unexpected inputs provided (HTTP 422)\n")
+        with patch("remote_mcp.subprocess.run", return_value=outcome):
+            with self.assertRaises(remote_mcp.ToolError) as caught:
+                remote_mcp.gh(["api", "--method", "POST", "unused"], {"inputs": {}})
+        self.assertIn("Unexpected inputs provided", str(caught.exception))
+        self.assertIn("check gh login", str(caught.exception))
+
     def test_legacy_submit_returns_stable_unknown_id_and_journals_before_post(self):
         def gh(args, payload=None):
             rid = payload["inputs"]["request_id"]
@@ -87,6 +110,31 @@ class DispatchTest(unittest.TestCase):
         self.assertEqual(result["status"], "dispatch_unknown")
         self.assertIsNone(result["dispatched"])
         self.assertTrue((self.root/"remote-requests"/(result["request_id"]+".json")).is_file())
+
+    def test_refused_dispatch_occupies_no_slot_and_a_correction_may_run(self):
+        self.assertFalse(remote_schedule.active_receipt(
+            {"request_id": "e"*32, "status": "rejected", "reason": "dispatch_rejected"}))
+        sender = Mock(return_value="")
+        remote_schedule.submit(9150200, request(), sender, lambda _: None, lambda: [],
+            repository="owner/repo", workflow="host-analysis.yml", runner_revision="a"*40)
+        record = next((self.root/"analysis-schedule").glob("*.json"))
+        value = json.loads(record.read_text(encoding="utf-8"))
+        value.update(status="rejected", reason="dispatch_rejected")
+        record.write_text(json.dumps(value), encoding="utf-8")
+        again = remote_schedule.submit(9150200, request(), sender, lambda _: None, lambda: [],
+            repository="owner/repo", workflow="host-analysis.yml", runner_revision="a"*40)
+        self.assertTrue(again["dispatched"])
+        self.assertEqual(sender.call_count, 2)
+
+    def test_job_status_reports_a_refused_dispatch_instead_of_forever_pending(self):
+        rid = "f"*32
+        hostlab.write_json(self.root/"remote-requests"/(rid+".json"),
+            {"request_id": rid, "status": "rejected", "reason": "dispatch_rejected",
+             "next_action": "correct it or update the runner, then submit again"})
+        with patch.object(remote_mcp, "lookup", return_value=None):
+            status = json.loads(remote_mcp.job_status(rid))
+        self.assertEqual(status["status"], "rejected")
+        self.assertIn("submit again", status["next_action"])
 
     def test_legacy_new_response_and_missing_map_recover_from_receipt_without_listing(self):
         with patch.object(remote_mcp, "gh", return_value='{"workflow_run_id":123}'):

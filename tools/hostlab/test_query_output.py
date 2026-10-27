@@ -242,6 +242,18 @@ class RemoteQueryInputTest(unittest.TestCase):
         self.assertEqual(analysis_batch.request_reason(RuntimeError("boom"), "page_request_failed"),
                          "page_request_failed")
 
+    def test_validation_failure_records_a_bounded_kind_and_retry_class(self):
+        row = {"version_code": 9140200, "sha256": "a" * 64}
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(hostlab, "STATE", Path(directory)), \
+                patch.object(hostlab, "CONFIG", Path(directory) / "config.json"), \
+                patch.object(remote_job.analyze, "fetch_sample", side_effect=ValueError("bad options")):
+            self.assertEqual(remote_job.run_validation("{}", row, "owner/repo", "b" * 40), 1)
+            job = json.loads((Path(directory) / "remote-output" / "job.json").read_text(encoding="utf-8"))
+        self.assertEqual(job["failure"]["kind"], "invalid_input")
+        self.assertEqual(job["failure"]["message"], "bad options")
+        self.assertEqual(job["retry_class"], "deterministic")
+
     def test_batch_reasons_are_bounded_and_resolve_to_a_retry_class(self):
         report = {"tasks": [
             {"id": "ok", "status": "complete"},

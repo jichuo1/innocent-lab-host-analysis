@@ -43,6 +43,14 @@ REASON_TEXT = re.compile(r"[A-Za-z0-9_:.-]{1,100}")
 # A deterministic rejection inside this window is not replayed without an explicit key.
 REPLAY_WINDOW_SECONDS = 6 * 3600
 MAX_REASONS = 8
+# Exception type names recorded by the validation entry point, mapped to bounded kinds.
+EXCEPTION_KINDS = {
+    "ValueError": "invalid_input",
+    "TypeError": "invalid_input",
+    "TimeoutError": "timeout",
+    "OSError": "harness_failed",
+    "RuntimeError": "harness_failed",
+}
 _TEXT_LIMIT = 8192
 _SQL_REJECTIONS = ("no such table", "no such column", "unknown column", "unknown relation",
                    "sql error", "syntax error", "no such function")
@@ -99,6 +107,12 @@ def command_failure(operation, rc, text, backend=None):
         return {"kind": "not_found", "message": "requested target is absent from this sample"}
     return {"kind": "command_failed",
             "message": operation + " exited " + str(rc) + " without a classified cause"}
+
+
+def exception_kind(name):
+    """Bounded kind for a recorded exception type name; unknown names stay a harness problem."""
+    word = reason(name) if isinstance(name, str) else None
+    return EXCEPTION_KINDS.get(word, "harness_failed")
 
 
 def blocks_replay(receipt, *, now=None, window=REPLAY_WINDOW_SECONDS):

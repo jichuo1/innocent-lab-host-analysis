@@ -277,6 +277,22 @@ class ScheduleTest(unittest.TestCase):
         acquired.close()
 
 
+class DigestMemoTest(unittest.TestCase):
+    def test_only_large_verified_binaries_are_memoized_per_process(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            small = root / "small.py"
+            small.write_bytes(b"source")
+            self.assertEqual(hostlab.digest(small), hostlab.digest(small))
+            big = root / "big.bin"
+            big.write_bytes(b"x" * (4 * 1024 * 1024))
+            first = hostlab.digest(big)
+            self.assertEqual(first, hostlab.digest(big))
+            big.write_bytes(b"y" * (4 * 1024 * 1024))
+            os.utime(big, (time.time() + 5, time.time() + 5))
+            self.assertNotEqual(first, hostlab.digest(big))
+
+
 class ExecutionTest(unittest.IsolatedAsyncioTestCase):
     async def test_query_local_error_does_not_skip_independent_queries(self):
         with tempfile.TemporaryDirectory() as temp:

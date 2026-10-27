@@ -189,11 +189,20 @@ def run_validation(argument, row, repo, revision):
             shutil.copyfile(work / "failure.json", output / "failure.json")
     (output / "result.txt").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     names = ("verify_backends.py", "verify_audits.py", "analysis_batch.py", "analysis_plan.py", "install_dexsql.py", "remote_job.py")
-    hostlab.write_json(output / "job.json", {"operation": "backend_validation", "version_code": row["version_code"],
+    job = {"operation": "backend_validation", "version_code": row["version_code"],
         "apk_sha256": row["sha256"], "sample_revision": revision, "exit_code": rc,
         "scope": "offline_static_only", "complete": result["complete"],
-        "tools": {name: hostlab.digest(Path(__file__).with_name(name)) for name in names}})
-    print(json.dumps({"operation": "backend_validation", "complete": result["complete"], "exit_code": rc}))
+        "tools": {name: hostlab.digest(Path(__file__).with_name(name)) for name in names}}
+    failure = None
+    if rc:
+        failure = {"kind": retry_policy.exception_kind(result.get("error")),
+                   "message": str(result.get("message") or "")[:200]}
+        job["failure"] = failure
+        job["retry_class"] = retry_policy.classify([failure["kind"]])
+    hostlab.write_json(output / "job.json", job)
+    print(json.dumps({"operation": "backend_validation", "complete": result["complete"], "exit_code": rc,
+                      "reason": failure["kind"] if failure else None,
+                      "retry_class": job.get("retry_class")}))
     return rc
 
 

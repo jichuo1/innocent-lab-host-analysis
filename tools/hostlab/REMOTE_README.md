@@ -30,6 +30,10 @@ SQLite `substr` 的起点从 1 开始；按返回的实际 sample_revision/apk_s
 单次运行的硬上限是 8 页、1000 行、1 MiB；任务里的 `limit` 是每页行数，`limit=50` 时 8 页只能取 400 行。
 同一 payload 的确定性失败在 6 小时内不自动重派，返回 `replay_blocked`、上次 `request_id` 和原因；
 修正后可用 `submit_analysis(..., force=true)` 或 `submit_job(..., allow_replay=true)` 显式授权一次付费重跑。
+派发被工作流明确拒绝时返回 `status="rejected"`、`reason="dispatch_rejected"` 和有界 `rejected_by`：
+这类请求从未入队，不占用配额，`job_status` 也会如实返回 `rejected`，修正后可直接重新提交；
+只有无法判定的传输结果仍返回 `dispatch_unknown`，并继续禁止自动重派。
+`backend_validation` 的 `job.json` 同样记录 `failure.kind`（如 `invalid_input`）与 `retry_class`。
 语句级失败（`invalid_query`/`invalid_input`/`impl_defined`/`output_too_large`/`not_found`）保留自身
 `kind`，不再一律记成 `backend_request_failed`，也不会让同一会话里的后续任务被跳过；
 命中原生表名却走旧索引时附带 `hint`。`not_found` 表示该 APK 里没有这个方法或类，重派不会改变结果。

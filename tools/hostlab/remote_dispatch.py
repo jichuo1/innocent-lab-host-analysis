@@ -8,6 +8,15 @@ import time
 import hostlab
 
 API_VERSION = "2026-03-10"
+# Bounded markers of an API answer that decided the request never ran. Anything else
+# stays an unknown transport outcome and is never replayed automatically.
+REJECTION_MARKERS = ("unexpected inputs provided", "not found (http 404)", "invalid input",
+                     "workflow does not have", "(http 400)", "(http 422)")
+
+
+def rejection_marker(detail):
+    head = detail.lower()[:500] if isinstance(detail, str) else ""
+    return next((marker for marker in REJECTION_MARKERS if marker in head), None)
 
 
 def dispatch(repository, workflow, inputs, gh):
@@ -26,6 +35,14 @@ def dispatch(repository, workflow, inputs, gh):
             {"ref": "main", "inputs": inputs})
     except Exception as exc:
         metrics["error_type"] = type(exc).__name__
+        marker = rejection_marker(str(exc))
+        if marker is not None:
+            # The API decided this request never ran, so a corrected one may be sent.
+            metrics["response_kind"] = "rejected"
+            metrics["rejected_by"] = marker
+            result.update(status="rejected", dispatched=False, reason="dispatch_rejected",
+                          next_action="the workflow refused this request; correct it or update the "
+                                      "runner, then submit again")
     else:
         if isinstance(response, str) and not response.strip():
             result.update(status="submitted", dispatched=True)

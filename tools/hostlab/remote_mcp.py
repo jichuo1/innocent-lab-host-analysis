@@ -23,9 +23,13 @@ mcp = MCPServer(name="hostlab-remote", instructions="Run bounded APK analysis in
 
 def gh(args, payload=None):
     result = subprocess.run([os.environ.get("HOSTLAB_GH", "gh"), *args], input=json.dumps(payload) if payload is not None else None,
-                            text=True, encoding="utf-8", capture_output=True, timeout=60)
+        text=True, encoding="utf-8", capture_output=True, timeout=60)
     if result.returncode:
-        raise ToolError("GitHub operation failed; check gh login and private analysis repository access")
+        # Keep the bounded API rejection visible; response bodies and tokens are never echoed.
+        tail = next((line.strip() for line in reversed(result.stderr.splitlines()) if line.strip()), "")
+        tail = re.sub(r"[^\x20-\x7e\u00a0-\uffff]", " ", tail)[:200]
+        raise ToolError("GitHub operation failed; check gh login and private analysis repository access"
+                        + (": " + tail if tail else ""))
     return result.stdout
 
 
@@ -426,8 +430,21 @@ def job_status(request_id: str) -> str:
     started = time.monotonic()
     run = lookup(request_id)
     if run is None:
-        return json.dumps({"status": "dispatch_pending", "request_id": request_id,
-                           "lookup_elapsed_ms": (time.monotonic()-started)*1000})
+        status = {"status": "dispatch_pending", "request_id": request_id,
+            "lookup_elapsed_ms": (time.monotonic()-started)*1000}
+        journal = hostlab.STATE / "remote-requests" / (request_id + ".json")
+        try:
+            if journal.is_file() and journal.stat().st_size <= 1024 * 1024:
+                recorded = json.loads(journal.read_text(encoding="utf-8"))
+                if isinstance(recorded, dict) and recorded.get("status") == "rejected":
+                    # The workflow refused the request; nothing is queued and nothing to replay.
+                    status = {"status": "rejected", "request_id": request_id,
+                        "reason": recorded.get("reason"),
+                        "next_action": recorded.get("next_action"),
+                        "lookup_elapsed_ms": (time.monotonic()-started)*1000}
+        except (OSError, ValueError):
+            pass
+        return json.dumps(status, ensure_ascii=False)
     import remote_schedule
     receipt = remote_schedule.observe(request_id, run)
     if receipt is None:

@@ -63,6 +63,16 @@ class CommandFailureTest(unittest.TestCase):
         self.assertEqual(retry_policy.command_failure("query", 1, "no such table: classes")["kind"], "invalid_query")
 
 
+class ExceptionKindTest(unittest.TestCase):
+    def test_recorded_exception_type_names_become_bounded_kinds(self):
+        self.assertEqual(retry_policy.exception_kind("ValueError"), "invalid_input")
+        self.assertEqual(retry_policy.exception_kind("TimeoutError"), "timeout")
+        self.assertEqual(retry_policy.exception_kind("OSError"), "harness_failed")
+        self.assertEqual(retry_policy.exception_kind("SomeNewError"), "harness_failed")
+        self.assertEqual(retry_policy.exception_kind(None), "harness_failed")
+        self.assertEqual(retry_policy.classify([retry_policy.exception_kind("ValueError")]), "deterministic")
+
+
 class ReplayGateTest(unittest.TestCase):
     def receipt(self, **changes):
         return {"status": "completed", "conclusion": "failure", "retry_class": "deterministic",
