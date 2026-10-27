@@ -12,6 +12,10 @@ from datetime import datetime
 
 import analysis_plan
 import hostlab
+import retry_policy
+
+ANNOTATIONS = {"retry_class", "failure_reasons"}
+RETRY_CLASSES = {"deterministic", "transient", "unknown"}
 
 
 def admission_lock(path):
@@ -100,7 +104,7 @@ def describe(request):
 
 def submit(version_code, request, gh, lookup, runs, *, repository, workflow,
            apk_sha256="", sample_revision="", idempotency_key="", runner_revision=None,
-           reuse_completed=True):
+           reuse_completed=True, force=False):
     request = analysis_plan.validate(request)
     analysis_plan.integer(version_code, 1, 9999999999, "version_code")
     if bool(apk_sha256) != bool(sample_revision):
@@ -128,11 +132,12 @@ def submit(version_code, request, gh, lookup, runs, *, repository, workflow,
     return _submit(identity, inputs, describe(request), gh, lookup, runs, repository=repository,
                    workflow=workflow, idempotency_key=idempotency_key, head=head,
                    reuse_completed=reuse_completed and bool(apk_sha256)
-                   and all(task["operation"] != "query" for task in request["tasks"]))
+                   and all(task["operation"] != "query" for task in request["tasks"]), force=force)
 
 
 def submit_group(samples, request, gh, lookup, runs, *, repository, workflow,
-                 idempotency_key="", runner_revision=None, reuse_completed=True, execution=None):
+                 idempotency_key="", runner_revision=None, reuse_completed=True, execution=None,
+                 force=False):
     import runner_group
     payload = runner_group.validate({"schema": 2 if execution is not None else 1, "samples": samples, "request": request,
                                     **({"execution": execution} if execution is not None else {})})
@@ -149,11 +154,12 @@ def submit_group(samples, request, gh, lookup, runs, *, repository, workflow,
     return _submit(identity, inputs, {**describe(payload["request"]), "runner_batch_size": len(samples)},
                    gh, lookup, runs, repository=repository, workflow=workflow,
                    idempotency_key=idempotency_key, head=head,
-                   reuse_completed=reuse_completed and all(t["operation"] != "query" for t in payload["request"]["tasks"]))
+                   reuse_completed=reuse_completed and all(t["operation"] != "query" for t in payload["request"]["tasks"]),
+                   force=force)
 
 
 def _submit(identity, inputs, plan, gh, lookup, runs, *, repository, workflow,
-            idempotency_key, head, reuse_completed):
+            idempotency_key, head, reuse_completed, force=False):
     """One durable admission protocol for single and grouped runner submissions."""
     payload_hash = hashlib.sha256(json.dumps(identity, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     key = hashlib.sha256(("idempotency:" + idempotency_key).encode()).hexdigest() if idempotency_key else payload_hash
@@ -177,6 +183,14 @@ def _submit(identity, inputs, plan, gh, lookup, runs, *, repository, workflow,
                         "status": public_status(old)}
             if idempotency_key or reuse_completed and old.get("conclusion") == "success" and time.time() - old["created_at"] < 86400:
                 return {**old, "reused": True, "dispatched": False, "status": "completed"}
+            if not force and retry_policy.blocks_replay(old):
+                # Same payload, same sample, same runner source: the paid outcome cannot change.
+                return {"status": "replay_blocked", "dispatched": False, "reused": True,
+                        "request_sha256": payload_hash, "request_id": old["request_id"],
+                        "retry_class": old.get("retry_class"),
+                        "failure_reasons": old.get("failure_reasons", []),
+                        "next_action": "fix the deterministic cause, change the request, or pass "
+                                       "force/idempotency_key to authorize another paid attempt"}
         recent = runs()
         observed = {r.get("display_title", "").removeprefix("hostlab-"):r for r in recent}
         active = {key for key,r in observed.items() if r.get("status") != "completed"}
@@ -237,3 +251,68 @@ def observe(request_id, run):
         return selected
     finally:
         lock.close()
+
+
+def annotate(request_id, **fields):
+    """Persist a bounded failure class on known receipts. Never dispatches or replays."""
+    if not isinstance(request_id, str) or not re.fullmatch(r"[0-9a-f]{32}", request_id):
+        raise ValueError("invalid request id")
+    if set(fields) - ANNOTATIONS:
+        raise ValueError("unsupported receipt annotation")
+    if "retry_class" in fields and fields["retry_class"] not in RETRY_CLASSES:
+        raise ValueError("unsupported retry class")
+    if "failure_reasons" in fields:
+        if not isinstance(fields["failure_reasons"], (list, tuple)):
+            raise ValueError("failure reasons must be a list")
+        fields["failure_reasons"] = retry_policy.reasons(fields["failure_reasons"])
+    directory = hostlab.STATE / "analysis-schedule"
+    directory.mkdir(parents=True, exist_ok=True)
+    lock = admission_lock(directory / "admission.lock")
+    if lock is None:
+        return None
+    try:
+        cases = list(directory.glob("*.json"))
+        journal = hostlab.STATE / "remote-requests" / (request_id + ".json")
+        if journal.exists():
+            cases.append(journal)
+        selected = None
+        for path in cases:
+            try:
+                record = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if not isinstance(record, dict) or record.get("request_id") != request_id:
+                continue
+            changed = {name: value for name, value in fields.items() if record.get(name) != value}
+            if changed:
+                record.update(changed)
+                hostlab.write_json(path, record)
+            selected = record if selected is None else selected
+        return selected
+    finally:
+        lock.close()
+
+
+def previous_request(payload_hash, *, now=None):
+    """Identical single-command submission whose deterministic failure is already known."""
+    directory = hostlab.STATE / "remote-requests"
+    if not isinstance(payload_hash, str) or not directory.is_dir():
+        return None
+    current = time.time() if now is None else now
+    cutoff = current - retry_policy.REPLAY_WINDOW_SECONDS - 60
+    selected = None
+    for path in directory.glob("*.json"):
+        try:
+            # The journal keeps every request ever made; only the replay window is read.
+            if path.stat().st_mtime < cutoff:
+                continue
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(record, dict) or record.get("payload_sha256") != payload_hash:
+            continue
+        if not retry_policy.blocks_replay(record, now=now):
+            continue
+        if selected is None or record.get("created_at", 0) > selected.get("created_at", 0):
+            selected = record
+    return selected

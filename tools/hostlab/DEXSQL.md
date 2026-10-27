@@ -1,6 +1,8 @@
 # 可选 DexSQL 后端与批量调度
 
 旧 `dexq query/refs/decode/info` 默认仍走 SQLite/Androguard；Java 伪源码仍走现有 JADX CLI。
+远程 `submit_job` 的 `query/decode/string_refs/info` 可显式 `backend="dexsql"`：工作流按声明预装并验真原生程序，
+`job.json` 记录 `dexq_backend`/`backend_reason`；单条命令不猜测 schema，原生不可用即失败而不回退到旧索引。
 DexSQL 固定为 0.1.0，各平台资产在 `install_dexsql.py` 校验 SHA-256。安装不改变全局 PATH 或 MCP。
 
 ```powershell

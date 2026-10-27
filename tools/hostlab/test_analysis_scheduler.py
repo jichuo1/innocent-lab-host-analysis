@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 from types import SimpleNamespace
 import unittest
 import zipfile
@@ -85,6 +86,11 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(plan_ci.requirements("batch", json.dumps(native))["requirements"], "requirements-query.txt")
         self.assertEqual(plan_ci.requirements("batch", json.dumps(request()))["requirements"], "requirements.txt")
         self.assertEqual(plan_ci.requirements("query", "SELECT 1")["needs_dexsql"], "false")
+        single = plan_ci.requirements("query", "SELECT 1", backend="dexsql")
+        self.assertEqual((single["needs_dexsql"], single["requirements"]), ("true", "requirements-query.txt"))
+        self.assertEqual(plan_ci.requirements("decode", "", backend="dexsql")["needs_dexsql"], "true")
+        with self.assertRaises(ValueError):
+            plan_ci.requirements("query", "SELECT 1", backend="auto")
 
     def test_java_preparation_follows_the_actual_java_operations(self):
         for operation in ("audit","decompile","multipath_audit","backend_validation"):
@@ -98,6 +104,8 @@ class PlanTest(unittest.TestCase):
         workflow=(Path(__file__).parent/"host-analysis.yml").read_text(encoding="utf-8")
         self.assertIn("  queue: max\n",workflow)
         self.assertIn("  cancel-in-progress: false\n",workflow)
+        self.assertIn("          HOSTLAB_BACKEND: ${{ inputs.backend }}\n",workflow)
+        self.assertIn("        options: [sqlite, dexsql]\n        default: sqlite\n",workflow)
 
 
 class ScheduleTest(unittest.TestCase):
@@ -184,6 +192,52 @@ class ScheduleTest(unittest.TestCase):
         second=submit()
         self.assertNotEqual(first["request_id"],second["request_id"])
         self.assertEqual(len(self.dispatches),2)
+
+    def fail_receipt(self, retry_class, reasons):
+        record = next((self.root/"analysis-schedule").glob("*.json"))
+        value = json.loads(record.read_text(encoding="utf-8"))
+        value.update(status="completed", conclusion="failure", retry_class=retry_class,
+                     failure_reasons=reasons, created_at=time.time())
+        record.write_text(json.dumps(value), encoding="utf-8")
+        self.lookup = lambda _: {"status":"completed", "conclusion":"failure", "run_attempt":1}
+
+    def test_identical_deterministic_failure_is_not_dispatched_again(self):
+        first = self.submit()
+        self.fail_receipt("deterministic", ["invalid_query"])
+        blocked = self.submit()
+        self.assertEqual(blocked["status"], "replay_blocked")
+        self.assertFalse(blocked["dispatched"])
+        self.assertEqual(blocked["request_id"], first["request_id"])
+        self.assertEqual(blocked["failure_reasons"], ["invalid_query"])
+        self.assertIn("force/idempotency_key", blocked["next_action"])
+        self.assertEqual(len(self.dispatches), 1)
+
+    def test_explicit_force_still_authorizes_the_paid_attempt(self):
+        first = self.submit()
+        self.fail_receipt("deterministic", ["invalid_query"])
+        forced = self.submit(force=True)
+        self.assertTrue(forced["dispatched"])
+        self.assertNotEqual(forced["request_id"], first["request_id"])
+        self.assertEqual(len(self.dispatches), 2)
+
+    def test_transient_failure_is_replayed_without_force(self):
+        self.submit()
+        self.fail_receipt("transient", ["backend_request_failed"])
+        self.assertTrue(self.submit()["dispatched"])
+        self.assertEqual(len(self.dispatches), 2)
+
+    def test_receipt_annotations_stay_bounded_and_typed(self):
+        first = self.submit()
+        receipt = remote_schedule.annotate(first["request_id"], retry_class="deterministic",
+                                           failure_reasons=["invalid_query", "SELECT * FROM classes"])
+        self.assertEqual(receipt["retry_class"], "deterministic")
+        self.assertEqual(receipt["failure_reasons"], ["invalid_query"])
+        for fields in ({"status": "completed"}, {"retry_class": "sometimes"},
+                       {"failure_reasons": "invalid_query"}):
+            with self.subTest(fields=fields), self.assertRaises(ValueError):
+                remote_schedule.annotate(first["request_id"], **fields)
+        with self.assertRaises(ValueError):
+            remote_schedule.annotate("../escape", retry_class="deterministic")
 
     def test_idempotency_key_cannot_be_rebound_to_another_payload(self):
         self.submit(idempotency_key="retry1")

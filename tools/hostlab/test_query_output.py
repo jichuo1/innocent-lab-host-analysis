@@ -9,14 +9,17 @@ from pathlib import Path
 import sqlite3
 import sys
 import tempfile
+import time
 from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, patch
 
+import analysis_batch
 import dexq_cli
 import hostlab
 import remote_job
 import remote_mcp
+import retry_policy
 
 DEXQ = Path(__file__).resolve().parent / "dexq"
 sys.path.insert(0, str(DEXQ))
@@ -133,6 +136,42 @@ class RemoteQueryInputTest(unittest.TestCase):
                     remote_mcp.submit_job(9140200, operation, max_cell_chars=size)
         gh.assert_not_called()
 
+    def test_declared_native_backend_is_forwarded_and_legacy_stays_the_default(self):
+        with patch.object(remote_mcp, "gh") as gh:
+            remote_mcp.submit_job(9140200, "query", "SELECT 1")
+        self.assertNotIn("backend", gh.call_args.args[1]["inputs"])
+        with patch.object(remote_mcp, "gh") as gh:
+            remote_mcp.submit_job(9140200, "query", "SELECT file_id FROM class_methods", backend="dexsql")
+        self.assertEqual(gh.call_args.args[1]["inputs"]["backend"], "dexsql")
+
+    def test_backend_and_cell_preview_limits_are_bounded_before_dispatch(self):
+        with patch.object(remote_mcp, "gh") as gh:
+            for operation, backend, size in (("audit", "dexsql", 300), ("query", "auto", 300),
+                                             ("query", "dexsql", 12000)):
+                with self.subTest(operation=operation, backend=backend), self.assertRaises(remote_mcp.ToolError):
+                    remote_mcp.submit_job(9140200, operation, backend=backend, max_cell_chars=size)
+        gh.assert_not_called()
+
+    def test_deterministic_failure_is_not_dispatched_twice_unless_explicitly_allowed(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(hostlab, "STATE", Path(directory)):
+            with patch.object(remote_mcp, "gh"):
+                first = json.loads(remote_mcp.submit_job(9140200, "query", "SELECT 1"))
+            record = Path(directory) / "remote-requests" / (first["request_id"] + ".json")
+            value = json.loads(record.read_text(encoding="utf-8"))
+            value.update(status="completed", conclusion="failure", retry_class="deterministic",
+                         failure_reasons=["invalid_query"], created_at=time.time())
+            record.write_text(json.dumps(value), encoding="utf-8")
+            with patch.object(remote_mcp, "gh") as gh:
+                blocked = json.loads(remote_mcp.submit_job(9140200, "query", "SELECT 1"))
+                gh.assert_not_called()
+            self.assertEqual(blocked["status"], "replay_blocked")
+            self.assertEqual(blocked["failure_reasons"], ["invalid_query"])
+            with patch.object(remote_mcp, "gh") as gh:
+                allowed = json.loads(remote_mcp.submit_job(9140200, "query", "SELECT 1", allow_replay=True))
+                gh.assert_called_once()
+            self.assertNotEqual(allowed["status"], "replay_blocked")
+            self.assertNotEqual(allowed["request_id"], first["request_id"])
+
     def test_runner_forwards_cell_limit_and_records_dexq_provenance(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -149,10 +188,65 @@ class RemoteQueryInputTest(unittest.TestCase):
             command = run.call_args.args[0]
             self.assertEqual(command[command.index("--max-cell-chars") + 1], "12000")
             self.assertEqual(command[command.index("--sql") + 1], env["HOSTLAB_ARGUMENT"])
+            self.assertEqual(command[command.index("--backend") + 1], "sqlite")
             job = json.loads((root / "remote-output/job.json").read_text(encoding="utf-8"))
             self.assertEqual(job["max_cell_chars"], 12000)
             self.assertEqual(job["apk_sha256"], sample["sha256"])
+            self.assertEqual(job["dexq_backend"], "sqlite")
+            self.assertEqual(job["backend_reason"], "explicit_legacy_backend")
             self.assertEqual(job["tools"]["dexq/server.py"], hostlab.digest(DEXQ / "server.py"))
+
+    def test_runner_reports_a_bounded_cause_for_a_rejected_native_query(self):
+        sample = {"version_code": 9140200, "sha256": "a" * 64,
+                  "path": "apks/tv.danmaku.bili/9140200/" + "a" * 64 + "/base.apk"}
+        env = {"HOSTLAB_VERSION": "9140200", "HOSTLAB_OPERATION": "query",
+               "HOSTLAB_ARGUMENT": "SELECT file_id FROM class_methods", "HOSTLAB_BACKEND": "dexsql"}
+        def fail(command, stdout=None, timeout=None):
+            stdout.write("Tool 'query' failed: 'Error executing tool query: sql error: no such table: class_methods'\n")
+            return 1
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.dict(os.environ, env, clear=True), patch.object(hostlab, "STATE", root), \
+                    patch.object(hostlab, "CONFIG", root / "config.json"), \
+                    patch.object(hostlab, "api_private", return_value=(None, "b" * 40)), \
+                    patch.object(hostlab, "manifest", return_value={"samples": [sample]}), \
+                    patch("install_dexsql.status", return_value={"available": True}), \
+                    patch.object(remote_job.process_control, "run", side_effect=fail) as run:
+                self.assertEqual(remote_job.main(), 1)
+            command = run.call_args.args[0]
+            self.assertEqual(command[command.index("--backend") + 1], "dexsql")
+            job = json.loads((root / "remote-output/job.json").read_text(encoding="utf-8"))
+            self.assertEqual(job["dexq_backend"], "dexsql")
+            self.assertEqual(job["failure"]["kind"], "invalid_query")
+            self.assertNotIn("hint", job["failure"])
+            self.assertEqual(job["retry_class"], "deterministic")
+
+    def test_native_query_refuses_a_legacy_only_cell_limit_before_remote_access(self):
+        env = {"HOSTLAB_VERSION": "9140200", "HOSTLAB_OPERATION": "query",
+               "HOSTLAB_ARGUMENT": "SELECT 1", "HOSTLAB_BACKEND": "dexsql",
+               "HOSTLAB_MAX_CELL_CHARS": "12000"}
+        with patch.dict(os.environ, env, clear=True), patch.object(hostlab, "api_private") as api, \
+                self.assertRaises(RuntimeError):
+            remote_job.main()
+        api.assert_not_called()
+
+    def test_rejected_statement_keeps_its_kind_instead_of_a_generic_transport_word(self):
+        rejected = analysis_batch.BackendError("backend rejected operation",
+            {"error": {"kind": "invalid_query", "message": "unknown column `return_descriptor`"}})
+        self.assertEqual(analysis_batch.request_reason(rejected, "backend_request_failed"), "invalid_query")
+        closed = analysis_batch.BackendError("deadline", {"error": {"kind": "dataset_closed"}})
+        self.assertEqual(analysis_batch.request_reason(closed, "backend_request_failed"), "backend_request_failed")
+        self.assertEqual(analysis_batch.request_reason(RuntimeError("boom"), "page_request_failed"),
+                         "page_request_failed")
+
+    def test_batch_reasons_are_bounded_and_resolve_to_a_retry_class(self):
+        report = {"tasks": [
+            {"id": "ok", "status": "complete"},
+            {"id": "bad", "status": "error", "reason": "invalid_query"},
+            {"id": "part", "status": "partial", "result": {"pagination": {"stop_reason": "row_budget"}}},
+            {"id": "hidden", "status": "error", "reason": "SELECT * FROM classes"}]}
+        self.assertEqual(remote_job.task_reasons(report), ["invalid_query", "row_budget"])
+        self.assertEqual(retry_policy.classify(remote_job.task_reasons(report)), "deterministic")
 
     def test_runner_rejects_invalid_input_before_remote_access(self):
         for size in ("", "0", "-1", "16001", "1;anything"):

@@ -33,6 +33,12 @@ on:
       argument:
         required: false
         type: string
+      backend:
+        description: 'Index backend for query/decode/string_refs/info; dexsql reads the native relations'
+        required: false
+        type: choice
+        options: [sqlite, dexsql]
+        default: sqlite
       max_cell_chars:
         description: 'Query cell preview length (1..16000)'
         required: false
@@ -67,6 +73,7 @@ jobs:
         env:
           HOSTLAB_OPERATION: ${{ inputs.operation }}
           HOSTLAB_ARGUMENT: ${{ inputs.argument }}
+          HOSTLAB_BACKEND: ${{ inputs.backend }}
         run: python tools/hostlab/plan_ci.py
       - uses: actions/setup-java@v5
         if: steps.plan.outputs.needs_java == 'true'
@@ -115,6 +122,7 @@ jobs:
           HOSTLAB_VERSION: ${{ inputs.version_code }}
           HOSTLAB_OPERATION: ${{ inputs.operation }}
           HOSTLAB_ARGUMENT: ${{ inputs.argument }}
+          HOSTLAB_BACKEND: ${{ inputs.backend }}
           HOSTLAB_MAX_CELL_CHARS: ${{ inputs.max_cell_chars }}
           HOSTLAB_REVISION: ${{ inputs.source_revision }}
           HOSTLAB_MODULE_SOURCE: ${{ inputs.module_source }}

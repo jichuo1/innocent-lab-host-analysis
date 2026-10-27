@@ -10,6 +10,8 @@ MAX_TASKS = 16
 MAX_REQUEST_BYTES = 30000
 BACKENDS = {"auto", "sqlite", "dexsql"}
 OPERATIONS = {"query", "locate", "refs", "decode", "info"}
+# Single-command remote operations served by one dexq MCP call.
+REMOTE_COMMANDS = {"query", "decode", "string_refs", "info"}
 
 
 def integer(value, low, high, name):
@@ -157,6 +159,24 @@ def plan(request, *, dexsql_available=True, sqlite_cache_hit=False):
             "dataset_opens": len(groups), "execution": "one_sequential_session_per_backend",
             "threads": request["threads"], "timeout_seconds": request["timeout_seconds"],
             "raw_sql_rewritten": False, "scope": "offline_static_only"}
+
+
+def cli_backend(operation, requested="sqlite", *, dexsql_available=True):
+    """Resolve the backend of one single-command remote operation. No I/O.
+
+    A single command never guesses: raw SQL must not be executed against a schema
+    the caller did not select, and a missing native index fails with a bounded
+    reason instead of silently changing the result shape.
+    """
+    if operation not in REMOTE_COMMANDS:
+        raise ValueError("unsupported single-command operation")
+    if requested not in {"sqlite", "dexsql"}:
+        raise ValueError("backend must be sqlite or dexsql")
+    if requested == "sqlite":
+        return {"backend": "sqlite", "reason": "explicit_legacy_backend"}
+    if not dexsql_available:
+        raise ValueError("requested DexSQL backend is unavailable")
+    return {"backend": "dexsql", "reason": "explicit_native_backend"}
 
 
 def quote(value):

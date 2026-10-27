@@ -4,7 +4,10 @@ import os
 import analysis_plan
 
 
-def requirements(operation, argument):
+def requirements(operation, argument, backend=None):
+    backend = os.environ.get("HOSTLAB_BACKEND", "sqlite") if backend is None else backend
+    if backend not in {"sqlite", "dexsql"}:
+        raise ValueError("backend must be sqlite or dexsql")
     native = optional = False
     native_only = operation == "regenerate_ai"
     if operation in {"batch", "batch_group"}:
@@ -22,6 +25,11 @@ def requirements(operation, argument):
         native = True
     elif operation in {"audit", "multipath_audit"}:
         native = optional = True
+    elif operation in analysis_plan.REMOTE_COMMANDS:
+        # A single command declares one backend; the native one needs its verified
+        # binary before the APK is opened, the legacy one keeps androguard only.
+        native = backend == "dexsql"
+        native_only = native
     return {"needs_dexsql": str(native).lower(), "dexsql_optional": str(optional).lower(),
             "needs_java":str(operation in {"audit","decompile","multipath_audit","backend_validation"}).lower(),
             "requirements": "requirements-query.txt" if native_only else "requirements.txt"}

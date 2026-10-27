@@ -18,6 +18,16 @@ Windows 双击 setup-remote.cmd；若装有 Codex CLI，会注册 hostlab-remote
 更长的值用同一宿主样本及稳定键读取 `length(value)`、`substr(value,1,8000)`、`substr(value,8001,8000)` 等，并设置 `max_cell_chars=16000`，避免控制字符转义挤掉尾部。
 SQLite `substr` 的起点从 1 开始；按返回的实际 sample_revision/apk_sha256 检查各段来自同一份样本。
 
+单条读取命令显式选择索引后端：`submit_job(..., operation="query", backend="dexsql")` 读取原生
+`classes/methods/class_methods/method_calls` 等关系；默认 `backend="sqlite"` 保持旧 schema 结果。
+单条命令不猜测 schema：`backend="dexsql"` 而原生程序未验真时直接失败，不回退到旧索引；
+原生页自行限制单元格，因此 `max_cell_chars` 只适用于 sqlite 后端，混用会拒绝派发。
+`job.json` 记录 `dexq_backend` 与 `backend_reason`；失败时记录 `failure.kind`、`retry_class`
+（deterministic/transient）和最多 8 个 `failure_reasons`，步骤日志同时打印一行摘要。
+同一 payload 的确定性失败在 6 小时内不自动重派，返回 `replay_blocked`、上次 `request_id` 和原因；
+修正后可用 `submit_analysis(..., force=true)` 或 `submit_job(..., allow_replay=true)` 显式授权一次付费重跑。
+`invalid_query` 不再被记成 `backend_request_failed`；命中原生表名却走旧索引时附带 `hint`。
+
 远程 `job_result` 默认每页 32000 个 Unicode 字符、总预览 96000 字符；可通过 `page_chars=1024..128000` 调整，每次总预览不超过三页。超限仍明确标记，不把预览当完整证据。
 首次用 `job_result(request_id)`；若 `result_page.next_offset` 非空，将该值作为 `job_result(request_id, result_offset=该值)` 继续读取，直到游标为空。
 默认分页 `result.txt`，长期报告默认分页 `report.md`；需要完整元数据时可用 `job_result(request_id, result_file="job.json", page_chars=128000)`，后续保留 result_file 并传 next_offset。summary.json、group.json 和其他已返回文本文件也可分页；同名文件多于一份时，使用 file_pages 中的完整相对路径。分组成员仍先指定 sample_index。
@@ -53,6 +63,7 @@ APK 的 `source_revision` 仍指 APK 数据集，不是模块源码 revision。
 客户端更新后需重载 MCP 服务或开启新会话，才能使用提交前的自动捕获；服务端默认发布源读取仍独立生效。
 
 operation: info / query / decode / string_refs / decompile / audit / multipath_audit / regenerate_ai。
+query/decode/string_refs/info 另可传 `backend="sqlite"|"dexsql"`；其余操作只接受默认 sqlite。
 新 APK 自动报告与 multipath_audit 包含有界 AI 分析；AI 建议不能替代真机验收。
 全部登记页面证据由服务端预取（零 API 成本）；AI 先出详细逐路径草稿，再在同一模型的独立上下文中复核重点页面和全部草稿发现；评论与动态由服务端重新读取、复核记录引用其编号。
 草稿按最多两个页面分片、最多六个单元，再用独立上下文逐片复核重点页面与全部发现。全流程最多 16 次 API 请求（含探索、修正、失败和最多两次传输补偿），跨恢复任务累计；每次最多 65536 输出 token、240 秒墙钟时限、45 秒读空闲时限，AI 累计限时 30 分钟。逐页面/路径校验与评论、动态新读取证据要求保持生效，复核未完成不发布成功 Release。

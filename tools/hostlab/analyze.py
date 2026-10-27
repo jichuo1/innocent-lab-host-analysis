@@ -18,6 +18,28 @@ import runner_resources
 
 HERE = Path(__file__).resolve().parent
 SUITE = HERE / "analysis"
+DECOMPILE_LOG_LIMIT = 65536
+
+
+def decompile_failure(rc, log):
+    """Bounded cause for an empty decompile. Only the log tail is read; nothing is copied."""
+    if rc == 124:
+        return {"kind": "timeout", "message": "decompile exceeded its bounded timeout"}
+    text = ""
+    try:
+        path = Path(log)
+        with path.open("rb") as stream:
+            stream.seek(max(0, path.stat().st_size - DECOMPILE_LOG_LIMIT))
+            text = stream.read(DECOMPILE_LOG_LIMIT).decode("utf-8", "replace").lower()
+    except OSError:
+        text = ""
+    if "classnotfoundexception" in text:
+        return {"kind": "class_not_found", "message": "class is not present in this APK"}
+    if "outofmemoryerror" in text:
+        return {"kind": "harness_failed", "message": "decompiler ran out of heap"}
+    if rc:
+        return {"kind": "command_failed", "message": "decompiler exited " + str(rc)}
+    return {"kind": "decompile_empty", "message": "decompiler produced no source for this class"}
 
 
 def jar_path(explicit=None):
@@ -274,6 +296,9 @@ def main(argv, *, surface_output=None):
                     log.write("\nHOSTLAB_TIMEOUT\n")
         report.update({"class": args.class_name, "exit_code": rc,
                        "source_written": rc == 0 and (out / "class.java").is_file() and (out / "class.java").stat().st_size > 0})
+        if not report["source_written"]:
+            # Exit 1 means "no source"; the cause decides whether another attempt can help.
+            report["failure"] = decompile_failure(rc, out / "decompile.log")
         hostlab.write_json(out / "summary.json", report)
         print("Report: " + str(out / "summary.json"))
         print("Source: " + str(out / "class.java"))

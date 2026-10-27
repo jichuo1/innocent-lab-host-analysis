@@ -9,6 +9,7 @@ import sys
 import time
 import hostlab
 import analyze
+import retry_policy
 import source_snapshot
 import snapshot_transport
 
@@ -27,6 +28,27 @@ def resource_snapshot(sampler):
         return sampler.snapshot()
     except Exception as exc:
         return {"probe_error": type(exc).__name__}
+
+
+def result_head(path, limit=8192):
+    """Bounded child output for classification; the full text stays in result.txt."""
+    try:
+        with Path(path).open("rb") as stream:
+            return stream.read(limit).decode("utf-8", "replace")
+    except OSError:
+        return ""
+
+
+def task_reasons(report):
+    """Bounded stop reasons for every task that did not complete."""
+    collected = []
+    for task in report.get("tasks", []) if isinstance(report, dict) else []:
+        if not isinstance(task, dict) or task.get("status") == "complete":
+            continue
+        result = task.get("result") if isinstance(task.get("result"), dict) else {}
+        pagination = result.get("pagination") if isinstance(result.get("pagination"), dict) else {}
+        collected.append(pagination.get("stop_reason") or task.get("reason"))
+    return retry_policy.reasons(collected, limit=16)
 
 
 def run_batch(request, row, repo, revision, *, context_timings=None, output=None,
@@ -96,10 +118,19 @@ def run_batch(request, row, repo, revision, *, context_timings=None, output=None
         job["group_index"] = group_index
     if execution_sha256 is not None:
         job["execution_sha256"] = execution_sha256
+    if rc:
+        # One durable word per failure so a caller never pays twice for the same rejection.
+        job["failure_reasons"] = task_reasons(report)
+        if rc == 1:
+            job["failure"] = {"kind": "harness_failed",
+                              "message": str(report.get("error") or "analysis failed")[:100]}
+        job["retry_class"] = retry_policy.classify(
+            [*job["failure_reasons"], *([job["failure"]["kind"]] if "failure" in job else [])])
     hostlab.write_json(output / "job.json", job)
     analysis_checkpoint.summary(output / "summary.md", report, error=recovery_error, append=False)
     analysis_checkpoint.summary(os.environ.get("GITHUB_STEP_SUMMARY"), report, error=recovery_error)
     print(json.dumps({"operation": "batch", "complete": report["complete"], "exit_code": rc,
+                      "retry_class": job.get("retry_class"), "reasons": job.get("failure_reasons"),
                       "tasks": [{"id": t["id"], "status": t["status"],
                                  "reason": t.get("result", {}).get("pagination", {}).get("stop_reason", t.get("reason"))}
                                 for t in report["tasks"]]}))
@@ -173,6 +204,9 @@ def main():
     argument = os.environ.get("HOSTLAB_ARGUMENT", "")
     if not re.fullmatch(r"[1-9][0-9]{0,9}", code) or (len(argument.encode("utf-8")) > 30000 if operation in {"batch", "batch_group"} else len(argument) > 4096):
         raise RuntimeError("Invalid bounded input")
+    requested_backend = os.environ.get("HOSTLAB_BACKEND", "sqlite")
+    if requested_backend not in {"sqlite", "dexsql"}:
+        raise RuntimeError("backend must be sqlite or dexsql")
     batch_request = None
     if operation in {"batch", "batch_group"}:
         import analysis_plan
@@ -196,6 +230,9 @@ def main():
     max_cell_chars = int(raw_max_cell)
     if operation != "query" and max_cell_chars != 300:
         raise RuntimeError("max_cell_chars is only supported for query")
+    if operation == "query" and requested_backend == "dexsql" and max_cell_chars != 300:
+        # Native pages bound cells themselves; a legacy-only preview limit must not be dropped.
+        raise RuntimeError("max_cell_chars is only supported by the legacy SQLite query backend")
     if operation == "regenerate_ai":
         import regenerate_report
         regenerate_report.main()
@@ -283,6 +320,20 @@ def main():
         command = base + ["dexq", "info"] + source
     else:
         raise RuntimeError("Unsupported operation")
+    selected_backend = None
+    if operation in {"query", "decode", "string_refs", "info"}:
+        import analysis_plan
+        import install_dexsql
+        available = requested_backend == "dexsql" and install_dexsql.status()["available"]
+        try:
+            selected_backend = analysis_plan.cli_backend(
+                operation, requested_backend, dexsql_available=available)
+        except ValueError as exc:
+            raise RuntimeError(str(exc)) from None
+        command += ["--backend", selected_backend["backend"]]
+        if operation == "string_refs" and selected_backend["backend"] == "dexsql":
+            # Native references expose caller methods; legacy offsets/opcodes do not exist there.
+            command += ["--detail", "methods"]
     output = hostlab.STATE / "remote-output"
     output.mkdir(parents=True, exist_ok=True)
     sampler = analyze.runner_resources.make_sampler(origin=entry_started, disk_path=hostlab.STATE)
@@ -306,9 +357,25 @@ def main():
         "resources": resources, "total_ms": (time.monotonic()-entry_started)*1000}
     if operation == "query":
         job["max_cell_chars"] = max_cell_chars
+    if selected_backend is not None:
+        job["dexq_backend"] = selected_backend["backend"]
+        job["backend_reason"] = selected_backend["reason"]
+        if operation == "string_refs" and selected_backend["backend"] == "dexsql":
+            job["reference_detail"] = "methods"
+    failure = None
+    if rc:
+        failure = retry_policy.command_failure(operation, rc, result_head(output / "result.txt"),
+                                               job.get("dexq_backend"))
+        job["failure"] = failure
+        job["retry_class"] = retry_policy.classify([failure["kind"]])
     if module_source is not None:
         job["source_snapshot"] = module_source
     hostlab.write_json(output / "job.json", job)
+    # The step log is the only place a caller sees why a single command stopped:
+    # child output lives in result.txt and would otherwise leave an empty failure.
+    print(json.dumps({"operation": operation, "complete": rc == 0, "exit_code": rc,
+                      "backend": job.get("dexq_backend"), "reason": failure["kind"] if failure else None,
+                      "retry_class": job.get("retry_class")}))
     return rc
 
 

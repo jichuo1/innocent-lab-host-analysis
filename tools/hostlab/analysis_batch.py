@@ -20,6 +20,8 @@ import hostlab
 import install_dexsql
 
 MAX_RESULT_BYTES = 2 * 1024 * 1024
+# Refusals that leave the prepared dataset usable and cannot change on replay.
+REJECTED_KINDS = {"invalid_query", "invalid_input", "impl_defined", "output_too_large"}
 HERE = Path(__file__).resolve().parent
 
 
@@ -34,6 +36,16 @@ def failure(exc):
     while isinstance(exc, BaseExceptionGroup) and exc.exceptions:
         exc = exc.exceptions[0]
     return {"error": type(exc).__name__, "message": str(exc)[:1000], "detail": getattr(exc, "detail", None)}
+
+
+def request_reason(exc, default):
+    """A statement the backend refused keeps its own kind; only unknown transport is generic."""
+    if isinstance(exc, analysis_paging.PageError):
+        return str(exc)
+    detail = getattr(exc, "detail", None)
+    error = detail.get("error") if isinstance(detail, dict) else None
+    kind = error.get("kind") if isinstance(error, dict) else None
+    return kind if kind in REJECTED_KINDS else default
 
 
 def cache_directory():
@@ -356,18 +368,17 @@ async def execute(apk, request, *, roots, sample=None, resume=None, checkpoint=N
                             admitted = next((t for t in report["tasks"] if t["id"] == name), None)
                             if admitted is not None and admitted["status"] == "partial":
                                 admitted["result"].setdefault("pagination", {})["stop_reason"] = (
-                                    str(exc) if isinstance(exc, analysis_paging.PageError) else "page_request_failed")
+                                    request_reason(exc, "page_request_failed"))
                                 admitted["failure"] = failure(exc)
                             else:
                                 report["tasks"] = [t for t in report["tasks"] if t["id"] != name]
                                 report["tasks"].append({"id": name, "backend": backend, "status": "error",
-                                    "reason": str(exc) if isinstance(exc, analysis_paging.PageError) else "backend_request_failed",
+                                    "reason": request_reason(exc, "backend_request_failed"),
                                     "elapsed_ms": (time.monotonic() - began) * 1000, **failure(exc)})
                             detail = exc.detail if isinstance(exc, BackendError) and isinstance(exc.detail, dict) else {}
                             error = detail.get("error", {})
                             if (task_map[name]["operation"] == "query" and not session.dead and isinstance(error, dict)
-                                    and not error.get("dataset_closed") and error.get("kind") in {
-                                        "invalid_query", "invalid_input", "impl_defined", "output_too_large"}):
+                                    and not error.get("dataset_closed") and error.get("kind") in REJECTED_KINDS):
                                 continue  # A rejected read-only statement does not invalidate the dataset.
                             # A failed/expired dataset is never silently reused or replayed.
                             break

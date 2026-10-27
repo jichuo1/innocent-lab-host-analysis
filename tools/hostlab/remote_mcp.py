@@ -1,6 +1,7 @@
 """Local MCP gateway to private GitHub Actions. No APK download on this computer."""
 import json
 import base64
+import hashlib
 import os
 from pathlib import Path
 import re
@@ -75,6 +76,29 @@ def result_previews(files, out, result_offset, page_chars, result_file, default_
             text.append(part)
     return {"text": "\n".join(text), "text_truncated": truncated,
             "result_page": pages.get(names.get(chosen)), "file_pages": pages}
+
+
+def record_classification(request_id, files):
+    """Persist the runner's bounded failure class so an identical request is not replayed."""
+    import retry_policy
+    import remote_schedule
+    jobs = []
+    for path in [p for p in files if p.name == "job.json"][:12]:
+        try:
+            if path.stat().st_size > 1024 * 1024:
+                continue
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, UnicodeError):
+            continue
+        if isinstance(value, dict):
+            jobs.append(value)
+    fields = retry_policy.classification(jobs)
+    if not fields:
+        return None
+    try:
+        return remote_schedule.annotate(request_id, **fields)
+    except (OSError, ValueError):
+        return None
 
 
 def task_summary(files, out):
@@ -306,13 +330,16 @@ def plan_analysis(request: dict) -> str:
 
 @mcp.tool()
 def submit_analysis(version_code: int, request: dict, apk_sha256: str = "", sample_revision: str = "",
-                    idempotency_key: str = "") -> str:
-    """Schedule one bounded analysis batch. Related tasks share one APK fetch and one session per backend. DexSQL queries automatically continue under row/page/byte/deadline budgets. request.resume={run_id,attempt,request_id} explicitly imports a verified checkpoint from this repository; exact APK SHA and sample revision are required. Completed task payloads are retained and partial SQL continues at its admitted cursor, never by replaying its prefix. Resume defaults to a stable idempotency key; a new key explicitly authorizes another attempt. Ordinary arbitrary SQL is not completion-cached. Unknown dispatch is never replayed. Uses Actions minutes."""
+                    idempotency_key: str = "", force: bool = False) -> str:
+    """Schedule one bounded analysis batch. Related tasks share one APK fetch and one session per backend. DexSQL queries automatically continue under row/page/byte/deadline budgets. request.resume={run_id,attempt,request_id} explicitly imports a verified checkpoint from this repository; exact APK SHA and sample revision are required. Completed task payloads are retained and partial SQL continues at its admitted cursor, never by replaying its prefix. Resume defaults to a stable idempotency key; a new key explicitly authorizes another attempt. Ordinary arbitrary SQL is not completion-cached. An identical payload whose deterministic failure is already known is not dispatched again unless force=true. Unknown dispatch is never replayed. Uses Actions minutes."""
     import remote_schedule
+    if type(force) is not bool:
+        raise ToolError("force must be a boolean")
     try:
         result = remote_schedule.submit(version_code, request, gh, lookup, runs, repository=REPO,
                                         workflow=WORKFLOW, apk_sha256=apk_sha256,
-                                        sample_revision=sample_revision, idempotency_key=idempotency_key)
+                                        sample_revision=sample_revision, idempotency_key=idempotency_key,
+                                        force=force)
         return json.dumps(result, ensure_ascii=False)
     except ValueError as exc:
         raise ToolError(str(exc)) from None
@@ -320,28 +347,55 @@ def submit_analysis(version_code: int, request: dict, apk_sha256: str = "", samp
 
 @mcp.tool()
 def submit_job(version_code: int, operation: str, argument: str = "", max_cell_chars: int = 300,
-               source_mode: str = "auto") -> str:
+               source_mode: str = "auto", backend: str = "sqlite", allow_replay: bool = False) -> str:
     """Submit multipath_audit, audit, decompile (class), query (SELECT SQL), decode (method), string_refs (string), or info. Uses Actions minutes; returns immediately.
 
     query supports max_cell_chars=1..16000 (default 300). Larger cells remain in the index;
     use length()/substr() with file_id and a stable row key for longer values.
+    backend selects the index for query/decode/string_refs/info: sqlite (legacy schema,
+    default) or dexsql (native classes/methods/class_methods/method_calls relations; its
+    result is a bounded JSON report and native pages replace max_cell_chars).
+    An identical payload whose deterministic failure is already known is not dispatched
+    again unless allow_replay=true.
     """
     if version_code <= 0 or version_code > 9999999999 or operation not in {"inventory", "audit", "decompile", "query", "decode", "string_refs", "info", "multipath_audit", "regenerate_ai", "source_check"} or len(argument) > 4096:
         raise ToolError("Invalid bounded operation parameters")
     if not 1 <= max_cell_chars <= 16000 or (operation != "query" and max_cell_chars != 300):
         raise ToolError("max_cell_chars must be 1..16000 and only varies for query")
+    if backend not in {"sqlite", "dexsql"} or (operation not in {"query", "decode", "string_refs", "info"} and backend != "sqlite"):
+        raise ToolError("backend must be sqlite or dexsql, and only for query/decode/string_refs/info")
+    if type(allow_replay) is not bool:
+        raise ToolError("allow_replay must be a boolean")
     if source_mode not in {"auto", "worktree", "published", "historical"}:
         raise ToolError("Unsupported source_mode")
     if source_mode != "auto" and operation not in {"multipath_audit", "regenerate_ai", "source_check"}:
         raise ToolError("source_mode applies only to complete analysis")
     if operation in {"multipath_audit", "source_check"} and source_mode == "historical":
         raise ToolError("New analysis cannot silently use historical source")
+    if operation == "query" and backend == "dexsql" and max_cell_chars != 300:
+        raise ToolError("max_cell_chars applies only to the legacy SQLite query backend")
+    payload = json.dumps({"version_code": version_code, "operation": operation, "argument": argument,
+                          "max_cell_chars": max_cell_chars, "source_mode": source_mode,
+                          "backend": backend}, sort_keys=True, ensure_ascii=False)
+    payload_sha256 = hashlib.sha256(payload.encode()).hexdigest()
+    if not allow_replay:
+        import remote_schedule
+        previous = remote_schedule.previous_request(payload_sha256)
+        if previous is not None:
+            return json.dumps({"status": "replay_blocked", "dispatched": False,
+                "request_id": previous["request_id"], "payload_sha256": payload_sha256,
+                "retry_class": previous.get("retry_class"),
+                "failure_reasons": previous.get("failure_reasons", []),
+                "next_action": "fix the deterministic cause, change the operation, or pass "
+                               "allow_replay=true to authorize another paid attempt"}, ensure_ascii=False)
     request = uuid.uuid4().hex
     inputs = {"request_id": request, "version_code": str(version_code),
               "operation": operation, "argument": argument}
     # Omit the default so an older workflow can still serve legacy clients.
     if max_cell_chars != 300:
         inputs["max_cell_chars"] = str(max_cell_chars)
+    if backend != "sqlite":
+        inputs["backend"] = backend
     binding = None
     if operation in {"multipath_audit", "source_check"} or operation == "regenerate_ai" and source_mode not in {"auto", "historical"}:
         import snapshot_transport
@@ -355,6 +409,7 @@ def submit_job(version_code: int, operation: str, argument: str = "", max_cell_c
     record = {
         "request_id": request, "version_code": version_code, "operation": operation,
         "source_mode": source_mode, "module_source": binding, "status": "dispatch_unknown",
+        "payload_sha256": payload_sha256, "backend": backend,
         "created_at": queued_at, "queued_at": queued_at}
     hostlab.write_json(record_path, record)
     import remote_dispatch
@@ -448,6 +503,7 @@ def job_result(request_id: str, result_offset: int = 0, sample_index: int = -1,
         if len(groups) != 1:
             raise ToolError("Ambiguous runner group receipt")
         if sample_index == -1:
+            record_classification(request_id, files)
             return json.dumps({"run": run["html_url"], "files": [str(p) for p in files],
                 **result_previews(groups,out,result_offset,page_chars,result_file,"group.json"),
                 "task_summary": task_summary(files,out),
@@ -459,6 +515,7 @@ def job_result(request_id: str, result_offset: int = 0, sample_index: int = -1,
             raise ToolError("Runner group member has no saved output; inspect the group receipt")
     elif sample_index != -1:
         raise ToolError("sample_index applies only to grouped jobs")
+    record_classification(request_id, files)
     rendered = result_previews(files,out,result_offset,page_chars,result_file)
     summaries = [p for p in files if p.name == "priority-summary.json"]
     freshness = source_freshness(json.loads(summaries[0].read_text(encoding="utf-8"))) if len(summaries) == 1 else None
