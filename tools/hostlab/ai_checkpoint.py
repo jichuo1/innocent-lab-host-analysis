@@ -17,9 +17,10 @@ import remote_schedule
 MAX_BYTES = 64 * 1024 * 1024
 MAX_PUBLIC_RESPONSE_BYTES = 2 * 1024 * 1024
 OUTPUT_BUDGET = "generous-v1"
+REQUEST_BUDGET = "expanded-v1"
 OUTPUT_TOKENS = 65536
-MAX_REQUESTS = 16
-MAX_TRANSPORT_RETRIES = 2
+MAX_REQUESTS = 32
+MAX_TRANSPORT_RETRIES = 4
 COOLDOWN_SECONDS = 60
 HEX = re.compile(r"[0-9a-f]{64}")
 RECOVERY_LIMITS = {
@@ -30,23 +31,42 @@ RECOVERY_LIMITS = {
     "completion-v3": {"max_requests": 40, "transport_retries": 6, "max_output": 16384,
                       "deadline_seconds": 4800, "total_timeout": 600, "adaptive_timeout": True},
 }
+EXPANDED_RECOVERY_LIMITS = {
+    "extended-v1": {"max_requests": 48, "transport_retries": 6, "max_output": 16384,
+                    "deadline_seconds": 3600, "total_timeout": 240},
+    "completion-v2": {"max_requests": 64, "transport_retries": 6, "max_output": 16384,
+                      "deadline_seconds": 5400, "total_timeout": 240},
+    "completion-v3": {"max_requests": 80, "transport_retries": 8, "max_output": 16384,
+                      "deadline_seconds": 7200, "total_timeout": 600, "adaptive_timeout": True},
+}
 PARENT_POLICY = {"extended-v1": None, "completion-v2": "extended-v1", "completion-v3": "completion-v2"}
 
 
+def recovery_limits(name, policy):
+    limits = EXPANDED_RECOVERY_LIMITS if policy.get("request_budget") == REQUEST_BUDGET else RECOVERY_LIMITS
+    return limits[name]
+
+
 def policy_limits(binding):
-    """Only the default and explicitly named, fixed recovery policies exist."""
+    """Only versioned default and explicitly named, fixed recovery policies exist."""
     policy = binding.get("policy")
     if policy is None:
-        return {"max_requests": MAX_REQUESTS, "transport_retries": MAX_TRANSPORT_RETRIES,
+        return {"max_requests": 16, "transport_retries": 2,
                 "max_output": 8192, "deadline_seconds": 1800}
     if not isinstance(policy, dict):
         raise CheckpointError("invalid AI policy")
     recovery = policy.get("recovery_policy")
     extended = isinstance(recovery, str) and recovery in RECOVERY_LIMITS
-    expected = {"max_requests": 16, "transport_retries": 2, "max_output": 8192, "deadline_seconds": 1800,
+    expanded = policy.get("request_budget") == REQUEST_BUDGET
+    if "request_budget" in policy and not expanded:
+        raise CheckpointError("unsupported AI request budget")
+    expected = {"max_requests": 32 if expanded else 16, "transport_retries": 4 if expanded else 2,
+                "max_output": 8192, "deadline_seconds": 3600 if expanded else 1800,
                 "total_timeout": 240, "idle_timeout": 45, "stream": True}
+    if expanded:
+        expected["request_budget"] = REQUEST_BUDGET
     if extended:
-        expected.update(RECOVERY_LIMITS[recovery])
+        expected.update(recovery_limits(recovery, policy))
     if "output_budget" in policy:
         expected.update(output_budget=OUTPUT_BUDGET, max_output=OUTPUT_TOKENS)
     if (set(policy) != set(expected) | {"initial_profile", "allow_fallback"} | ({"recovery_policy"} if extended else set())
@@ -98,8 +118,10 @@ def validate(value):
         recovery = value.get("recovery")
         parent_policy = PARENT_POLICY[limits["recovery_policy"]]
         completion = parent_policy is not None
-        old_requests = RECOVERY_LIMITS[parent_policy]["max_requests"] if completion else MAX_REQUESTS
-        old_retries = RECOVERY_LIMITS[parent_policy]["transport_retries"] if completion else MAX_TRANSPORT_RETRIES
+        original_binding = recovery.get("original_binding") if isinstance(recovery, dict) else None
+        old_limits = policy_limits(original_binding) if isinstance(original_binding, dict) else {}
+        old_requests = old_limits.get("max_requests")
+        old_retries = old_limits.get("transport_retries")
         if (not isinstance(recovery, dict) or recovery.get("policy") != limits["recovery_policy"]
                 or recovery.get("schema") != 1 or type(recovery.get("schema")) is not int
                 or not isinstance(recovery.get("original_binding"), dict)
@@ -117,9 +139,7 @@ def validate(value):
                 or (recovery["resume_transport_retry_pending"] and not re.fullmatch(
                     r"r[0-9]{1,2}" if completion else r"(?:d[0-9]|r0)", str(recovery.get("next_retry_unit", ""))))
                 or (not recovery["resume_transport_retry_pending"] and "next_retry_unit" in recovery)
-                or recovery.get("old_limits") != policy_limits(recovery["original_binding"])
-                or recovery.get("old_limits", {}).get("max_requests") != old_requests
-                or recovery.get("old_limits", {}).get("transport_retries") != old_retries
+                or recovery.get("old_limits") != old_limits
                 or recovery.get("new_limits") != limits):
             raise CheckpointError("invalid recovery provenance")
         if (not completion and recovery["resume_transport_retry_pending"] and recovery["next_retry_unit"] == "r0"

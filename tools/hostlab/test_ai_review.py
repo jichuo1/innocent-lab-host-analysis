@@ -4,6 +4,8 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+import ai_checkpoint
+import ai_pipeline
 import ai_review
 import publish_report
 
@@ -237,8 +239,8 @@ class DetailedReviewTest(unittest.TestCase):
                 with self.assertRaises(RuntimeError):ai_review.run(root)
             outcome=json.loads((root/"ai-analysis.json").read_text(encoding="utf-8"))
             self.assertEqual(outcome["status"],"failed")
-            self.assertLessEqual(api.call_count,ai_review.HARD_REQUEST_CAP)
-            self.assertEqual(outcome["limits"]["hard_cap"],ai_review.HARD_REQUEST_CAP)
+            self.assertLessEqual(api.call_count,ai_checkpoint.MAX_REQUESTS)
+            self.assertEqual(outcome["limits"]["hard_cap"],ai_checkpoint.MAX_REQUESTS)
 
     def test_session_header_is_sent_for_gateway_compatibility(self):
         import ai_transport
@@ -348,7 +350,7 @@ class DetailedReviewTest(unittest.TestCase):
     def test_deadline_breaks_loop_and_records_failed(self):
         with tempfile.TemporaryDirectory() as folder, patch.dict("os.environ",{"AI_DEFAULT_PROFILE":"backup"}):
             root=self.root(folder)
-            with patch.object(ai_review,"AI_DEADLINE_SECONDS",0), \
+            with patch.object(ai_pipeline,"AI_DEADLINE_SECONDS",0), \
                  patch.object(ai_review,"call_api") as api, patch.object(ai_review.time,"sleep"):
                 with self.assertRaises(RuntimeError):ai_review.run(root)
             api.assert_not_called()

@@ -114,6 +114,25 @@ class PipelineTest(unittest.TestCase):
             ai_review.run(self.root)
         self.assertTrue(offered)
 
+    def test_future_submission_reservation_gates_new_posts_but_not_cached_replay(self):
+        ledger = ai_checkpoint.Checkpoint(self.root/"reservation", {"policy": ai_pipeline.execution_policy({})})
+        self.addCleanup(ledger.close)
+        calls = []
+        def api(*args, **options):
+            calls.append(args)
+            return {"role": "assistant", "content": None}, {"total_tokens": 1}, "test-model"
+        coordinator = ai_pipeline.Coordinator(ledger, api, profile="primary",
+                                              deadline=ai_pipeline.time.monotonic()+100)
+        messages = [{"role": "user", "content": "cached request"}]
+        clean = coordinator.request("draft", "d0", messages, [], None)
+        coordinator.position = 27
+        self.assertEqual(coordinator.request("draft", "d0", messages, [], None, reserve_after=1), clean)
+        self.assertEqual(len(calls), 1)
+        with self.assertRaisesRegex(ai_checkpoint.CheckpointError, "future unit submissions"):
+            coordinator.request("draft", "d0", [{"role": "user", "content": "new request"}], [], None,
+                                reserve_after=1)
+        self.assertEqual(len(calls), 1)
+
     def test_adaptive_timeout_keeps_slow_reasoning_within_fixed_and_remaining_caps(self):
         limits = ai_pipeline.execution_policy({"ai_recovery_policy": "completion-v3"})
         slow = {"profile": "backup", "status": "response_received", "billing_unknown": False,
@@ -157,6 +176,53 @@ class PipelineTest(unittest.TestCase):
         self.assertTrue(any("requires a non-empty finding_id" in value and "F001" in value for value in observed_feedback))
         self.assertFalse(any("TypeError" in value for value in observed_feedback))
         self.assertEqual(len(outcome["review"]["findings"]), 4)
+
+    def test_last_review_unit_can_use_seventh_request_after_six_duplicate_pages(self):
+        summary = json.loads((self.root/"priority-summary.json").read_text())
+        for page in ("search", "detail", "pgc", "danmaku", "story", "mine"):
+            summary["page_path_matrix"][page] = {"paths": {page+"_native": {"evidence": "static_invoke_observed"}},
+                "protocols": {}}
+        (self.root/"priority-summary.json").write_text(json.dumps(summary), encoding="utf-8")
+        rejected = 0
+        feedback = []
+        def api(*args, **options):
+            nonlocal rejected
+            message, usage, model = self.provider(*args, **options)
+            data = json.loads(args[1][1]["content"])
+            if data.get("assigned_pages") == ["comment", "dynamic"] and "assigned_findings" not in data:
+                deep_ids = [result["evidence_id"] for row in args[1] if row["role"] == "tool"
+                    for result in [json.loads(row["content"])] if "evidence_id" in result]
+                for call in message.get("tool_calls", []):
+                    if call["function"]["name"] == "finish_report":
+                        payload = json.loads(call["function"]["arguments"])
+                        for finding in payload["findings"]:
+                            finding["evidence_ids"] = [deep_ids[0]]
+                        call["function"]["arguments"] = json.dumps(payload)
+            if data.get("assigned_pages") == ["story", "mine"] and "assigned_findings" in data:
+                feedback.extend(row["content"] for row in args[1] if row["role"] == "tool")
+                if rejected < 6:
+                    rejected += 1
+                    for call in message.get("tool_calls", []):
+                        if call["function"]["name"] == "finish_review":
+                            payload = json.loads(call["function"]["arguments"])
+                            payload["pages"] = [payload["pages"][0], payload["pages"][0]]
+                            call["function"]["arguments"] = json.dumps(payload)
+            return message, usage, model
+        with patch.object(ai_review, "priority_pages", side_effect=lambda value: list(value["page_path_matrix"])), \
+             patch.object(ai_review, "call_api", side_effect=api):
+            try:
+                ai_review.run(self.root)
+            except RuntimeError:
+                outcome = json.loads((self.root/"ai-analysis.json").read_text())
+                self.fail(outcome["error"])
+        outcome = json.loads((self.root/"ai-analysis.json").read_text())
+        self.assertEqual(outcome["status"], "completed")
+        self.assertEqual(outcome["new_model_requests"], 17)
+        attempts = [row for row in outcome["attempts"] if row["unit"] == "r4"]
+        self.assertEqual(len(attempts), 7)
+        self.assertEqual(outcome["checkpoint"]["completed_units"], 10)
+        self.assertEqual(json.loads((self.root/"ai-checkpoint.json").read_text())["transport_retries"], 0)
+        self.assertTrue(any("duplicates=story" in value and "missing=mine" in value for value in feedback))
 
     def test_primary_auth_rejection_switches_credentials_once_and_keeps_accounting(self):
         profiles = []
@@ -237,12 +303,12 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(local["source_files_total"], 670)
         self.assertEqual(len(summary["source_snapshot"]["source_records"]), 670)
 
-    def test_provider_timeouts_stop_with_two_compensations_and_keep_unknown_receipts(self):
+    def test_provider_timeouts_stop_with_four_compensations_and_keep_unknown_receipts(self):
         with patch.object(ai_review, "call_api", side_effect=RuntimeError("API failure: TimeoutError")) as api, \
              patch.object(ai_pipeline.time, "sleep"):
             with self.assertRaises(RuntimeError): ai_review.run(self.root)
         outcome = json.loads((self.root / "ai-analysis.json").read_text())
-        self.assertLessEqual(api.call_count, 3)
+        self.assertLessEqual(api.call_count, 5)
         self.assertTrue(all(row["billing_unknown"] for row in outcome["attempts"]))
         self.assertEqual(outcome["status"], "failed")
 
@@ -315,8 +381,10 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(set(item["revision"]["properties"]["level"]["enum"]), ai_review.CLAIM_LEVELS)
         self.assertNotIn("oneOf", json.dumps([schema, review]))
 
-    def extended_fixture(self, *, invalid_import=False):
-        """A real public ledger shape: nine billed/unknown calls, four reads, two units."""
+    def extended_fixture(self, *, invalid_import=False, deep_calls=4):
+        """A real public ledger shape: nine billed/unknown calls, selected reads, two units."""
+        if not 4 <= deep_calls <= ai_pipeline.DEEP_READ_TOOLS:
+            raise ValueError("extended fixture needs between four and ten deep reads")
         origin = self.root / "origin"; origin.mkdir()
         for name in ("priority-summary.json", "priority-target.json", "priority-baseline.json", "priority-report.md"):
             (origin/name).write_bytes((self.root/name).read_bytes())
@@ -330,11 +398,15 @@ class PipelineTest(unittest.TestCase):
         summary["static_manifest_sha256"] = ai_pipeline.hostlab.digest(origin/"static-manifest.json")
         (origin/"priority-summary.json").write_text(json.dumps(summary), encoding="utf-8")
         evidence = ai_review.Evidence(origin, summary)
+        evidence.limit = ai_pipeline.DEEP_READ_TOOLS
         ai_review.prefetch_evidence(evidence, summary)
-        for name, args in [("family_evidence", {"family": "comment_0", "side": "target"}),
+        reads = [("family_evidence", {"family": "comment_0", "side": "target"}),
                 ("protocol_evidence", {"protocol": "comment_java_moss", "side": "target"}),
                 ("family_evidence", {"family": "search_0", "side": "target"}),
-                ("protocol_evidence", {"protocol": "search_kotlin_moss", "side": "target"})]:
+                ("protocol_evidence", {"protocol": "search_kotlin_moss", "side": "target"})]
+        reads.extend(("family_evidence", {"family": page+"_0", "side": "target"})
+                     for page in counts if page not in {"comment", "search"})
+        for name, args in reads[:deep_calls]:
             evidence.run_tool(name, args)
         units = ai_pipeline.draft_units(summary["page_path_matrix"])
         binding = ai_pipeline.build_binding(origin, summary, units)
@@ -383,8 +455,8 @@ class PipelineTest(unittest.TestCase):
             "evidence_ids": [deep or ids[pages[0]]]} for index in range(count)]
         return value
 
-    def test_extended_recovery_preserves_nine_calls_and_completes_eight_units_then_replays_without_posts(self):
-        target, summary, original = self.extended_fixture()
+    def complete_extended_recovery(self, *, deep_calls=4):
+        target, summary, original = self.extended_fixture(deep_calls=deep_calls)
         seen = []
         def api(profile, messages, tools, force_tool=None, session_id=None, **options):
             seen.append(copy.deepcopy(messages))
@@ -413,12 +485,13 @@ class PipelineTest(unittest.TestCase):
             ai_review.run(target)
         self.assertEqual(len(seen), 8)
         self.assertEqual(first["new_model_requests"], 8)
-        self.assertEqual(first["limits"]["hard_cap"], 24)
-        self.assertEqual(first["limits"]["transport_retry_allowance"], 4)
+        self.assertEqual(first["limits"]["hard_cap"], 48)
+        self.assertEqual(first["limits"]["transport_retry_allowance"], 6)
+        self.assertEqual(first["limits"]["model_read_tools"], 10)
         self.assertEqual(first["limits"]["review_logical_units"], 5)
         self.assertEqual(first["reused_units"], 2)
         self.assertEqual(first["imported_units"], 2)
-        self.assertEqual(first["read_tool_calls"], 4)
+        self.assertEqual(first["read_tool_calls"], deep_calls)
         self.assertEqual(len(first["report"]["pages"]), 10)
         self.assertEqual(sum(len(page["path_reviews"]) for page in first["report"]["pages"]), 25)
         final = json.loads((target/"ai-analysis.json").read_text())
@@ -436,6 +509,15 @@ class PipelineTest(unittest.TestCase):
         review_messages = [json.loads(rows[1]["content"]) for rows in seen if "assigned_findings" in json.loads(rows[1]["content"])]
         self.assertEqual(len(review_messages), 5)
         self.assertEqual(set(review_messages[0]["fresh_refresh"]), {"comment", "dynamic"})
+
+    def test_extended_recovery_preserves_nine_calls_and_completes_eight_units_then_replays_without_posts(self):
+        self.complete_extended_recovery()
+
+    def test_expanded_recovery_replays_seven_deep_reads_without_losing_the_budget(self):
+        self.complete_extended_recovery(deep_calls=7)
+
+    def test_expanded_recovery_replays_ten_deep_reads_without_losing_the_budget(self):
+        self.complete_extended_recovery(deep_calls=10)
 
     def test_invalid_imported_unit_fails_before_any_new_request(self):
         target, _, original = self.extended_fixture(invalid_import=True)

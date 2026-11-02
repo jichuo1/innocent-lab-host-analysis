@@ -16,11 +16,14 @@ class CheckpointTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.binding = {"source_sha256": "a"*64, "policy": {
-            "max_requests": 16, "transport_retries": 2, "deadline_seconds": 1800,
+            "max_requests": 32, "transport_retries": 4, "deadline_seconds": 3600,
+            "request_budget": checkpoint.REQUEST_BUDGET,
             "initial_profile": "primary", "allow_fallback": True, "max_output": 8192,
             "total_timeout": 240, "idle_timeout": 45, "stream": True}}
 
     def test_only_fixed_default_and_explicit_recovery_limits_are_supported(self):
+        self.binding["policy"].pop("request_budget")
+        self.binding["policy"].update(max_requests=16, transport_retries=2, deadline_seconds=1800)
         self.assertEqual(checkpoint.policy_limits(self.binding)["max_requests"], 16)
         extended = copy.deepcopy(self.binding)
         extended["policy"].update(max_requests=24, transport_retries=4, max_output=16384, recovery_policy="extended-v1")
@@ -172,7 +175,7 @@ class CheckpointTest(unittest.TestCase):
 
     def test_global_request_cap_still_applies_after_restart(self):
         value = self.opened()
-        for index in range(16):
+        for index in range(32):
             request = format(index+1, "064x")
             token = value.claim("draft", "d0", request, "primary", "session")
             value.received(token, request, {"role": "assistant", "content": None}, {"prompt_tokens": 1}, "m")
@@ -248,7 +251,7 @@ class CheckpointTest(unittest.TestCase):
 
     def test_global_transport_compensation_budget_survives_restart(self):
         value = self.opened()
-        for index in range(2):
+        for index in range(4):
             request_hash = format(index+1, "064x")
             token = value.claim("draft", "d0", request_hash, "primary", "session", transport_retry=True)
             value.received(token, request_hash, {"role": "assistant", "content": None}, {"total_tokens": 1}, "m")
@@ -257,7 +260,7 @@ class CheckpointTest(unittest.TestCase):
         before = len(resumed.value["attempts"])
         with self.assertRaisesRegex(checkpoint.CheckpointError, "compensation"):
             resumed.claim("review", "r0", "e"*64, "backup", "session", transport_retry=True)
-        self.assertEqual(resumed.value["transport_retries"], 2)
+        self.assertEqual(resumed.value["transport_retries"], 4)
         self.assertEqual(len(resumed.value["attempts"]), before)
 
     def test_authorized_resume_retains_prior_time_and_only_reserves_one_request_deadline(self):

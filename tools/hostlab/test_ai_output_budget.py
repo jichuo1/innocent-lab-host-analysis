@@ -17,14 +17,15 @@ from test_ai_transport import Response, ENV, delta, event
 
 
 class OutputBudgetTest(unittest.TestCase):
-    def test_all_new_review_and_recovery_forms_use_64k_with_original_call_limits(self):
-        for recovery, calls, retries in ((None, 16, 2), ("extended-v1", 24, 4),
-                                         ("completion-v2", 32, 4), ("completion-v3", 40, 6)):
+    def test_all_new_review_and_recovery_forms_use_64k_with_expanded_call_limits(self):
+        for recovery, calls, retries in ((None, 32, 4), ("extended-v1", 48, 6),
+                                         ("completion-v2", 64, 6), ("completion-v3", 80, 8)):
             summary = {"ai_recovery_policy": recovery} if recovery else {}
             policy = ai_pipeline.execution_policy(summary)
             self.assertEqual(policy["max_output"], 65536)
             self.assertEqual(policy["max_requests"], calls)
             self.assertEqual(policy["transport_retries"], retries)
+            self.assertEqual(policy["request_budget"], checkpoint.REQUEST_BUDGET)
             self.assertEqual(checkpoint.policy_limits({"policy": policy}), policy)
         self.assertEqual(ai_review.MAX_OUTPUT, 65536)
         self.assertTrue(all(tokens == 8192 for _, tokens in probe_ai_generation.STAGES))
@@ -32,10 +33,22 @@ class OutputBudgetTest(unittest.TestCase):
     def test_versioned_budget_rejects_unbounded_or_mismatched_caps(self):
         policy = ai_pipeline.execution_policy({})
         for change in ({"max_output": 65537}, {"max_output": 8192}, {"output_budget": "unknown"},
-                       {"max_requests": 17}, {"total_timeout": 601}):
+                       {"request_budget": "unknown"}, {"max_requests": 17}, {"max_requests": 33},
+                       {"total_timeout": 601}):
             value = {**policy, **change}
             with self.subTest(change=change), self.assertRaises(checkpoint.CheckpointError):
                 checkpoint.policy_limits({"policy": value})
+
+    def test_historical_16_request_ledger_with_64k_output_remains_valid(self):
+        policy = ai_pipeline.execution_policy({})
+        policy.pop("request_budget")
+        policy.update(max_requests=16, transport_retries=2, deadline_seconds=1800)
+        self.assertEqual(checkpoint.policy_limits({"policy": policy}), policy)
+        binding = {"policy": policy}
+        saved = {"schema": 1, "binding": binding, "binding_sha256": checkpoint.digest(binding),
+            "attempts": [], "units": {}, "responses": {}, "providers": {},
+            "transport_retries": 0, "elapsed_seconds": 0.0}
+        self.assertEqual(checkpoint.validate(saved)["binding"]["policy"]["max_requests"], 16)
 
     def test_large_unicode_tool_output_survives_sse_and_checkpoint_reload(self):
         arguments = json.dumps({"overview": "中文"*60000}, ensure_ascii=False)

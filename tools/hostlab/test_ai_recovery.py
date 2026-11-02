@@ -480,7 +480,34 @@ class AiRecoveryTest(unittest.TestCase):
         self.assertEqual(restored["recovery"]["parent_recovery"], fixture.original["recovery"])
         self.assertFalse(restored["recovery"]["resume_transport_retry_pending"])
 
+    def test_expanded_completion_parent_uses_its_own_compensation_cap(self):
+        fixture = self.completion_fixture()
+        expanded = copy.deepcopy(fixture.original)
+        expanded["binding"]["policy"].update(request_budget=checkpoint.REQUEST_BUDGET, max_requests=48,
+                                             transport_retries=6, deadline_seconds=3600)
+        expanded["transport_retries"] = 4
+        self.assertEqual(recovery._completion_parent(expanded, fixture.document, "completion-v2"), 14)
+        legacy = copy.deepcopy(expanded)
+        legacy["binding"]["policy"].pop("request_budget")
+        legacy["binding"]["policy"].update(max_requests=24, transport_retries=4, deadline_seconds=1800)
+        with self.assertRaisesRegex(checkpoint.CheckpointError, "remaining compensation"):
+            recovery._completion_parent(legacy, fixture.document, "completion-v2")
+
+    def test_expanded_final_parent_uses_its_own_compensation_cap(self):
+        fixture = self.final_fixture()
+        expanded = copy.deepcopy(fixture.original)
+        expanded["binding"]["policy"].update(request_budget=checkpoint.REQUEST_BUDGET, max_requests=64,
+                                             transport_retries=6, deadline_seconds=5400)
+        expanded["transport_retries"] = 6
+        self.assertEqual(recovery._completion_parent(expanded, fixture.document, "completion-v3"), 14)
+        legacy = copy.deepcopy(expanded)
+        legacy["binding"]["policy"].pop("request_budget")
+        legacy["binding"]["policy"].update(max_requests=32, transport_retries=4, deadline_seconds=3600)
+        with self.assertRaisesRegex(checkpoint.CheckpointError, "remaining compensation"):
+            recovery._completion_parent(legacy, fixture.document, "completion-v3")
+
     def test_completion_rejects_missing_drafts_nonprefix_reviews_and_unchanged_budget_bypass(self):
+
         fixture = self.completion_fixture()
         for change in ("draft", "reviews", "gap", "failed_unit", "compensation", "no_fresh", "default"):
             value = copy.deepcopy(fixture.original); document = copy.deepcopy(fixture.document)

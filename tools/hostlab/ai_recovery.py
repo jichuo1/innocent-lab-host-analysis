@@ -211,7 +211,10 @@ def _binding(old, new):
             or any(comparable[key] != new[key] for key in old if key not in {"code", "policy"})
             or any(old["code"][key] != new["code"][key] for key in unchanged_code)):
         raise checkpoint.CheckpointError("recovery source/static/prompt/acceptance/provider/plan binding changed")
-    expected_policy = {**old["policy"], **checkpoint.RECOVERY_LIMITS[new_policy], "recovery_policy": new_policy}
+    expected_policy = {**old["policy"], **checkpoint.recovery_limits(new_policy, new["policy"]),
+                       "recovery_policy": new_policy}
+    if new["policy"].get("request_budget") == checkpoint.REQUEST_BUDGET:
+        expected_policy["request_budget"] = checkpoint.REQUEST_BUDGET
     if "output_budget" in new["policy"]:
         expected_policy.update(output_budget=checkpoint.OUTPUT_BUDGET, max_output=checkpoint.OUTPUT_TOKENS)
     if new["policy"] != expected_policy:
@@ -267,7 +270,8 @@ def _completion_parent(value, document, policy=COMPLETION_POLICY):
     if (not attempts or attempts[-1].get("status") != "failed" or not attempts[-1].get("retryable")
             or attempts[-1].get("stage") != "review"
             or attempts[-1].get("unit") != "r"+str(len(_review_prefix(value)))
-            or value["transport_retries"] >= checkpoint.RECOVERY_LIMITS[policy]["transport_retries"]):
+            or value["transport_retries"] >= checkpoint.recovery_limits(
+                policy, value["binding"].get("policy", {}))["transport_retries"]):
         raise checkpoint.CheckpointError("completion recovery requires its next retryable review and remaining compensation")
     pages = [page for unit in value["binding"]["draft_units"] for page in unit]
     rows = document["tools"]
