@@ -234,7 +234,7 @@
     "b9d57dbc2c863166998135c8757e5f42": {
       "sample": "48138d82b89293d20dbb65df002f99a15c027ae27b520397c988b1187f5f750e",
       "version_code": 9180200,
-      "status": "submitted",
+      "status": "completed",
       "module_source": {
         "schema": 1,
         "repo": "innocent-lab-dev/bilibili-host-apks",
@@ -250,7 +250,10 @@
         "file_count": 689,
         "selection_version": 1
       },
-      "source_freshness": "published_unverified_worktree"
+      "source_freshness": "published_unverified_worktree",
+      "run_id": 41512696456,
+      "conclusion": "success",
+      "url": "https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/41512696456"
     }
   },
   "mode": "static_plus_bounded_ai_review",
