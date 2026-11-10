@@ -4,6 +4,7 @@
 
 | 样本 | 分析结论 | AI | 源码快照 / UTC / 时效 | 报告 | 完整证据 |
 |---|---|---|---|---|---|
+| 9.19.0 / 9190400 | AI_ANALYSIS_FAILED | failed | 2fa2d3b70f73 / 2026-10-15T14:19:32.431433Z / published_unverified_worktree | [查看](samples/9190400/ddc3259ca504e3ea0a9cc851b3c5ed26f5f41fce89e8c3c154b9e804eb0ee4a3/runs/42887340086-a1/report.md) | — |
 | 9.19.0 / 9190200 | AI_ANALYSIS_FAILED | failed | 2fa2d3b70f73 / 2026-10-15T14:19:32.431433Z / published_unverified_worktree | [查看](samples/9190200/d9681f715d882e36a3e31d1969e766968a4a44838b81a19d3f92e7f3b3132bd3/runs/42809488342-a1/report.md) | — |
 | 9.18.0 / 9180300 | REVIEW_REQUIRED | completed | 2fa2d3b70f73 / 2026-10-15T14:19:32.431433Z / published_unverified_worktree | [查看](samples/9180300/4b47fbf0db6d2ae662181540861f4c2e2a2aa4861b1853f2ddd52a47ba68c5a8/runs/41687147723-a1/report.md) | [下载](https://github.com/jichuo1/innocent-lab-host-analysis/releases/tag/analysis-9180300-4b47fbf0db6d-41687147723-a1) |
 | 9.18.0 / 9180200 | REVIEW_REQUIRED | completed | 2fa2d3b70f73 / 2026-10-15T14:19:32.431433Z / published_unverified_worktree | [查看](samples/9180200/48138d82b89293d20dbb65df002f99a15c027ae27b520397c988b1187f5f750e/runs/41512696456-a1/report.md) | [下载](https://github.com/jichuo1/innocent-lab-host-analysis/releases/tag/analysis-9180200-48138d82b892-41512696456-a1) |
