@@ -15,6 +15,7 @@
     "436eaffabbf0d8856b2e1eba45d99ff536ddabf459a2e0af17c7b575279329b1",
     "46836b337459b498cc29b2be92f967a465bdc22845ec3e70dc72ca294a19e623",
     "47cce44f0cfd0d0f25339cb86a0adb3e0d230c68fab8a43edaf0b20c48f8e5c6",
+    "47cd74d4a709baa903a3716d7708fe2a6bf85d6b29224c6c93cfacb77b7c314b",
     "48138d82b89293d20dbb65df002f99a15c027ae27b520397c988b1187f5f750e",
     "49172e26c9255b95a5a319cb219f1de686ae9f79dc7caa106c57ef03296a3a54",
     "4b47fbf0db6d2ae662181540861f4c2e2a2aa4861b1853f2ddd52a47ba68c5a8",
@@ -47,7 +48,7 @@
     "f0f880e841d017db335b3919e6d4792961f2e08aa9993da661b626d52cfcb955",
     "fc5ff38ff05a8841e89df7aaeeadbf249a4cee8ad1dff5245b6cd05d2a633567"
   ],
-  "watermark": 9200100,
+  "watermark": 9200200,
   "jobs": {
     "b9de430ac9861440f094992926e699a0": {
       "sample": "2b45ab0d934cbe000082caedfa360864de60ab46cd4d45488ae31f35693a927e",
@@ -334,6 +335,30 @@
     "0525413d4c3fa34871ca31e5ef1477c0": {
       "sample": "054e3f2f18408dda9498bd8165b44d586333d96e69a977ded63d665fc4ace820",
       "version_code": 9200100,
+      "status": "completed",
+      "module_source": {
+        "schema": 1,
+        "repo": "innocent-lab-dev/bilibili-host-apks",
+        "revision": "f4bfe9d6226c2e4558ed5050999b6a426fa7cb0b",
+        "path": "source-snapshots/2fa2d3b70f73fa431ed83267a9519c726a41b67de39eb7ee785813de39067120/context.json",
+        "snapshot_sha256": "2fa2d3b70f73fa431ed83267a9519c726a41b67de39eb7ee785813de39067120",
+        "source_tree_sha256": "37745f8f27c41c22eab6e0bc780c6af700d650f49c3f004f862bf9c5f1548a5c",
+        "repository_head": "5422fad1e3f798252619d610a0504573ff47211b",
+        "captured_at": "2026-10-15T14:19:32.431433Z",
+        "verified_at": "2026-10-15T14:20:03.900845+00:00",
+        "origin": "published",
+        "working_tree_dirty": true,
+        "file_count": 689,
+        "selection_version": 1
+      },
+      "source_freshness": "published_unverified_worktree",
+      "run_id": 43917876524,
+      "conclusion": "failure",
+      "url": "https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/43917876524"
+    },
+    "3f146fd79a66b4597c47d0f2bb60e2c0": {
+      "sample": "47cd74d4a709baa903a3716d7708fe2a6bf85d6b29224c6c93cfacb77b7c314b",
+      "version_code": 9200200,
       "status": "submitted",
       "module_source": {
         "schema": 1,
