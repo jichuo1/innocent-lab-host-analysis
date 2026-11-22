@@ -111,7 +111,7 @@ jobs:
         continue-on-error: true
         with:
           path: tools/hostlab/vendor/meguvizdexdash/1.2.2
-          key: hostlab-mdd-v1-${{ runner.os }}-${{ runner.arch }}-1.2.2-5c2df4415f1b
+          key: hostlab-mdd-v1-${{ runner.os }}-${{ runner.arch }}-1.2.2-e0358934620a
       - name: Install Rust toolchain for MeguvizDexDash build
         if: steps.plan.outputs.needs_mdd == 'true' && steps.mdd-cache.outputs.cache-hit != 'true'
         run: |
@@ -129,7 +129,7 @@ jobs:
         continue-on-error: true
         with:
           path: tools/hostlab/vendor/meguvizdexdash/1.2.2
-          key: hostlab-mdd-v1-${{ runner.os }}-${{ runner.arch }}-1.2.2-5c2df4415f1b
+          key: hostlab-mdd-v1-${{ runner.os }}-${{ runner.arch }}-1.2.2-e0358934620a
       - name: Download verified optional DexSQL
         if: steps.plan.outputs.needs_dexsql == 'true'
         continue-on-error: ${{ steps.plan.outputs.dexsql_optional == 'true' }}
