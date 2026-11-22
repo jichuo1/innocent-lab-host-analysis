@@ -15,21 +15,21 @@ import tempfile
 PRODUCT = "MeguvizDexDash"
 VERSION = "1.2.2"
 SOURCE_REPO = "https://github.com/Meguvizarchic/MeguvizDexDash.git"
-SOURCE_COMMIT = "55957094ee6aa03e64fa354342e8d6acaab6ab8b"
+SOURCE_COMMIT = "6f0d5ce47680628ee9c51bfcc8a9157d9641c0ec"
 REQUIRED_DIALECT = "dexsql-0.1.0"
 ENV_OVERRIDE = "HOSTLAB_MEGUVIZDEXDASH"
 PLATFORMS = {
     ("Windows", "AMD64"): (
         "meguvizdexdash.exe",
-        "source-sha256:5801c6036dd15b17326cacafb0d835c6358072098acbc69f58fc7ce8880af619",
+        "source-sha256:77040b4091ab6f0c0fc0742962bef24219354305344cb12364af7241c6f6c450",
     ),
     ("Linux", "x86_64"): (
         "meguvizdexdash",
-        "source-sha256:65e7f1cf346e03ac9714f57ca18e53a6d915a035f6b55ee51b5fc9fb4e62720d",
+        "source-sha256:d10a00fb9fa5ea1db35e15d3e4b6410cbd67cfb7fb2b99bb0f60855212e28164",
     ),
     ("Darwin", "arm64"): (
         "meguvizdexdash",
-        "source-sha256:4fccaafb633cd08bf534946463818d8261d76d5ab62027ad258ac9593f035447",
+        "source-sha256:f337ed538e72e6e601bf282e1ad3df5102b824395010f27b847abfcae0ad9252",
     ),
 }
 HERE = Path(__file__).resolve().parent

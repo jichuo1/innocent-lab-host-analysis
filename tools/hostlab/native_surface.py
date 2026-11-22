@@ -147,7 +147,7 @@ def scan(session):
                 record["compose_signatures"] = [name+proto for name, proto in record["methods"] if "Landroidx/compose/runtime/Composer;" in proto]
     edges, counts = set(), {}
     condition = family_filter("callee_class")+" OR "+protocol_filter("callee_class")
-    for row in all_files(session, "SELECT file_id,method,callee,COUNT(*) AS n FROM method_calls", condition, "method,callee", group="file_id,method,callee", max_rows=1000000, max_bytes=256*1024*1024):
+    for row in per_file(session, "SELECT file_id,method,callee,COUNT(*) AS n FROM method_calls", condition, "method,callee", group="file_id,method,callee", max_rows=1000000, max_bytes=256*1024*1024):
         file = int(row["file_id"])
         caller, name, proto = member(row["method"])
         callee, target_name, target_proto = member(row["callee"])
