@@ -6,12 +6,12 @@ The `advanced` branch of `jichuo1/innocent-lab-host-analysis` (branched cleanly 
 
 | Component | Pinned Reference / Identity | Verification Status |
 |---|---|---|
-| Engine source | `https://github.com/Meguvizarchic/MeguvizDexDash.git` @ `0ecc13aa96514f8517729551a6978390dd9b56b9` (`1.2.2`, dialect `dexsql-0.1.0`) | `Native build and conformance` Run [`44985652932`](https://github.com/Meguvizarchic/MeguvizDexDash/actions/runs/44985652932) (Ubuntu 5m18s, Windows 9m20s) & `Desktop workbench` Run [`44985652863`](https://github.com/Meguvizarchic/MeguvizDexDash/actions/runs/44985652863) — all green |
-| Linux `x86_64` `build_id` | `source-sha256:b1f590b763871e2ffe7a9080954981cb035cf40f05f2744a5a8d5cfcef782c1c` | Verified in binary `version` + `capabilities` checks in CI (`0dbf5203151b642840dd5eaad48375d007d87f7bf4b50393253db5df9abbcde2`) |
-| Windows `AMD64` `build_id` | `source-sha256:8127c890e2071069b50a619fd87a8a7768732f909d1c559d9aff1d8ecd4ed402` | Deterministic `build.rs` digest verified against CI baseline |
-| Darwin `arm64` `build_id` | `source-sha256:2400df1920e55b8a89c6ce3269fda28623aeed6bb046e6c2fb488b42202f1dd1` | Deterministic `build.rs` digest verified against CI baseline |
-| HostLab `advanced` code SHA | `e9624de311e2b39e401605e7bd70f1ca13a70a06` (base `d872f2faf5d61e70b422231803884b47670595da`) | `Analysis tooling tests` Run [`44986363105`](https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/44986363105) — 49s green |
-| Reference audit baseline | `d872f2faf5d61e70b422231803884b47670595da` (`dexsql 0.1.0` + `run_intake.py` + `home_frame_audit.py`) | Executed side-by-side in fresh serial processes on Ubuntu 24.04 (`Linux-7.0.0-1014-aws-x86_64-with-glibc2.39`, 4 vCPU) |
+| Engine source | `https://github.com/Meguvizarchic/MeguvizDexDash.git` @ `e0358934620aa82091178febb1a2ce6c7abad9db` (`1.2.2`, dialect `dexsql-0.1.0`) | `Native build and conformance` Run [`45014820025`](https://github.com/Meguvizarchic/MeguvizDexDash/actions/runs/45014820025) (Ubuntu 4m45s, Windows 7m2s) & `Desktop workbench` Run [`45014820019`](https://github.com/Meguvizarchic/MeguvizDexDash/actions/runs/45014820019) (Ubuntu 8m52s, Windows 16m24s) — all green |
+| Linux `x86_64` `build_id` | `source-sha256:cc96e38c446778ad931f730b8cb18e8751126ff3cf1348a047f58a233d517c76` | Verified in binary `version` + `capabilities` checks in CI (binary SHA-256 `a4466f6e8c964e9a4d54157db56139bf2ac55e140d54a09b00a4d6731a7afe51`) |
+| Windows `AMD64` `build_id` | `source-sha256:6e956db9b5a919f28b2d96d66c5aead58974fdc7dc62f3cb63ad007e8581ca70` | Deterministic `build.rs` LF digest verified for pinned commit `e0358934620a` |
+| Darwin `arm64` `build_id` | `source-sha256:17d8c8191bfead3921753400316a8b0bb4c60abe09d9ca0160683012877d02a5` | Deterministic `build.rs` LF digest verified for pinned commit `e0358934620a` |
+| HostLab `advanced` code SHA | `01f20f981ff0fb3c9b1731013ec5fb854b57d9c2` (base `d872f2faf5d61e70b422231803884b47670595da`) | `Analysis tooling tests` Run [`45016305114`](https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/45016305114) — 47s green |
+| Reference audit baseline | `d872f2faf5d61e70b422231803884b47670595da` (`dexsql 0.1.0` + `run_intake.py` + `home_frame_audit.py`) | Executed side-by-side in fresh serial processes on Ubuntu 24.04 (`Linux-7.0.0-1017-azure-x86_64-with-glibc2.39`, 4 vCPU; initial `0ecc13aa` Experiment 1 run [`44987139478`](https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/44987139478) ran on `Linux-7.0.0-1014-aws-x86_64-with-glibc2.39`) |
 
 ---
 
@@ -32,7 +32,7 @@ The `advanced` branch of `jichuo1/innocent-lab-host-analysis` (branched cleanly 
 
 ## 3. Experiment 1: Full Audit Equivalence & Performance (`reference_native` vs `meguvizdexdash 1.2.2`)
 
-- **Workflow Run**: [`44987139478`](https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/44987139478) (`hostlab-5e908cc60cf34283a1433ede7c3bae4a`, 10m2s, zero Java, zero Androguard (`requirements-query.txt`), warm `MeguvizDexDash 1.2.2` cache)
+- **Workflow Run**: [`45017371825`](https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/45017371825) (`hostlab-e9e0ddaf6cdb4b17931c0ddbc527918a`, 10m22s, zero Java, zero Androguard (`requirements-query.txt`), warm `MeguvizDexDash 1.2.2` cache `hostlab-mdd-v1-Linux-X64-1.2.2-e0358934620a`, runner `Linux-7.0.0-1017-azure-x86_64-with-glibc2.39`)
 - **Samples**:
   - Target (`9200300`): SHA-256 `609003767fbbfe4870d6bcbd8cea0292833327c4eef6513eb7388852be070bcc` (257,273,718 bytes)
   - Baseline (`9200200`): SHA-256 `47cd74d4a709baa903a3716d7708fe2a6bf85d6b29224c6c93cfacb77b7c314b` (257,286,006 bytes)
@@ -52,36 +52,39 @@ The `advanced` branch of `jichuo1/innocent-lab-host-analysis` (branched cleanly 
 
 | Round & Sample | Engine | Elapsed (ms) | `prepare_ms` | `structural_ms` | `surface_ms` | `gate_ms` | Total CPU (s) | Tree RSS Peak (MiB) |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
-| R1 target (`9200300`) | `reference_native` | 72,828.07 | 1,284.17 | 10,703.79 | 44,294.25 | *(16,212.85 residual)* | 98.49 | 1,252.25 |
-| R1 target (`9200300`) | `meguvizdexdash` | 30,386.73 | 13,319.84 | 1,383.46 | 8,480.83 | 6,179.51 | 50.23 | 1,835.41 |
-| R1 baseline (`9200200`) | `meguvizdexdash` | 30,675.37 | 13,406.19 | 1,471.56 | 8,550.65 | 6,218.47 | 51.16 | 1,849.26 |
-| R1 baseline (`9200200`) | `reference_native` | 74,125.09 | 1,286.16 | 11,246.54 | 45,255.49 | *(15,999.85 residual)* | 100.81 | 1,249.82 |
-| R2 target (`9200300`) | `meguvizdexdash` | 30,189.25 | 13,194.72 | 1,392.95 | 8,396.38 | 6,199.80 | 50.35 | 1,901.54 |
-| R2 target (`9200300`) | `reference_native` | 73,085.28 | 1,289.87 | 10,956.09 | 44,505.03 | *(15,996.68 residual)* | 99.47 | 1,238.43 |
-| R2 baseline (`9200200`) | `reference_native` | 74,461.71 | 1,284.86 | 11,790.60 | 45,002.80 | *(16,043.78 residual)* | 101.56 | 1,244.04 |
-| R2 baseline (`9200200`) | `meguvizdexdash` | 30,159.11 | 13,045.90 | 1,415.06 | 8,517.09 | 6,180.28 | 50.19 | 1,797.11 |
+| R1 target (`9200300`) | `reference_native` | 97,413.54 | 1,737.04 | 14,133.75 | 57,295.98 | *(23,781.68 residual)* | 134.47 | 1,256.86 |
+| R1 target (`9200300`) | `meguvizdexdash` | 40,468.92 | 16,238.75 | 1,335.30 | 11,997.48 | 9,330.07 | 65.96 | 1,899.08 |
+| R1 baseline (`9200200`) | `meguvizdexdash` | 40,384.79 | 16,148.53 | 1,328.14 | 11,914.51 | 9,459.46 | 66.03 | 1,929.64 |
+| R1 baseline (`9200200`) | `reference_native` | 99,491.96 | 1,745.55 | 14,202.09 | 58,618.59 | *(24,455.74 residual)* | 136.83 | 1,237.99 |
+| R2 target (`9200300`) | `meguvizdexdash` | 40,621.45 | 16,121.46 | 1,339.39 | 12,123.49 | 9,399.69 | 66.07 | 2,011.71 |
+| R2 target (`9200300`) | `reference_native` | 96,723.19 | 1,759.24 | 13,918.07 | 57,129.06 | *(23,449.63 residual)* | 133.20 | 1,252.58 |
+| R2 baseline (`9200200`) | `reference_native` | 99,133.01 | 1,728.46 | 13,529.09 | 57,224.47 | *(26,177.22 residual)* | 135.64 | 1,242.19 |
+| R2 baseline (`9200200`) | `meguvizdexdash` | 40,555.06 | 16,367.08 | 1,329.10 | 11,933.61 | 9,372.82 | 66.05 | 2,030.05 |
 
 > *(Reference residual gate cost = `audit_and_shared_scan_ms - prepare_ms - structural_ms - surface_ms`, representing standalone `run_intake.py` + `home_frame_audit.py` execution and subprocess teardown.)*
 
 ### 3.3 Experiment 1 Aggregated Comparison (4-Run Means)
 
-| Metric | `reference_native` (`dexsql 0.1.0`) Mean | `meguvizdexdash 1.2.2` Mean | Delta / Speedup |
+| Metric | `reference_native` (`dexsql 0.1.0`) Mean | `meguvizdexdash 1.2.2` (`e0358934`) Mean | Delta / Speedup |
 |---|---:|---:|---|
-| Total worker `elapsed_ms` | 73,625.04 ms (73.63 s) | **30,352.61 ms (30.35 s)** | **2.43x faster (-58.8%)** |
-| Snapshot `prepare_ms` | 1,286.27 ms | 13,241.66 ms | Eager parallel table build upfront |
-| Structural rules `structural_ms` | 11,174.25 ms | **1,415.76 ms** | **7.89x faster (-87.3%)** |
-| Surface scan `surface_ms` | 44,764.39 ms | **8,486.24 ms** | **5.27x faster (-81.0%)** |
-| Intake + Home gates | ~16,063 ms (`run_intake` + `home_frame_audit`) | **6,194.52 ms** (`mdd_gates`) | **2.59x faster (-61.4%)** |
-| Total CPU time (`user + sys`) | 100.08 s | **50.48 s** | **1.98x less CPU (-49.6%)** |
-| Process tree RSS peak | **1,246.13 MiB** | 1,845.83 MiB | +599.70 MiB (+48.1%) in-memory snapshot tradeoff within 16 GiB CI RAM |
+| Total worker `elapsed_ms` | 98,190.42 ms (98.19 s) | **40,507.56 ms (40.51 s)** | **2.42x faster (-58.7%)** |
+| Snapshot `prepare_ms` | 1,742.57 ms | 16,218.96 ms | Eager parallel table + Bloom build upfront |
+| Structural rules `structural_ms` | 13,945.75 ms | **1,332.98 ms** | **10.46x faster (-90.4%)** |
+| Surface scan `surface_ms` | 57,567.03 ms | **11,992.27 ms** | **4.80x faster (-79.2%)** |
+| Intake + Home gates | ~24,466.07 ms (`run_intake` + `home_frame_audit`) | **9,390.51 ms** (`mdd_gates`) | **2.61x faster (-61.6%)** |
+| Total CPU time (`user + sys`) | 135.04 s | **66.03 s** | **2.05x less CPU (-51.1%)** |
+| Process tree RSS peak | **1,247.40 MiB** | 1,967.62 MiB | +720.22 MiB (+57.7%) in-memory SoA + Bloom tradeoff within 16 GiB CI RAM |
 
-*(Note: `sampled_cgroup_memory_peak_bytes` is container-lifetime monotonic on Linux cgroup v2 and therefore rises across sequential runs from 3,191 MiB to 3,990 MiB for `reference_native` and 4,276 MiB to 5,066 MiB for `meguvizdexdash`; process-tree `sampled_tree_rss_peak_bytes` measures each fresh isolated worker tree accurately.)*
+> [!NOTE]
+> Initial `0ecc13aa` Experiment 1 (Run [`44987139478`](https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/44987139478)) ran on faster AWS VM hardware (`Linux-7.0.0-1014-aws-x86_64`, where `reference_native` averaged `73,625.04 ms` and `0ecc13aa` averaged `30,352.61 ms` / `1,845.83 MiB` RSS peak). On the `1017-azure` runner of Run `45017371825`, the immutable `reference_native` baseline slowed by +33.4% to `98,190.42 ms`, while `e0358934` kept the same `2.42x` overall speedup (`40,507.56 ms`), improved `structural_ms` even in absolute ms (`1,332.98 ms` vs AWS `1,415.76 ms`, expanding from `7.89x` to `10.46x` faster than `reference_native`), reduced relative CPU ratio further (`1.98x` -> `2.05x`), and increased tree RSS peak by `+121.79 MiB (+6.6%)` (`1,967.62 MiB` vs `1,845.83 MiB`) to hold `RefTable` + per-DEX Bloom filters + cached bridge schemas.
+
+*(Note: `sampled_cgroup_memory_peak_bytes` is container-lifetime monotonic on Linux cgroup v2 and therefore rises across sequential runs from 3,139 MiB to 3,919 MiB for `reference_native` and 4,276 MiB to 5,271 MiB for `meguvizdexdash`; process-tree `sampled_tree_rss_peak_bytes` measures each fresh isolated worker tree accurately.)*
 
 ---
 
 ## 4. Experiment 2: MCP Query / Decode / Refs / Manifest Equivalence & Performance (`sqlite / Androguard 4.1.4` vs `meguvizdexdash 1.2.2 mcp`)
 
-- **Workflow Run**: [`44986457292`](https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/44986457292) (`hostlab-3641e832e9d144319cd949f9eafb4d00`, 9m13s, `jadx: false`)
+- **Workflow Run**: [`45016455209`](https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/45016455209) (`hostlab-ffec9ac6c9264c33a52f2c350583e6dc`, 8m17s, `jadx: false`)
 - **Sample**: `9200300` (`609003767fbbfe4870d6bcbd8cea0292833327c4eef6513eb7388852be070bcc`, 257,273,718 bytes)
 - **Methodology**: 2 alternating serial MCP sessions (`meguvizdexdash` vs `sqlite`) covering class/method/field lookup, string literal references (`method_strings`), duplicate-task memoization (`string_reused`), caller refs (`method_calls`), field access refs (`method_field_accesses`), type usage refs (`method_used_types`), method Smali decode, and AndroidManifest summary.
 
@@ -90,21 +93,44 @@ The `advanced` branch of `jichuo1/innocent-lab-host-analysis` (branched cleanly 
 - `result_multisets_equal`: **`true`**
 - Identical canonical row counts & SHA-256 digests across all 4 sessions (`class`: 1 row `25d7a991...`, `methods`: 3 rows `1e977f92...`, `fields`: 1 row `1793dd85...`, `string`: 1 row `bbecf37f...`, `callers`: 19 rows / 12 distinct `86b4276f...`, `field_refs`: 6 rows / 3 distinct `29cb3d66...`, `type_refs`: 109 rows / 107 distinct `9a1ba53d...`, `string_reused`: 1 row `reused_from="string"`), plus verified `smali` body (`internalGetUrls` / `unmodifiableMap`) and `manifest` identity (`tv.danmaku.bili`, `9200300`).
 
-### 4.2 Latency Breakdown Across Cold & Warm Sessions
+### 4.2 Latency Breakdown Across Cold & Warm Sessions (`e0358934` in Run `45016455209`)
 
 | Phase / Task | SQLite R1 Cold Build (ms) | SQLite R2 Cache Hit (ms) | MeguvizDexDash R1 (ms) | MeguvizDexDash R2 (ms) | Speedup (MDD Avg vs Cold / Warm SQLite) |
 |---|---:|---:|---:|---:|---|
-| Session `prepare_ms` | 65,350.54 | 35.29 *(disk hit)* | 13,783.34 *(memory)* | 13,445.64 *(memory)* | 4.80x faster vs cold build |
-| `class` (`classes`) | 2.79 | 2.82 | 6.79 | 6.53 | — |
-| `methods` (`class_methods`) | 1.79 | 1.63 | 23.63 | 23.31 | — |
-| `fields` (`class_fields`) | 1.52 | 1.39 | 30.99 | 29.72 | — |
-| `string` (`method_strings`) | 6,327.69 | 6,106.69 | **9.18** | **8.89** | **700x / 676x faster** |
-| `callers` (`method_calls`) | 4,119.81 | 4,291.88 | **99.94** | **98.67** | **41.5x / 43.2x faster** |
-| `field_refs` (`method_field_accesses`) | 2,540.43 | 2,653.94 | **59.62** | **53.29** | **45.0x / 47.0x faster** |
-| `type_refs` (`method_used_types`) | 88,653.52 | 90,011.75 | **52.90** | **51.97** | **1,691x / 1,717x faster** |
-| `smali` (`decode`) | 1,360.42 | 1,447.66 | 5,287.57 | 5,168.07 | 0.26x *(fresh on-demand decode without pre-saved APK index)* |
-| `manifest` (`get_manifest`) | 323.99 | 329.82 | **6.81** | **6.76** | **47.8x / 48.6x faster** |
+| Session `prepare_ms` | 68,698.95 | 36.47 *(disk hit)* | 14,180.75 *(memory)* | 13,634.72 *(memory)* | **4.94x faster** vs cold build |
+| `class` (`classes`) | 2.50 | 2.44 | **2.74** | **2.07** | **1.04x / 1.01x faster (avg 2.40 vs 2.47 ms)** |
+| `methods` (`class_methods`) | 1.47 | 1.51 | **2.24** | **2.03** | **0.69x / 0.71x** (within 0.65 ms of SQLite; **11.0x vs `0ecc13aa`**) |
+| `fields` (`class_fields`) | 1.35 | 1.42 | **2.05** | **1.14** | **0.85x / 0.89x** (R2 beats SQLite; **19.0x vs `0ecc13aa`**) |
+| `string` (`method_strings`) | 6,621.13 | 6,433.97 | **2.62** | **1.95** | **2,896x / 2,814x faster** |
+| `callers` (`method_calls`) | 4,378.14 | 4,481.39 | **6.82** | **6.35** | **665x / 681x faster** |
+| `field_refs` (`method_field_accesses`) | 2,784.08 | 2,926.62 | **3.03** | **2.97** | **929x / 976x faster** |
+| `type_refs` (`method_used_types`) | 94,534.28 | 94,773.35 | **29.46** | **29.19** | **3,223x / 3,232x faster** |
+| `smali` (`decode`) | 1,510.25 | 1,556.03 | **101.70** | **102.12** | **14.8x / 15.3x faster** (**51.3x vs `0ecc13aa`**) |
+| `manifest` (`get_manifest`) | 331.65 | 338.00 | **6.98** | **5.30** | **54.0x / 55.0x faster** |
 | `string_reused` | 0.02 | 0.02 | 0.04 | 0.04 | Semantic memo reuse |
-| **Total `total_ms`** | **169,814.46 (169.81 s)** | **105,983.87 (105.98 s)** | **21,589.26 (21.59 s)** | **21,037.03 (21.04 s)** | **7.97x vs cold SQLite / 4.97x vs warm SQLite** |
+| **Total `total_ms`** | **180,259.04 (180.26 s)** | **111,822.98 (111.82 s)** | **14,562.22 (14.56 s)** | **13,985.03 (13.99 s)** | **12.63x vs cold SQLite / 7.83x vs warm SQLite** |
 
 *(Note: `verify_backends.py` does not attach `runner_resources` RSS telemetry to `verification.json` in Experiment 2.)*
+
+---
+
+## 5. Optimization Progression (`0ecc13aa` -> `5c2df441` -> `e0358934`)
+
+Following Experiment 2 baseline analysis (`44986457292`), two targeted optimization rounds eliminated both bottlenecks where `MeguvizDexDash 1.2.2` initially trailed `SQLite / Androguard`:
+
+1. **Single-DEX lazy Smali decode + zero-annotation skip** (`crates/mdd-service/src/decode.rs`): Instead of decoding the entire archive or building full-DEX `DexDecode` tables/annotations on a single-method `decode`, locate the target method/class across DEX headers, lazily parse only the matching DEX's `CodeItem` (reusing cached annotation stores and skipping annotation decoding entirely when a DEX/method has zero annotations), while preserving all MDD-042/071 structural decode semantics.
+2. **Direct filtered columnar projection & SoA `RefTable`** (`crates/mdd-sql/src/column_store.rs`, `dialects/pushdown.rs`, `provider/hostlab/lazy.rs`): Answer single-table Equality/`IN`/`AND`/`ORDER BY` queries directly over compressed columnar + SoA `RefTable` slices without spawning per-query in-memory SQLite virtual-table connections.
+3. **Per-DEX blocked 64-bit-word Bloom filters & `SqlBridge` schema cache** (`crates/mdd-sql/src/column_store.rs`, `bridge.rs`, `dialects/ast.rs`, `dialects/ast/rewrite.rs`, `temp.rs`): Attach compact 64-bit-word `U32Bloom` filters to each DEX's `RefTable` (skipping non-matching DEX partitions in ~1 cache-line load instead of scanning ~2.1M `method_name` / ~570K `type_desc` `u32` entries), cache validated `PreparedSchema` on `SqlBridge` (keyed by binding + relation visibility with deferred commit on valid prepare), and bypass `TempSqlSession` expansion overhead when zero TEMP definitions are active.
+
+| Experiment 2 Task (R1 / R2 ms) | Baseline `0ecc13aa` ([`44986457292`](https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/44986457292)) | Round 1 `5c2df441` ([`45009513926`](https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/45009513926)) | Final `e0358934` ([`45016455209`](https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/45016455209)) | Same-Run SQLite (`45016455209`) | Net Improvement (`0ecc13aa` -> `e0358934`) |
+|---|---:|---:|---:|---:|---|
+| `class` (`classes`) | 6.79 / 6.53 | 2.76 / 3.07 | **2.74 / 2.07** | 2.50 / 2.44 | **2.77x faster (-63.9%, beats SQLite avg)** |
+| `methods` (`class_methods`) | 23.63 / 23.31 | 4.07 / 3.85 | **2.24 / 2.03** | 1.47 / 1.51 | **10.99x faster (-90.9%)** |
+| `fields` (`class_fields`) | 30.99 / 29.72 | 2.09 / 2.19 | **2.05 / 1.14** | 1.35 / 1.42 | **19.03x faster (-94.7%, R2 beats SQLite)** |
+| `string` (`method_strings`) | 9.18 / 8.89 | 3.11 / 2.99 | **2.62 / 1.95** | 6,621.13 / 6,433.97 | **3.95x faster (-74.7%)** |
+| `callers` (`method_calls`) | 99.94 / 98.67 | 8.46 / 7.94 | **6.82 / 6.35** | 4,378.14 / 4,481.39 | **15.08x faster (-93.4%)** |
+| `field_refs` (`method_field_accesses`) | 59.62 / 53.29 | 4.27 / 4.37 | **3.03 / 2.97** | 2,784.08 / 2,926.62 | **18.82x faster (-94.7%)** |
+| `type_refs` (`method_used_types`) | 52.90 / 51.97 | 29.81 / 30.32 | **29.46 / 29.19** | 94,534.28 / 94,773.35 | **1.79x faster (-44.1%)** |
+| `smali` (`decode`) | 5,287.57 / 5,168.07 | 96.83 / 100.11 | **101.70 / 102.12** | 1,510.25 / 1,556.03 | **51.30x faster (-98.1%, 15.0x vs SQLite)** |
+| `manifest` (`get_manifest`) | 6.81 / 6.76 | 4.97 / 6.41 | **6.98 / 5.30** | 331.65 / 338.00 | **1.11x faster (-9.5%)** |
+| **Session `total_ms`** | 21,589.26 / 21,037.03 | 13,836.26 / 14,200.96 | **14,562.22 / 13,985.03** | 180,259.04 / 111,822.98 | **1.49x faster (-33.0%, 12.6x / 7.8x vs SQLite)** |
