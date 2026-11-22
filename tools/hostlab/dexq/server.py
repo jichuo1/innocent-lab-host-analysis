@@ -22,9 +22,12 @@ import zipfile
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-from loguru import logger
-
-logger.remove()
+try:
+    from loguru import logger
+except ModuleNotFoundError:
+    logger = None
+else:
+    logger.remove()
 
 import dexq_workers as W  # noqa: E402  必须在 logger.remove() 之后
 from mcp.server.mcpserver import MCPServer  # noqa: E402
