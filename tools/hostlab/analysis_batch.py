@@ -321,7 +321,17 @@ async def execute(apk, request, *, roots, sample=None, resume=None, checkpoint=N
         backend = group["backend"]
         if backend in NATIVE_BACKENDS:
             command = str(install_meguvizdexdash.verify())
-            args = ["mcp", "--dialect", "dexsql-0.1.0", "--timeout-ms", str(request["timeout_seconds"] * 1000), "--max-datasets", "1"]
+            args = [
+                "mcp",
+                "--dialect",
+                "dexsql-0.1.0",
+                "--non-scalar-text",
+                "lossy-replacement",
+                "--timeout-ms",
+                str(request["timeout_seconds"] * 1000),
+                "--max-datasets",
+                "1",
+            ]
             cwd = str(HERE)
         else:
             import sys
