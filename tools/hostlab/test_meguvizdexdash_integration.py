@@ -251,13 +251,16 @@ class MddGatesAndWorkflowTest(unittest.TestCase):
                 analyze.main(["audit", "--apk", folder, "--backend", "meguvizdexdash"])
 
     def test_host_analysis_workflow_copies_are_byte_identical(self):
-        root_wf = (ROOT / ".github/workflows/host-analysis.yml").read_bytes()
         tool_wf = (ROOT / "tools/hostlab/host-analysis.yml").read_bytes()
-        self.assertEqual(root_wf, tool_wf)
-        self.assertIn(b"options: [meguvizdexdash, sqlite, dexsql]", root_wf)
-        self.assertIn(b"default: meguvizdexdash", root_wf)
-        self.assertNotIn(b"install_dexsql.py", root_wf)
-        self.assertNotIn(b"rustup toolchain install", root_wf)
+        self.assertIn(b"options: [meguvizdexdash, sqlite, dexsql]", tool_wf)
+        self.assertIn(b"default: meguvizdexdash", tool_wf)
+        self.assertNotIn(b"install_dexsql.py", tool_wf)
+        self.assertNotIn(b"rustup toolchain install", tool_wf)
+        root_wf_path = ROOT / ".github/workflows/host-analysis.yml"
+        if root_wf_path.is_file():
+            self.assertEqual(root_wf_path.read_bytes(), tool_wf)
+        elif (ROOT / ".git").exists():
+            self.fail(".github/workflows/host-analysis.yml missing in repository checkout")
 
 
 if __name__ == "__main__":
