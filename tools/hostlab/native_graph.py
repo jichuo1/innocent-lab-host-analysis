@@ -167,10 +167,23 @@ class Graph:
                 result[key] = result.get(key, "") + strings[(self.pools[file], int(row["value_index"]))]
         return result
 
+    @staticmethod
+    def _name_chunks(names, max_items=400, max_bytes=96 * 1024):
+        chunk, size = [], 0
+        for name in names:
+            quoted_len = len(descriptor(name).encode("utf-8")) + 3
+            if chunk and (len(chunk) >= max_items or size + quoted_len > max_bytes):
+                yield chunk
+                chunk, size = [], 0
+            chunk.append(name)
+            size += quoted_len
+        if chunk:
+            yield chunk
+
     def prefetch(self, names):
         names = list(dict.fromkeys(n for n in names if n and (n not in self.classes or self.classes[n] and not self.classes[n]["members"])))
-        for start in range(0, len(names), 80):
-            self.load(names[start:start+80])
+        for chunk in self._name_chunks(names):
+            self.load(chunk)
         self.hierarchy(names)
 
     def hierarchy(self, names):
@@ -178,7 +191,8 @@ class Graph:
         seen = set()
         while pending:
             unknown = [n for n in pending if n and n not in self.classes and n not in PRIMITIVES.values() and not any(c in n for c in "<>?[]")]
-            for start in range(0, len(unknown), 120): self.load_meta(unknown[start:start+120])
+            for chunk in self._name_chunks(unknown):
+                self.load_meta(chunk)
             following = []
             for name in pending:
                 if not name or name in seen: continue
@@ -287,6 +301,11 @@ class Graph:
         return False
 
     def discover(self, result):
-        owners = [parse_type(r["class_descriptor"])[0].raw for r in self.session.rows(
-            "SELECT DISTINCT m.class_descriptor FROM class_methods c JOIN methods m ON m.file_id=c.file_id AND m.method_idx=c.method_idx WHERE m.return_descriptor="+literal(descriptor(result))+" ORDER BY m.class_descriptor")]
+        owners = list(dict.fromkeys(
+            parse_type(r["class_descriptor"])[0].raw
+            for r in self.session.rows(
+                "SELECT class_descriptor,method_kind FROM methods WHERE return_descriptor="+literal(descriptor(result))+" ORDER BY class_descriptor"
+            )
+            if r["method_kind"] is not None
+        ))
         return self.methods(owners)

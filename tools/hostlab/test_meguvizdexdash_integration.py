@@ -23,7 +23,7 @@ class InstallerMeguvizDexDashTest(unittest.TestCase):
     def test_pinned_release_metadata(self):
         self.assertEqual(install_meguvizdexdash.PRODUCT, "MeguvizDexDash")
         self.assertEqual(install_meguvizdexdash.VERSION, "1.2.2")
-        self.assertEqual(install_meguvizdexdash.SOURCE_COMMIT, "e0358934620aa82091178febb1a2ce6c7abad9db")
+        self.assertEqual(install_meguvizdexdash.SOURCE_COMMIT, "55957094ee6aa03e64fa354342e8d6acaab6ab8b")
         self.assertEqual(install_meguvizdexdash.REQUIRED_DIALECT, "dexsql-0.1.0")
         self.assertEqual(install_meguvizdexdash.ENV_OVERRIDE, "HOSTLAB_MEGUVIZDEXDASH")
         self.assertEqual(

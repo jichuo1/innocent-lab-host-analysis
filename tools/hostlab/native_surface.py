@@ -46,6 +46,26 @@ def per_file(session, select, condition, order, *, group=None, **bounds):
         yield from session.rows(sql+" ORDER BY file_id,"+order, **bounds)
 
 
+def all_files(session, select, condition, order, *, group=None, max_rows=1000000, max_bytes=256*1024*1024):
+    sql = select+" WHERE ("+condition+")"
+    if group:
+        sql += " GROUP BY "+group
+    yield from session.rows(sql+" ORDER BY file_id,"+order, max_rows=max_rows, max_bytes=max_bytes)
+
+
+def _descriptor_chunks(descriptors, max_items=400, max_bytes=96*1024):
+    chunk, size = [], 0
+    for desc in descriptors:
+        quoted_len = len(desc.encode("utf-8")) + 3
+        if chunk and (len(chunk) >= max_items or size + quoted_len > max_bytes):
+            yield chunk
+            chunk, size = [], 0
+        chunk.append(desc)
+        size += quoted_len
+    if chunk:
+        yield chunk
+
+
 def code_locations(session, methods):
     result = {}
     for file, values in methods.items():
@@ -74,7 +94,7 @@ def scan(session):
         raise UnsupportedAudit("ambiguous numeric DEX ordering in fingerprint input")
     file_map = {file: names.index(name) for file, name in session.files.items()}
     records, methods, identities = {}, {}, {}
-    for row in per_file(session, "SELECT file_id,class_def_idx,descriptor,superclass_descriptor FROM classes", family_filter("descriptor"), "class_def_idx"):
+    for row in all_files(session, "SELECT file_id,class_def_idx,descriptor,superclass_descriptor FROM classes", family_filter("descriptor"), "class_def_idx"):
         group = W.family(row["descriptor"])
         if group is None:
             continue
@@ -84,19 +104,23 @@ def scan(session):
             raise UnsupportedAudit("duplicate class definition in native surface scan")
         records[key] = {"file_id":file_map[file], "family":group, "class":owner,
             "superclass":row["superclass_descriptor"], "fields":[], "methods":[]}
-    for row in per_file(session, "SELECT file_id,class_descriptor,field_name,field_descriptor FROM class_fields", family_filter("class_descriptor"), "class_idx,field_idx"):
-        key = int(row["file_id"]), row["class_descriptor"]
-        if key not in records: continue
-        records[key]["fields"].append((row["field_name"], row["field_descriptor"].split(":", 1)[1]))
-    for row in per_file(session, "SELECT file_id,class_descriptor,method_idx,method_name,method_descriptor FROM class_methods", family_filter("class_descriptor"), "class_idx,method_idx"):
-        file, index, owner = int(row["file_id"]), int(row["method_idx"]), row["class_descriptor"]
-        if (file, owner) not in records: continue
-        _, name, proto = member(row["method_descriptor"])
-        if (file, owner, name, proto) in identities:
-            raise UnsupportedAudit("duplicate method definition in native surface scan")
-        records[(file, owner)]["methods"].append((name, proto))
-        methods.setdefault(file, {})[index] = (owner, name, proto)
-        identities[(file, owner, name, proto)] = index
+    if records:
+        target_descs = sorted({owner for _, owner in records})
+        for chunk in _descriptor_chunks(target_descs):
+            cond = "class_descriptor IN (" + in_list(chunk) + ")"
+            for row in all_files(session, "SELECT file_id,class_descriptor,field_name,field_descriptor FROM class_fields", cond, "class_idx,field_idx"):
+                key = int(row["file_id"]), row["class_descriptor"]
+                if key not in records: continue
+                records[key]["fields"].append((row["field_name"], row["field_descriptor"].split(":", 1)[1]))
+            for row in all_files(session, "SELECT file_id,class_descriptor,method_idx,method_name,method_descriptor FROM class_methods", cond, "class_idx,method_idx"):
+                file, index, owner = int(row["file_id"]), int(row["method_idx"]), row["class_descriptor"]
+                if (file, owner) not in records: continue
+                _, name, proto = member(row["method_descriptor"])
+                if (file, owner, name, proto) in identities:
+                    raise UnsupportedAudit("duplicate method definition in native surface scan")
+                records[(file, owner)]["methods"].append((name, proto))
+                methods.setdefault(file, {})[index] = (owner, name, proto)
+                identities[(file, owner, name, proto)] = index
     code = code_locations(session, methods)
     with zipfile.ZipFile(session.apk) as archive:
         for file, values in methods.items():
@@ -123,7 +147,7 @@ def scan(session):
                 record["compose_signatures"] = [name+proto for name, proto in record["methods"] if "Landroidx/compose/runtime/Composer;" in proto]
     edges, counts = set(), {}
     condition = family_filter("callee_class")+" OR "+protocol_filter("callee_class")
-    for row in per_file(session, "SELECT file_id,method,callee,COUNT(*) AS n FROM method_calls", condition, "method,callee", group="file_id,method,callee", max_rows=1000000, max_bytes=256*1024*1024):
+    for row in all_files(session, "SELECT file_id,method,callee,COUNT(*) AS n FROM method_calls", condition, "method,callee", group="file_id,method,callee", max_rows=1000000, max_bytes=256*1024*1024):
         file = int(row["file_id"])
         caller, name, proto = member(row["method"])
         callee, target_name, target_proto = member(row["callee"])
@@ -134,7 +158,7 @@ def scan(session):
         edges.add((file_map[file], source, caller, name, proto, group, callee, target_name, target_proto))
         counts[(file_map[file], source, group)] = counts.get((file_map[file], source, group), 0)+int(row["n"])
     definitions = []
-    for row in per_file(session, "SELECT file_id,method_descriptor FROM class_methods", protocol_filter("class_descriptor"), "class_idx,method_idx"):
+    for row in all_files(session, "SELECT file_id,method_descriptor FROM class_methods", protocol_filter("class_descriptor"), "class_idx,method_idx"):
         owner, name, proto = member(row["method_descriptor"])
         if owner not in W.PROTOCOLS.values() and not (owner.startswith("Lcom/bapis/") and owner.endswith("Moss;")): continue
         group = next((key for key, value in W.PROTOCOLS.items() if value == owner), "unregistered_protocol:"+owner)

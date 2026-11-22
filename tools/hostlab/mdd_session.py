@@ -1,7 +1,6 @@
 """Owned, bounded MeguvizDexDash `serve` session using typed B1 batches."""
 from __future__ import annotations
 
-from concurrent.futures import Future, TimeoutError as FutureTimeout
 from dataclasses import dataclass, field
 import os
 from pathlib import Path
@@ -111,7 +110,7 @@ class DexMutf8:
                 i += 3
             else:
                 raise EngineProtocolError("a dex_mutf8 cell is not well-formed MUTF-8")
-        return b"".join(struct.pack(">H", u) for u in units).decode("utf-16-be", "surrogatepass")
+        return struct.pack(f">{len(units)}H", *units).decode("utf-16-be", "surrogatepass") if units else ""
 
 
 def _issue_summary(issue: Any) -> dict[str, Any]:
@@ -275,6 +274,10 @@ class Transport:
         self.closed = threading.Event()
         self.reader: threading.Thread | None = None
         self.stderr_reader: threading.Thread | None = None
+        self._writer_queue: queue.Queue[
+            tuple[bytes, threading.Event, list[BaseException | None]] | None
+        ] | None = None
+        self._writer_thread: threading.Thread | None = None
         self.stderr_tail = bytearray()
         self.broken: EngineError | None = None
         self.abandoned: set[str] = set()
@@ -416,27 +419,54 @@ class Transport:
             self.broken = EngineError(message, code="DEADLINE_EXCEEDED")
         return error
 
-    def send(self, request: dict[str, Any]) -> None:
-        data = (json.dumps(request) + "\n").encode("utf-8")
-        done: Future[None] = Future()
-
-        def write() -> None:
+    def _writer_loop(
+        self,
+        write_queue: queue.Queue[tuple[bytes, threading.Event, list[BaseException | None]] | None],
+    ) -> None:
+        while True:
+            item = write_queue.get()
+            if item is None:
+                return
+            data, done, outcome = item
             try:
                 self.process.stdin.write(data)
                 self.process.stdin.flush()
-                done.set_result(None)
             except BaseException as exc:
-                done.set_exception(exc)
+                outcome[0] = exc
+            finally:
+                done.set()
 
-        writer = threading.Thread(target=write, daemon=True, name="hostlab-mdd-writer")
-        writer.start()
+    def send(self, request: dict[str, Any]) -> None:
+        data = (json.dumps(request) + "\n").encode("utf-8")
+        if self._writer_queue is None:
+            write_queue: queue.Queue[
+                tuple[bytes, threading.Event, list[BaseException | None]] | None
+            ] = queue.Queue(maxsize=1)
+            writer = threading.Thread(
+                target=self._writer_loop,
+                args=(write_queue,),
+                daemon=True,
+                name="hostlab-mdd-writer",
+            )
+            writer.start()
+            self._writer_queue = write_queue
+            self._writer_thread = writer
+        done = threading.Event()
+        outcome: list[BaseException | None] = [None]
+        remaining = max(0.001, self.deadline - time.monotonic())
         try:
-            done.result(timeout=max(0.001, self.deadline - time.monotonic()))
-        except FutureTimeout:
+            self._writer_queue.put((data, done, outcome), timeout=remaining)
+            if not done.wait(timeout=max(0.001, self.deadline - time.monotonic())):
+                self.kill()
+                raise self._broken_timeout("native audit CLI input timed out") from None
+        except queue.Full:
             self.kill()
             raise self._broken_timeout("native audit CLI input timed out") from None
-        except (BrokenPipeError, OSError, ValueError):
-            raise self._broken(EngineLost("the engine closed its input before the statement was sent")) from None
+        if outcome[0] is not None:
+            exc = outcome[0]
+            if isinstance(exc, (BrokenPipeError, OSError, ValueError)):
+                raise self._broken(EngineLost("the engine closed its input before the statement was sent")) from None
+            raise exc
 
     def statement(self, sql: str, **options: Any) -> Iterator[tuple[str, dict[str, Any]]]:
         if self.broken is not None:
@@ -564,6 +594,24 @@ class Transport:
         problem: EngineError | None = None
         self.closed.set()
         try:
+            if self._writer_queue is not None:
+                while True:
+                    try:
+                        self._writer_queue.put_nowait(None)
+                        break
+                    except queue.Full:
+                        if clean:
+                            break
+                        try:
+                            stale = self._writer_queue.get_nowait()
+                        except queue.Empty:
+                            break
+                        if stale is not None:
+                            _, stale_done, stale_outcome = stale
+                            stale_outcome[0] = EngineLost("native audit session closed")
+                            stale_done.set()
+            if clean and self._writer_thread is not None:
+                self._writer_thread.join(timeout=1)
             if process is None:
                 return
             if clean and process.poll() is None:
@@ -596,7 +644,7 @@ class Transport:
                     process.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     pass
-            for thread in (self.reader, self.stderr_reader):
+            for thread in (self.reader, self.stderr_reader, self._writer_thread):
                 if thread is not None:
                     thread.join(timeout=3)
         if problem is not None:

@@ -159,8 +159,16 @@ def _query_checked(session: Any, sql: str) -> list[dict[str, Any]]:
     return rows
 
 
-def _verify_session_completeness(session: Any, apk_path: Path, pre_sha: str) -> None:
+def _verify_session_completeness(session: Any, apk_path: Path, pre_sha: str) -> tuple[int, int, int]:
+    st_before = apk_path.stat()
     if _sha256_file(apk_path) != pre_sha:
+        raise GateError("APK modified during gate reuse execution")
+    st_after = apk_path.stat()
+    if (st_before.st_size, st_before.st_mtime_ns, st_before.st_ino) != (
+        st_after.st_size,
+        st_after.st_mtime_ns,
+        st_after.st_ino,
+    ):
         raise GateError("APK modified during gate reuse execution")
     cov = session.coverage
     if not isinstance(cov, dict) or cov.get("abandoned", 0) != 0:
@@ -170,6 +178,7 @@ def _verify_session_completeness(session: Any, apk_path: Path, pre_sha: str) -> 
             raise GateError(f"blocking coverage issue in snapshot: {issue}")
     if not isinstance(session.files, dict) or not session.files:
         raise GateError("verified snapshot contains no DEX files")
+    return (st_after.st_size, st_after.st_mtime_ns, st_after.st_ino)
 
 
 def _verify_required_layers(session: Any) -> None:
@@ -214,33 +223,52 @@ def _decode_insns_slice(insns_bytes: bytes, insns_size_units: int) -> list[tuple
 class ZipArchiveSliceReader:
     """Reads targeted `insns` slices on demand from verified DEX entries."""
 
-    def __init__(self, apk_path: Path, files: dict[int, str], expected_sha256: str) -> None:
+    def __init__(
+        self,
+        apk_path: Path,
+        files: dict[int, str],
+        expected_sha256: str,
+        *,
+        verified_stat: tuple[int, int, int] | None = None,
+    ) -> None:
         self.apk_path = apk_path
         self.files = dict(files)
         self.expected_sha256 = expected_sha256
-        self._dex_bytes: dict[int, bytes] = {}
+        if verified_stat is None:
+            st = apk_path.stat()
+            if _sha256_file(apk_path) != expected_sha256:
+                raise GateError("APK changed before reading code slice")
+            verified_stat = (st.st_size, st.st_mtime_ns, st.st_ino)
+        self._verified_stat = verified_stat
+        self._cached_file_id: int | None = None
+        self._cached_bytes: bytes = b""
         self._zip: zipfile.ZipFile | None = None
         if apk_path.suffix.lower() != ".dex" and zipfile.is_zipfile(apk_path):
             self._zip = zipfile.ZipFile(apk_path, "r")
 
     def read_insns(self, file_id: int, insns_off: int, insns_size_units: int) -> bytes:
-        if file_id not in self._dex_bytes:
-            if _sha256_file(self.apk_path) != self.expected_sha256:
+        if self._cached_file_id != file_id:
+            st = self.apk_path.stat()
+            if (st.st_size, st.st_mtime_ns, st.st_ino) != self._verified_stat:
                 raise GateError("APK changed before reading code slice")
             if self._zip is None:
-                self._dex_bytes[file_id] = self.apk_path.read_bytes()
+                blob = self.apk_path.read_bytes()
             else:
                 entry_name = self.files.get(file_id)
                 if not entry_name:
                     raise GateError(f"missing file_id {file_id} in inventory")
-                self._dex_bytes[file_id] = self._zip.read(entry_name)
-        blob = self._dex_bytes[file_id]
+                blob = self._zip.read(entry_name)
+            self._cached_file_id = file_id
+            self._cached_bytes = blob
+        blob = self._cached_bytes
         byte_len = insns_size_units * 2
         if insns_off < 0 or insns_off + byte_len > len(blob):
             raise GateError("code_items insns range exceeds verified member length")
         return blob[insns_off : insns_off + byte_len]
 
     def close(self) -> None:
+        self._cached_file_id = None
+        self._cached_bytes = b""
         if self._zip is not None:
             self._zip.close()
             self._zip = None
@@ -387,15 +415,18 @@ def _serializer_info_from_session(
     slice_reader: ZipArchiveSliceReader,
     serial: str,
     file_to_spid: dict[int, int],
+    *,
+    hits: list[dict[str, Any]] | None = None,
 ) -> tuple[str | None, str | None, list[str]]:
-    hits = _query_checked(
-        session,
-        f"SELECT DISTINCT ms.file_id, c.class_def_idx, ms.method_class, ms.method_idx "
-        f"FROM method_strings ms "
-        f"JOIN classes c ON c.file_id = ms.file_id AND c.descriptor = ms.method_class "
-        f"WHERE ms.value = {literal(serial)} "
-        f"ORDER BY ms.file_id, c.class_def_idx, ms.method_idx",
-    )
+    if hits is None:
+        hits = _query_checked(
+            session,
+            f"SELECT DISTINCT ms.file_id, c.class_def_idx, ms.method_class, ms.method_idx "
+            f"FROM method_strings ms "
+            f"JOIN classes c ON c.file_id = ms.file_id AND c.descriptor = ms.method_class "
+            f"WHERE ms.value = {literal(serial)} "
+            f"ORDER BY ms.file_id, c.class_def_idx, ms.method_idx",
+        )
     if not hits:
         return None, None, []
 
@@ -564,9 +595,27 @@ def run_home_frame_from_session(
     dex_rows = _query_checked(session, "SELECT file_id, string_pool_id FROM dex_files ORDER BY file_id")
     file_to_spid = {int(r["file_id"]): int(r["string_pool_id"]) for r in dex_rows}
 
+    serial_hits_rows = _query_checked(
+        session,
+        f"SELECT DISTINCT ms.value, ms.file_id, c.class_def_idx, ms.method_class, ms.method_idx "
+        f"FROM method_strings ms "
+        f"JOIN classes c ON c.file_id = ms.file_id AND c.descriptor = ms.method_class "
+        f"WHERE ms.value IN ({in_list([_home_mod.TAB_DATA, _home_mod.TAB_ITEM])}) "
+        f"ORDER BY ms.value, ms.file_id, c.class_def_idx, ms.method_idx",
+    )
+    hits_by_serial: dict[str, list[dict[str, Any]]] = {_home_mod.TAB_DATA: [], _home_mod.TAB_ITEM: []}
+    for hrow in serial_hits_rows:
+        hits_by_serial.setdefault(hrow["value"], []).append(hrow)
+
     out: dict[str, Any] = {"apk": apk_path.name}
     for label, serial in (("data", _home_mod.TAB_DATA), ("item", _home_mod.TAB_ITEM)):
-        _ser, owner, names = _serializer_info_from_session(session, slice_reader, serial, file_to_spid)
+        _ser, owner, names = _serializer_info_from_session(
+            session,
+            slice_reader,
+            serial,
+            file_to_spid,
+            hits=hits_by_serial.get(serial, []),
+        )
         out[label + ".owner"] = owner
         out[label + ".elements"] = names
         if not owner:
@@ -791,10 +840,10 @@ def render_intake_log(
 def run_gates(session: Any, apk_path: str | Path, *, expected_sha256: str) -> dict[str, Any]:
     """Compute reused drift and home-frame gate evidence on an already-open verified session."""
     apk = Path(apk_path).resolve(strict=True)
-    _verify_session_completeness(session, apk, expected_sha256)
+    verified_stat = _verify_session_completeness(session, apk, expected_sha256)
     _verify_required_layers(session)
     drift_tuple = run_drift_from_session(session)
-    slice_reader = ZipArchiveSliceReader(apk, session.files, expected_sha256)
+    slice_reader = ZipArchiveSliceReader(apk, session.files, expected_sha256, verified_stat=verified_stat)
     try:
         home_dict = run_home_frame_from_session(session, slice_reader, apk)
     finally:
