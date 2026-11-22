@@ -135,8 +135,8 @@ def prediction(rows):
 def layout(samples, request, max_parallel, deadline_seconds, cost_snapshot):
     """Constrained LPT, with count-first placement for unprofiled samples."""
     normalized = analysis_plan.validate(request)
-    strict_native = normalized["backend"] == "dexsql" and all(
-        g["backend"] == "dexsql" for g in analysis_plan.plan(normalized)["groups"])
+    strict_native = normalized["backend"] in analysis_plan.NATIVE_BACKENDS and all(
+        g["backend"] in analysis_plan.NATIVE_BACKENDS for g in analysis_plan.plan(normalized)["groups"])
     cap = MAX_NATIVE_GROUP if strict_native else MAX_OTHER_GROUP
     costs = cost_snapshot["rows"]
     estimate_limit = min(3300, deadline_seconds)

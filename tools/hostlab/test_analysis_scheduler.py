@@ -27,39 +27,44 @@ def request(**changes):
 
 class PlanTest(unittest.TestCase):
     def test_raw_sql_dialect_is_never_inferred_or_rewritten(self):
-        for dialect in ("sqlite", "dexsql"):
+        for dialect, expected in (("sqlite", "sqlite"), ("dexsql", "meguvizdexdash"), ("meguvizdexdash", "meguvizdexdash")):
             sql = "SELECT 'a_b; data'"
             spec = request(tasks=[{"id":"q", "operation":"query", "sql":sql, "dialect":dialect}])
             plan = analysis_plan.plan(spec)
-            self.assertEqual(plan["tasks"][0]["backend"], dialect)
+            self.assertEqual(plan["tasks"][0]["backend"], expected)
             self.assertFalse(plan["raw_sql_rewritten"])
             self.assertEqual(analysis_plan.validate(spec)["tasks"][0]["sql"], sql)
-        with self.assertRaises(ValueError):
-            analysis_plan.plan(request(backend="dexsql", tasks=[{"id":"q", "operation":"query", "sql":"SELECT 1"}]))
+        for native_backend in ("meguvizdexdash", "dexsql"):
+            with self.assertRaises(ValueError):
+                analysis_plan.plan(request(backend=native_backend, tasks=[{"id":"q", "operation":"query", "sql":"SELECT 1"}]))
 
     def test_site_offsets_and_explicit_coordinates_preserve_their_backend(self):
         sites = request(tasks=[{"id":"s", "operation":"refs", "kind":"string", "target":"x", "detail":"sites"}])
         self.assertEqual(analysis_plan.plan(sites)["groups"][0]["backend"], "sqlite")
-        sites["backend"] = "dexsql"
-        with self.assertRaises(ValueError):
-            analysis_plan.plan(sites)
+        for native_backend in ("meguvizdexdash", "dexsql"):
+            pinned_sites = {**sites, "backend": native_backend}
+            with self.assertRaises(ValueError):
+                analysis_plan.plan(pinned_sites)
         coordinates = request(tasks=[{"id":"d", "operation":"decode", "method":"LFoo;->bar()V", "file_id":2}])
+        with self.assertRaises(ValueError):
+            analysis_plan.plan(coordinates, mdd_available=False)
         with self.assertRaises(ValueError):
             analysis_plan.plan(coordinates, dexsql_available=False)
 
     def test_only_equivalent_semantic_tasks_fall_back(self):
-        plan = analysis_plan.plan(request(), dexsql_available=False)
-        self.assertEqual(plan["tasks"][0]["fallback_from"], "dexsql")
+        plan = analysis_plan.plan(request(), mdd_available=False)
+        self.assertEqual(plan["tasks"][0]["fallback_from"], "meguvizdexdash")
         self.assertEqual(plan["tasks"][0]["backend"], "sqlite")
-        with self.assertRaises(ValueError):
-            analysis_plan.plan(request(backend="dexsql"), dexsql_available=False)
+        for native_backend in ("meguvizdexdash", "dexsql"):
+            with self.assertRaises(ValueError):
+                analysis_plan.plan(request(backend=native_backend), mdd_available=False)
 
     def test_warm_structure_is_reused_without_creating_an_unnecessary_second_session(self):
         metadata = {"id":"m", "operation":"locate", "name":"getUrlsMap"}
         self.assertEqual(analysis_plan.plan(request(tasks=[metadata]), sqlite_cache_hit=True)["groups"][0]["backend"], "sqlite")
         combined = analysis_plan.plan(request(tasks=[metadata, request()["tasks"][0]]), sqlite_cache_hit=True)
         self.assertEqual(combined["dataset_opens"], 1)
-        self.assertEqual(combined["groups"][0]["backend"], "dexsql")
+        self.assertEqual(combined["groups"][0]["backend"], "meguvizdexdash")
 
     def test_malformed_or_unbounded_requests_fail_before_io(self):
         invalid = [request(tasks=[]), request(threads=True), request(timeout_seconds=601), request(schema=True),
@@ -77,27 +82,39 @@ class PlanTest(unittest.TestCase):
         self.assertIn("value='x'' OR 1=1 --'", sql)
         self.assertIn("file_id", sql)
         self.assertIn("method_idx", sql)
-        fields = analysis_plan.locate_sql({"kind":"field", "name":"urls_", "owner":"LContent;"}, "dexsql")
+        fields = analysis_plan.locate_sql({"kind":"field", "name":"urls_", "owner":"LContent;"}, "meguvizdexdash")
         self.assertIn("class_fields", fields)
         self.assertIn("field_descriptor", fields)
 
     def test_ci_uses_existing_minimal_dependencies_only_for_strict_native_work(self):
-        native = request(backend="dexsql")
-        self.assertEqual(plan_ci.requirements("batch", json.dumps(native))["requirements"], "requirements-query.txt")
+        for native_backend in ("meguvizdexdash", "dexsql"):
+            native = request(backend=native_backend)
+            self.assertEqual(plan_ci.requirements("batch", json.dumps(native))["requirements"], "requirements-query.txt")
+            self.assertEqual(plan_ci.requirements("batch", json.dumps(native))["needs_mdd"], "true")
         self.assertEqual(plan_ci.requirements("batch", json.dumps(request()))["requirements"], "requirements.txt")
-        self.assertEqual(plan_ci.requirements("query", "SELECT 1")["needs_dexsql"], "false")
-        single = plan_ci.requirements("query", "SELECT 1", backend="dexsql")
-        self.assertEqual((single["needs_dexsql"], single["requirements"]), ("true", "requirements-query.txt"))
-        self.assertEqual(plan_ci.requirements("decode", "", backend="dexsql")["needs_dexsql"], "true")
+        self.assertEqual(plan_ci.requirements("query", "SELECT 1")["needs_mdd"], "true")
+        self.assertEqual(plan_ci.requirements("query", "SELECT 1", backend="sqlite")["needs_mdd"], "false")
+        self.assertEqual(plan_ci.requirements("query", "SELECT 1", backend="sqlite")["requirements"], "requirements.txt")
+        for native_backend in ("meguvizdexdash", "dexsql"):
+            single = plan_ci.requirements("query", "SELECT 1", backend=native_backend)
+            self.assertEqual((single["needs_mdd"], single["requirements"]), ("true", "requirements-query.txt"))
+            self.assertEqual(plan_ci.requirements("decode", "", backend=native_backend)["needs_mdd"], "true")
         with self.assertRaises(ValueError):
             plan_ci.requirements("query", "SELECT 1", backend="auto")
 
     def test_java_preparation_follows_the_actual_java_operations(self):
-        for operation in ("audit","decompile","multipath_audit","backend_validation"):
-            self.assertEqual(plan_ci.requirements(operation, "")["needs_java"],"true")
-        for operation in ("query","decode","string_refs","inventory","source_check","regenerate_ai"):
-            self.assertEqual(plan_ci.requirements(operation, "")["needs_java"],"false")
-        self.assertEqual(plan_ci.requirements("batch",json.dumps(request(backend="dexsql")))["needs_java"],"false")
+        self.assertEqual(plan_ci.requirements("decompile", "")["needs_java"], "true")
+        self.assertEqual(plan_ci.requirements("backend_validation", "")["needs_java"], "true")
+        self.assertEqual(plan_ci.requirements("backend_validation", json.dumps({"jadx": False}))["needs_java"], "false")
+        ref = plan_ci.requirements("backend_validation", json.dumps({"audit": True, "native_reference": "a" * 40}))
+        self.assertEqual((ref["needs_mdd"], ref["needs_dexsql"], ref["needs_java"], ref["requirements"]),
+                         ("true", "true", "false", "requirements-query.txt"))
+        legacy_audit = plan_ci.requirements("backend_validation", json.dumps({"audit": True}))
+        self.assertEqual((legacy_audit["needs_mdd"], legacy_audit["needs_dexsql"], legacy_audit["needs_java"]),
+                         ("true", "false", "true"))
+        for operation in ("audit", "multipath_audit", "query", "decode", "string_refs", "inventory", "source_check", "regenerate_ai"):
+            self.assertEqual(plan_ci.requirements(operation, "")["needs_java"], "false")
+        self.assertEqual(plan_ci.requirements("batch",json.dumps(request(backend="meguvizdexdash")))["needs_java"],"false")
         self.assertEqual(plan_ci.requirements("regenerate_ai", "123")["requirements"], "requirements-query.txt")
 
     def test_actions_queue_does_not_replace_accepted_pending_sample_work(self):
@@ -105,7 +122,7 @@ class PlanTest(unittest.TestCase):
         self.assertIn("  queue: max\n",workflow)
         self.assertIn("  cancel-in-progress: false\n",workflow)
         self.assertIn("          HOSTLAB_BACKEND: ${{ inputs.backend }}\n",workflow)
-        self.assertIn("        options: [sqlite, dexsql]\n        default: sqlite\n",workflow)
+        self.assertIn("        options: [meguvizdexdash, sqlite, dexsql]\n        default: meguvizdexdash\n",workflow)
 
 
 class ScheduleTest(unittest.TestCase):
@@ -304,12 +321,12 @@ class ExecutionTest(unittest.IsolatedAsyncioTestCase):
                 async def __aexit__(self,*args):return False
             async def opened(session):
                 session.dataset="opened";session.files={0:"classes.dex"}
-                return {"backend":"dexsql"}
-            spec={"backend":"dexsql","tasks":[{"id":n,"operation":"query","sql":"SELECT 1","dialect":"dexsql"} for n in ["bad","good"]]}
+                return {"backend":"meguvizdexdash"}
+            spec={"backend":"meguvizdexdash","tasks":[{"id":n,"operation":"query","sql":"SELECT 1","dialect":"meguvizdexdash"} for n in ["bad","good"]]}
             failure=analysis_batch.BackendError("backend rejected operation",{"error":{"kind":"invalid_query","dataset_closed":False}})
             with patch.object(analysis_batch,"Client",return_value=Context()), \
-                 patch.object(analysis_batch.install_dexsql,"status",return_value={"available":True}), \
-                 patch.object(analysis_batch.install_dexsql,"verify",return_value=Path("fixture.exe")), \
+                 patch.object(analysis_batch.install_meguvizdexdash,"status",return_value={"available":True}), \
+                 patch.object(analysis_batch.install_meguvizdexdash,"verify",return_value=Path("fixture.exe")), \
                  patch.object(analysis_batch.Session,"open",opened), \
                  patch.object(analysis_batch.Session,"execute",side_effect=[failure,{"partial":False,"rows":[]}]) as execute:
                 report=await analysis_batch.execute(apk,spec,roots=[temp])
@@ -328,14 +345,14 @@ class ExecutionTest(unittest.IsolatedAsyncioTestCase):
                 async def __aexit__(self,*args):return False
             async def opened(session):
                 session.dataset="opened";session.files={0:"classes.dex"}
-                return {"backend":"dexsql"}
-            spec={"backend":"dexsql","tasks":[{"id":"gone","operation":"decode","method":"Lx/y;-><clinit>()V"},
+                return {"backend":"meguvizdexdash"}
+            spec={"backend":"meguvizdexdash","tasks":[{"id":"gone","operation":"decode","method":"Lx/y;-><clinit>()V"},
                                               {"id":"manifest","operation":"info"}]}
             missing=analysis_batch.BackendError("backend rejected operation",{"dataset_id":"dataset-1",
                 "error":{"kind":"not_found","message":"method is not defined in the selected DEX"}})
             with patch.object(analysis_batch,"Client",return_value=Context()), \
-                 patch.object(analysis_batch.install_dexsql,"status",return_value={"available":True}), \
-                 patch.object(analysis_batch.install_dexsql,"verify",return_value=Path("fixture.exe")), \
+                 patch.object(analysis_batch.install_meguvizdexdash,"status",return_value={"available":True}), \
+                 patch.object(analysis_batch.install_meguvizdexdash,"verify",return_value=Path("fixture.exe")), \
                  patch.object(analysis_batch.Session,"open",opened), \
                  patch.object(analysis_batch.Session,"execute",side_effect=[missing,{"partial":False,"rows":[]}]) as execute:
                 report=await analysis_batch.execute(apk,spec,roots=[temp])
@@ -359,7 +376,7 @@ class ExecutionTest(unittest.IsolatedAsyncioTestCase):
                 session.files={0:"classes.dex"}
                 return {"backend":"sqlite"}
             with patch.object(analysis_batch,"Client",return_value=Context()), \
-                 patch.object(analysis_batch.install_dexsql,"status",return_value={"available":False}), \
+                 patch.object(analysis_batch.install_meguvizdexdash,"status",return_value={"available":False}), \
                  patch.object(analysis_batch.Session,"open",opened), \
                  patch.object(analysis_batch.Session,"execute",side_effect=TimeoutError("deadline")) as execute:
                 spec=request(backend="sqlite",tasks=[{"id":"a","operation":"info"},{"id":"b","operation":"info"}])

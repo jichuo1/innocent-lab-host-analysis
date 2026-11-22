@@ -15,9 +15,9 @@ files += [here / "test_ai_output_budget.py"]
 files += [here / name for name in ("audit_common.py", "native_audit.py", "native_cli.py", "native_session.py",
           "native_graph.py", "native_rules.py", "native_surface.py", "verify_audits.py", "test_native_audit.py")]
 files += [here / "analysis/audit_catalog.json"]
-files += [here / name for name in ("install_dexsql.py", "analysis_plan.py", "analysis_batch.py", "remote_schedule.py",
+files += [here / name for name in ("install_meguvizdexdash.py", "mdd_session.py", "mdd_gates.py", "install_dexsql.py", "analysis_plan.py", "analysis_batch.py", "remote_schedule.py",
                                    "analysis_paging.py", "analysis_checkpoint.py", "test_analysis_pagination.py",
-                                   "plan_ci.py", "verify_backends.py", "test_analysis_scheduler.py", "requirements-query.txt", "DEXSQL.md")]
+                                   "test_meguvizdexdash_integration.py", "plan_ci.py", "verify_backends.py", "test_analysis_scheduler.py", "requirements-query.txt", "DEXSQL.md")]
 files += [here / "retry_policy.py", here / "test_retry_policy.py"]
 files += [here / "vendor/dexsql/LICENSE", here / "vendor/dexsql/LICENSE-AUXILIARY"]
 files += [here / "version_matrix.py", here / "test_version_matrix.py"]

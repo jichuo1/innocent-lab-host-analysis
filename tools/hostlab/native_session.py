@@ -1,5 +1,25 @@
-"""Internal SQL literals and the owned bulk CLI session; external MCP is unchanged."""
-from native_cli import CliSession as NativeSession
+"""Internal SQL literals and the owned MeguvizDexDash B1 session; external MCP stays compatible."""
+from mdd_session import (
+    B1Session as NativeSession,
+    EngineError,
+    EngineIncomplete,
+    EngineLost,
+    EngineProtocolError,
+    EngineRejected,
+    SessionClosed,
+)
+
+__all__ = [
+    "EngineError",
+    "EngineIncomplete",
+    "EngineLost",
+    "EngineProtocolError",
+    "EngineRejected",
+    "NativeSession",
+    "SessionClosed",
+    "in_list",
+    "literal",
+]
 
 
 def literal(value):

@@ -139,15 +139,17 @@ class RemoteQueryInputTest(unittest.TestCase):
     def test_declared_native_backend_is_forwarded_and_legacy_stays_the_default(self):
         with patch.object(remote_mcp, "gh") as gh:
             remote_mcp.submit_job(9140200, "query", "SELECT 1")
-        self.assertNotIn("backend", gh.call_args.args[1]["inputs"])
-        with patch.object(remote_mcp, "gh") as gh:
-            remote_mcp.submit_job(9140200, "query", "SELECT file_id FROM class_methods", backend="dexsql")
-        self.assertEqual(gh.call_args.args[1]["inputs"]["backend"], "dexsql")
+        self.assertEqual(gh.call_args.args[1]["inputs"]["backend"], "sqlite")
+        for native_backend in ("meguvizdexdash", "dexsql"):
+            with patch.object(remote_mcp, "gh") as gh:
+                remote_mcp.submit_job(9140200, "query", "SELECT file_id FROM class_methods", backend=native_backend)
+            self.assertEqual(gh.call_args.args[1]["inputs"]["backend"], native_backend)
 
     def test_backend_and_cell_preview_limits_are_bounded_before_dispatch(self):
         with patch.object(remote_mcp, "gh") as gh:
-            for operation, backend, size in (("audit", "dexsql", 300), ("query", "auto", 300),
-                                             ("query", "dexsql", 12000)):
+            for operation, backend, size in (("audit", "dexsql", 300), ("audit", "meguvizdexdash", 300),
+                                             ("query", "auto", 300), ("query", "dexsql", 12000),
+                                             ("query", "meguvizdexdash", 12000)):
                 with self.subTest(operation=operation, backend=backend), self.assertRaises(remote_mcp.ToolError):
                     remote_mcp.submit_job(9140200, operation, backend=backend, max_cell_chars=size)
         gh.assert_not_called()
@@ -178,7 +180,8 @@ class RemoteQueryInputTest(unittest.TestCase):
             sample = {"version_code": 9140200, "sha256": "a" * 64,
                       "path": "apks/tv.danmaku.bili/9140200/" + "a" * 64 + "/base.apk"}
             env = {"HOSTLAB_VERSION": "9140200", "HOSTLAB_OPERATION": "query",
-                   "HOSTLAB_ARGUMENT": "SELECT 'long value'", "HOSTLAB_MAX_CELL_CHARS": "12000"}
+                   "HOSTLAB_ARGUMENT": "SELECT 'long value'", "HOSTLAB_BACKEND": "sqlite",
+                   "HOSTLAB_MAX_CELL_CHARS": "12000"}
             with patch.dict(os.environ, env, clear=True), patch.object(hostlab, "STATE", root), \
                     patch.object(hostlab, "CONFIG", root / "config.json"), \
                     patch.object(hostlab, "api_private", return_value=(None, "b" * 40)), \
@@ -199,27 +202,28 @@ class RemoteQueryInputTest(unittest.TestCase):
     def test_runner_reports_a_bounded_cause_for_a_rejected_native_query(self):
         sample = {"version_code": 9140200, "sha256": "a" * 64,
                   "path": "apks/tv.danmaku.bili/9140200/" + "a" * 64 + "/base.apk"}
-        env = {"HOSTLAB_VERSION": "9140200", "HOSTLAB_OPERATION": "query",
-               "HOSTLAB_ARGUMENT": "SELECT file_id FROM class_methods", "HOSTLAB_BACKEND": "dexsql"}
         def fail(command, stdout=None, timeout=None):
             stdout.write("Tool 'query' failed: 'Error executing tool query: sql error: no such table: class_methods'\n")
             return 1
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            with patch.dict(os.environ, env, clear=True), patch.object(hostlab, "STATE", root), \
-                    patch.object(hostlab, "CONFIG", root / "config.json"), \
-                    patch.object(hostlab, "api_private", return_value=(None, "b" * 40)), \
-                    patch.object(hostlab, "manifest", return_value={"samples": [sample]}), \
-                    patch("install_dexsql.status", return_value={"available": True}), \
-                    patch.object(remote_job.process_control, "run", side_effect=fail) as run:
-                self.assertEqual(remote_job.main(), 1)
-            command = run.call_args.args[0]
-            self.assertEqual(command[command.index("--backend") + 1], "dexsql")
-            job = json.loads((root / "remote-output/job.json").read_text(encoding="utf-8"))
-            self.assertEqual(job["dexq_backend"], "dexsql")
-            self.assertEqual(job["failure"]["kind"], "invalid_query")
-            self.assertNotIn("hint", job["failure"])
-            self.assertEqual(job["retry_class"], "deterministic")
+        for backend in ("meguvizdexdash", "dexsql"):
+            env = {"HOSTLAB_VERSION": "9140200", "HOSTLAB_OPERATION": "query",
+                   "HOSTLAB_ARGUMENT": "SELECT file_id FROM class_methods", "HOSTLAB_BACKEND": backend}
+            with self.subTest(backend=backend), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                with patch.dict(os.environ, env, clear=True), patch.object(hostlab, "STATE", root), \
+                        patch.object(hostlab, "CONFIG", root / "config.json"), \
+                        patch.object(hostlab, "api_private", return_value=(None, "b" * 40)), \
+                        patch.object(hostlab, "manifest", return_value={"samples": [sample]}), \
+                        patch("install_meguvizdexdash.status", return_value={"available": True}), \
+                        patch.object(remote_job.process_control, "run", side_effect=fail) as run:
+                    self.assertEqual(remote_job.main(), 1)
+                command = run.call_args.args[0]
+                self.assertEqual(command[command.index("--backend") + 1], "meguvizdexdash")
+                job = json.loads((root / "remote-output/job.json").read_text(encoding="utf-8"))
+                self.assertEqual(job["dexq_backend"], "meguvizdexdash")
+                self.assertEqual(job["failure"]["kind"], "invalid_query")
+                self.assertNotIn("hint", job["failure"])
+                self.assertEqual(job["retry_class"], "deterministic")
 
     def test_native_query_refuses_a_legacy_only_cell_limit_before_remote_access(self):
         env = {"HOSTLAB_VERSION": "9140200", "HOSTLAB_OPERATION": "query",

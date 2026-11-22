@@ -81,7 +81,7 @@ def worker(sample, revision, backend, output):
                 report["sample"]["sha256"] != sample["sha256"] or report["sample"]["revision"] != revision):
             raise RuntimeError("validation audit failed a retained completeness/identity gate")
         structural_ms = (time.monotonic()-start)*1000
-        if backend == "dexsql":
+        if backend in {"dexsql", "meguvizdexdash"}:
             surface = carrier["report"]
         else:
             surface = priority_analysis.scan_apk(apk, report["sample"])
@@ -152,14 +152,17 @@ def verify(samples, revision, output, *, rounds=2, native_reference=None):
              "sample_revision": revision, "system": platform.platform(), "cpu_count": os.cpu_count(),
              "measurement": "fresh serial processes; shared fetched APK; OS cache retained; order alternates by round/sample",
              "tools": {**analyze.tool_hashes(), "verify_audits.py": hostlab.digest(Path(__file__))}, "rounds": []}
-    reference, reference_hashes = None, None
+    candidate = "meguvizdexdash"
+    import install_meguvizdexdash
+    mdd_binary = str(install_meguvizdexdash.verify())
+    reference, reference_hashes, ref_binary = None, None, None
     role = "legacy"
     if native_reference is not None:
         import install_dexsql
         reference, reference_hashes = reference_tree(native_reference, output/"reference-tooling")
         role = "reference_native"
         proof["native_reference"] = {"revision":native_reference, "source_hashes":reference_hashes}
-        binary = str(install_dexsql.verify())
+        ref_binary = str(install_dexsql.verify())
     pair = {}
     for number in range(rounds):
         for index, sample in enumerate(samples):
@@ -167,12 +170,15 @@ def verify(samples, revision, output, *, rounds=2, native_reference=None):
             sample_file = output/(side+"-sample.json")
             hostlab.write_json(sample_file, sample)
             runs, paths = [], {}
-            for backend in ([role, "dexsql"] if (number+index)%2 == 0 else ["dexsql", role]):
+            for backend in ([role, candidate] if (number+index)%2 == 0 else [candidate, role]):
                 folder = output/f"round-{number+1}-{side}-{backend}"
                 folder.mkdir(exist_ok=True)
                 program = reference/"tools/hostlab/verify_audits.py" if backend == "reference_native" else Path(__file__)
                 selected_backend = "dexsql" if backend == "reference_native" else backend
-                env = {**os.environ, "HOSTLAB_DEXSQL":binary} if native_reference is not None else None
+                if backend == "reference_native":
+                    env = {**os.environ, "HOSTLAB_DEXSQL": ref_binary}
+                else:
+                    env = {**os.environ, "HOSTLAB_MEGUVIZDEXDASH": mdd_binary}
                 with (folder/"worker.log").open("wb") as log:
                     rc = process_control.run([sys.executable, str(program), "worker", "--sample", str(sample_file),
                         "--revision", revision, "--backend", selected_backend, "--output", str(folder)], stdout=log, env=env, timeout=1500)
@@ -183,7 +189,7 @@ def verify(samples, revision, output, *, rounds=2, native_reference=None):
                 print(json.dumps({"round":number+1, "sample":side, "implementation":backend,
                                   "elapsed_ms":metrics["elapsed_ms"]}), flush=True)
                 paths[backend] = folder/"evidence.json"
-            left, right = (json.loads(paths[b].read_text(encoding="utf-8")) for b in (role, "dexsql"))
+            left, right = (json.loads(paths[b].read_text(encoding="utf-8")) for b in (role, candidate))
             checks = compare(left, right)
             proof["rounds"].append({"round": number+1, "sample": side, "runs": runs, "checks": checks,
                                     "all_equal": all(v["equal"] for v in checks.values())})
@@ -194,13 +200,13 @@ def verify(samples, revision, output, *, rounds=2, native_reference=None):
             del left, right
             gc.collect()
     outcomes = {}
-    for backend in (role, "dexsql"):
+    for backend in (role, candidate):
         target, baseline = (json.loads(pair[side][backend].read_text(encoding="utf-8")) for side in ("target", "baseline"))
         changes = W.compare(baseline, target)
         resources = priority_analysis.resource_changes(baseline, target)
         outcomes[backend] = {"changes": changes, "resource_changes": resources,
             "verdict": priority_analysis.verdict(changes, target, None, resources, True)}
-    proof["pair_checks"] = compare(outcomes[role], outcomes["dexsql"])
+    proof["pair_checks"] = compare(outcomes[role], outcomes[candidate])
     proof["tools_reverified"] = proof["tools"] == {**analyze.tool_hashes(), "verify_audits.py": hostlab.digest(Path(__file__))}
     if reference is not None:
         proof["reference_reverified"] = reference_hashes == {name:hostlab.digest(reference/name) for name in reference_hashes}
@@ -217,7 +223,7 @@ def main():
     parser.add_argument("mode", choices=("worker",))
     parser.add_argument("--sample", type=Path, required=True)
     parser.add_argument("--revision", required=True)
-    parser.add_argument("--backend", choices=("legacy", "dexsql"), required=True)
+    parser.add_argument("--backend", choices=("legacy", "dexsql", "meguvizdexdash"), required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     worker(json.loads(args.sample.read_text(encoding="utf-8")), args.revision, args.backend, args.output)

@@ -17,7 +17,9 @@ from mcp.client.stdio import StdioServerParameters
 import analysis_plan
 import analysis_paging
 import hostlab
-import install_dexsql
+import install_meguvizdexdash
+
+NATIVE_BACKENDS = analysis_plan.NATIVE_BACKENDS
 
 MAX_RESULT_BYTES = 2 * 1024 * 1024
 # Statement-level failures: the prepared dataset stays usable, and replaying the
@@ -100,8 +102,9 @@ def verify_inventory(expected, files):
 
 def child_environment(apk, threads):
     env = {k:v for k,v in os.environ.items() if not re.search(r"TOKEN|SECRET|PASSWORD|API_KEY", k, re.I)}
+    effective = max(1, min(threads, os.cpu_count() or 1))
     env.update(DEXQ_ROOTS=str(apk.parent), DEXQ_CACHE_DIR=str(cache_directory()),
-               DEXQ_WORKERS=str(threads), PYTHONIOENCODING="utf-8")
+               DEXQ_WORKERS=str(threads), MDD_FACTS_THREADS=str(effective), PYTHONIOENCODING="utf-8")
     return env
 
 
@@ -138,7 +141,7 @@ class Session:
             if detail.get("error", {}).get("dataset_closed"):
                 self.dead = True
             raise BackendError("backend rejected operation", detail)
-        return json.loads(text) if self.backend == "dexsql" else text
+        return json.loads(text) if self.backend in NATIVE_BACKENDS else text
 
     async def open(self):
         started = time.monotonic()
@@ -215,7 +218,7 @@ class Session:
             result = await self.sql(sql, limit)
             result["identities"] = self.identities(result)
         elif op == "refs":
-            if self.backend == "dexsql":
+            if self.backend in NATIVE_BACKENDS:
                 result = await self.sql(analysis_plan.refs_sql(task) + f" LIMIT {limit+1}", limit)
                 result["identities"] = self.identities(result)
             else:
@@ -279,14 +282,14 @@ async def execute(apk, request, *, roots, sample=None, resume=None, checkpoint=N
     request = analysis_plan.validate(request)
     if "resume" in request and resume is None:
         raise ValueError("verified_resume_checkpoint_required")
-    native = install_dexsql.status()
-    planning = analysis_plan.plan(request, dexsql_available=native["available"], sqlite_cache_hit=sqlite_cached(apk))
+    native = install_meguvizdexdash.status()
+    planning = analysis_plan.plan(request, mdd_available=native["available"], sqlite_cache_hit=sqlite_cached(apk))
     threads = min(request["threads"], os.cpu_count() or 1)
     planning["effective_threads"] = threads
     deadline = time.monotonic() + request["timeout_seconds"]
     report = {"schema": 1, "scope": "offline_static_only", "sample": sample, "plan": planning,
               "result_budget_bytes": MAX_RESULT_BYTES,
-              "sessions": [], "tasks": [], "complete": False, "backend_versions": {"sqlite": "legacy-schema-1", "dexsql": native}}
+              "sessions": [], "tasks": [], "complete": False, "backend_versions": {"sqlite": "legacy-schema-1", "meguvizdexdash": native}}
     task_map = {t["id"]:t for t in request["tasks"]}
     saved = {t["id"]: t for t in resume["tasks"]} if resume is not None else {}
     if resume is not None:
@@ -316,13 +319,15 @@ async def execute(apk, request, *, roots, sample=None, resume=None, checkpoint=N
             checkpoint(report, False)
     for group in planning["groups"]:
         backend = group["backend"]
-        if backend == "dexsql":
-            command = str(install_dexsql.verify())
-            args = ["--threads", str(threads), "mcp", "--timeout-ms", str(request["timeout_seconds"] * 1000), "--max-datasets", "1"]
+        if backend in NATIVE_BACKENDS:
+            command = str(install_meguvizdexdash.verify())
+            args = ["mcp", "--dialect", "dexsql-0.1.0", "--timeout-ms", str(request["timeout_seconds"] * 1000), "--max-datasets", "1"]
+            cwd = str(HERE)
         else:
             import sys
             command, args = sys.executable, [str(HERE / "dexq/server.py")]
-        params = StdioServerParameters(command=command, args=args, cwd=str(HERE / "dexq"),
+            cwd = str(HERE / "dexq")
+        params = StdioServerParameters(command=command, args=args, cwd=cwd,
                                       env=child_environment(apk, threads))
         pending = [name for name in group["task_ids"] if saved.get(name, {}).get("status") != "complete"]
         if not pending:

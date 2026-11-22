@@ -483,7 +483,7 @@ class GroupDispatcherTest(unittest.TestCase):
             worker.assert_not_called()
 
     def test_group_dependency_subset_matches_legacy_batch_and_preserves_sqlite(self):
-        for backend in ("dexsql", "sqlite", "auto"):
+        for backend in ("meguvizdexdash", "dexsql", "sqlite", "auto"):
             payload = self.payload(backend)
             group = plan_ci.requirements("batch_group", json.dumps(payload))
             batch = plan_ci.requirements("batch", json.dumps(payload["request"]))

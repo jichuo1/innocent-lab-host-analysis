@@ -45,9 +45,10 @@ class CommandFailureTest(unittest.TestCase):
         text = "Tool 'query' failed: 'Error executing tool query: sql error: no such table: class_methods'"
         failure = retry_policy.command_failure("query", 1, text)
         self.assertEqual(failure["kind"], "invalid_query")
-        self.assertEqual(failure["hint"], "native table names require backend=dexsql")
+        self.assertEqual(failure["hint"], "native table names require backend=meguvizdexdash (or dexsql)")
         self.assertNotIn("Tool 'query' failed", str(failure))
-        self.assertNotIn("hint", retry_policy.command_failure("query", 1, text, "dexsql"))
+        for native_backend in ("meguvizdexdash", "dexsql"):
+            self.assertNotIn("hint", retry_policy.command_failure("query", 1, text, native_backend))
 
     def test_absent_class_and_timeout_are_separated_from_unknown_commands(self):
         missing = retry_policy.command_failure(
@@ -119,17 +120,22 @@ class DecompileCauseTest(unittest.TestCase):
 
 class CliBackendTest(unittest.TestCase):
     def test_single_commands_never_guess_a_schema(self):
-        self.assertEqual(analysis_plan.cli_backend("query"), {"backend": "sqlite",
-                                                             "reason": "explicit_legacy_backend"})
-        self.assertEqual(analysis_plan.cli_backend("decode", "dexsql"),
-                         {"backend": "dexsql", "reason": "explicit_native_backend"})
+        self.assertEqual(analysis_plan.cli_backend("query"), {"backend": "meguvizdexdash",
+                                                             "reason": "explicit_native_backend"})
+        self.assertEqual(analysis_plan.cli_backend("query", "sqlite"), {"backend": "sqlite",
+                                                                       "reason": "explicit_legacy_backend"})
+        for backend in ("dexsql", "meguvizdexdash"):
+            self.assertEqual(analysis_plan.cli_backend("decode", backend),
+                             {"backend": "meguvizdexdash", "reason": "explicit_native_backend"})
+        with self.assertRaisesRegex(ValueError, "unavailable"):
+            analysis_plan.cli_backend("query", "meguvizdexdash", mdd_available=False)
         with self.assertRaisesRegex(ValueError, "unavailable"):
             analysis_plan.cli_backend("query", "dexsql", dexsql_available=False)
         for requested in ("auto", "", "DEXSQL"):
             with self.subTest(requested=requested), self.assertRaises(ValueError):
                 analysis_plan.cli_backend("query", requested)
         with self.assertRaises(ValueError):
-            analysis_plan.cli_backend("audit", "dexsql")
+            analysis_plan.cli_backend("audit", "meguvizdexdash")
 
 
 if __name__ == "__main__":

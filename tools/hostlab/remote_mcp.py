@@ -357,8 +357,8 @@ def submit_job(version_code: int, operation: str, argument: str = "", max_cell_c
     query supports max_cell_chars=1..16000 (default 300). Larger cells remain in the index;
     use length()/substr() with file_id and a stable row key for longer values.
     backend selects the index for query/decode/string_refs/info: sqlite (legacy schema,
-    default) or dexsql (native classes/methods/class_methods/method_calls relations; its
-    result is a bounded JSON report and native pages replace max_cell_chars).
+    default), meguvizdexdash, or dexsql (native classes/methods/class_methods/method_calls
+    relations; its result is a bounded JSON report and native pages replace max_cell_chars).
     An identical payload whose deterministic failure is already known is not dispatched
     again unless allow_replay=true.
     """
@@ -366,8 +366,8 @@ def submit_job(version_code: int, operation: str, argument: str = "", max_cell_c
         raise ToolError("Invalid bounded operation parameters")
     if not 1 <= max_cell_chars <= 16000 or (operation != "query" and max_cell_chars != 300):
         raise ToolError("max_cell_chars must be 1..16000 and only varies for query")
-    if backend not in {"sqlite", "dexsql"} or (operation not in {"query", "decode", "string_refs", "info"} and backend != "sqlite"):
-        raise ToolError("backend must be sqlite or dexsql, and only for query/decode/string_refs/info")
+    if backend not in {"sqlite", "dexsql", "meguvizdexdash"} or (operation not in {"query", "decode", "string_refs", "info"} and backend != "sqlite"):
+        raise ToolError("backend must be sqlite, meguvizdexdash, or dexsql, and only for query/decode/string_refs/info")
     if type(allow_replay) is not bool:
         raise ToolError("allow_replay must be a boolean")
     if source_mode not in {"auto", "worktree", "published", "historical"}:
@@ -376,7 +376,7 @@ def submit_job(version_code: int, operation: str, argument: str = "", max_cell_c
         raise ToolError("source_mode applies only to complete analysis")
     if operation in {"multipath_audit", "source_check"} and source_mode == "historical":
         raise ToolError("New analysis cannot silently use historical source")
-    if operation == "query" and backend == "dexsql" and max_cell_chars != 300:
+    if operation == "query" and backend in {"dexsql", "meguvizdexdash"} and max_cell_chars != 300:
         raise ToolError("max_cell_chars applies only to the legacy SQLite query backend")
     payload = json.dumps({"version_code": version_code, "operation": operation, "argument": argument,
                           "max_cell_chars": max_cell_chars, "source_mode": source_mode,
@@ -398,7 +398,7 @@ def submit_job(version_code: int, operation: str, argument: str = "", max_cell_c
     # Omit the default so an older workflow can still serve legacy clients.
     if max_cell_chars != 300:
         inputs["max_cell_chars"] = str(max_cell_chars)
-    if backend != "sqlite":
+    if operation in {"query", "decode", "string_refs", "info"} or backend != "sqlite":
         inputs["backend"] = backend
     binding = None
     if operation in {"multipath_audit", "source_check"} or operation == "regenerate_ai" and source_mode not in {"auto", "historical"}:

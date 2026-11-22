@@ -54,8 +54,9 @@ async def verify(apk, sample, output, *, rounds=2, jadx=False):
              "os": os.name, "cpu_count": os.cpu_count(), "result_multisets_equal": False,
              "measurement": "serial real MCP sessions; OS file cache not flushed; shared input fetched once"}
     here = Path(__file__).resolve().parent
-    source_files = [here / name for name in ("verify_backends.py", "analysis_batch.py", "analysis_plan.py", "install_dexsql.py",
-                                             "analyze.py", "hostlab.py", "dexq/server.py", "dexq/dexq_workers.py")]
+    source_files = [here / name for name in ("verify_backends.py", "analysis_batch.py", "analysis_plan.py",
+                                             "install_meguvizdexdash.py", "analyze.py", "hostlab.py",
+                                             "dexq/server.py", "dexq/dexq_workers.py")]
     proof["tools"] = {str(p.relative_to(here)):hostlab.digest(p) for p in source_files}
     baseline = None
     previous_cache = os.environ.get("DEXQ_CACHE_DIR")
@@ -63,7 +64,7 @@ async def verify(apk, sample, output, *, rounds=2, jadx=False):
         # A fresh validation cache leaves the user's normal structural index intact.
         os.environ["DEXQ_CACHE_DIR"] = str(output / "sqlite-cache")
         for i in range(rounds):
-            for backend in (["sqlite", "dexsql"] if i % 2 else ["dexsql", "sqlite"]):
+            for backend in (["sqlite", "meguvizdexdash"] if i % 2 else ["meguvizdexdash", "sqlite"]):
                 started = time.monotonic()
                 report = await analysis_batch.execute(apk, {"backend": backend, "timeout_seconds": 600,
                     "threads": 2, "tasks": tasks()}, roots=[apk.parent], sample=sample)
@@ -84,8 +85,8 @@ async def verify(apk, sample, output, *, rounds=2, jadx=False):
                 if mapped["string_reused"]["reused_from"] != "string":
                     raise RuntimeError("identical semantic task did not reuse its result")
                 manifest = mapped["manifest"]["result"]["manifest"]
-                package = manifest["manifest"]["package"] if backend == "dexsql" else manifest["package"]
-                code = manifest["manifest"]["android:versionCode"] if backend == "dexsql" else manifest["versionCode"]
+                package = manifest["manifest"]["package"] if backend in {"dexsql", "meguvizdexdash"} else manifest["package"]
+                code = manifest["manifest"]["android:versionCode"] if backend in {"dexsql", "meguvizdexdash"} else manifest["versionCode"]
                 if package != "tv.danmaku.bili" or int(code) != sample["version_code"]:
                     raise RuntimeError("Manifest does not match pinned sample identity")
                 body = mapped["smali"]["result"]["smali"]

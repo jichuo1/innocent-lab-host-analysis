@@ -165,7 +165,9 @@ def fetch_sample(row, repo, revision, *, timings=None):
 def tool_hashes():
     files = [HERE / "analyze.py", HERE / "hostlab.py", HERE / "process_control.py",
              HERE / "runner_resources.py", HERE / "remote_job.py", HERE / "priority_analysis.py", HERE / "surface_workers.py",
-             *[HERE / n for n in ("audit_common.py", "native_audit.py", "native_cli.py", "native_session.py", "native_graph.py", "native_rules.py", "native_surface.py")],
+             *[HERE / n for n in ("audit_common.py", "install_meguvizdexdash.py", "mdd_session.py", "mdd_gates.py",
+                                  "native_audit.py", "native_cli.py", "native_session.py", "native_graph.py",
+                                  "native_rules.py", "native_surface.py")],
              SUITE / "audit_catalog.json", *sorted(SUITE.glob("*.py")),
              *sorted(SUITE.glob("*.java"))]
     return {str(p.relative_to(HERE)).replace("\\", "/"): hostlab.digest(p) for p in files}
@@ -206,15 +208,15 @@ def main(argv, *, surface_output=None):
         p.add_argument("--timeout", type=int, default=900)
         if name == "audit":
             p.add_argument("--mode", choices=("basic", "full"), default="full")
-            p.add_argument("--backend", choices=("auto", "dexsql", "legacy"), default=os.environ.get("HOSTLAB_AUDIT_BACKEND", "auto"))
+            p.add_argument("--backend", choices=("auto", "meguvizdexdash", "dexsql", "legacy"), default=os.environ.get("HOSTLAB_AUDIT_BACKEND", "auto"))
         else:
             p.add_argument("--class", dest="class_name", required=True)
     compare = sub.add_parser("compare")
     compare.add_argument("--base", type=Path, required=True, help="Base summary.json")
     compare.add_argument("--target", type=Path, required=True, help="Target summary.json")
     args = parser.parse_args(argv)
-    if args.command == "audit" and args.backend not in {"auto", "dexsql", "legacy"}:
-        raise ValueError("HOSTLAB_AUDIT_BACKEND must be auto, dexsql or legacy")
+    if args.command == "audit" and args.backend not in {"auto", "meguvizdexdash", "dexsql", "legacy"}:
+        raise ValueError("HOSTLAB_AUDIT_BACKEND must be auto, meguvizdexdash, dexsql or legacy")
     if args.command == "doctor":
         report = {"python": sys.version.split()[0], "java": shutil.which("java"),
                   "javac": shutil.which("javac"), "jadx_jar": str(jar_path(args.jadx_jar) or "missing")}
@@ -247,13 +249,15 @@ def main(argv, *, surface_output=None):
     fallback = None
     backend = "legacy"
     if args.command == "audit" and args.mode == "full" and args.backend != "legacy":
-        import install_dexsql
-        if install_dexsql.status()["available"]:
-            backend = "dexsql"
-        elif args.backend == "dexsql":
-            raise RuntimeError("Requested pinned DexSQL audit backend is unavailable")
+        if args.backend == "dexsql":
+            raise RuntimeError("Requested pinned DexSQL audit backend is unavailable; replaced by meguvizdexdash")
+        import install_meguvizdexdash
+        if install_meguvizdexdash.status()["available"]:
+            backend = "meguvizdexdash"
+        elif args.backend == "meguvizdexdash":
+            raise RuntimeError("Requested pinned MeguvizDexDash audit backend is unavailable")
         else:
-            fallback = "dexsql_unavailable"
+            fallback = "meguvizdexdash_unavailable"
     needs_java = args.command == "decompile" or args.mode == "full" and backend == "legacy"
     if needs_java and jar is None:
         # A structural-only job need not download JADX; semantic reads and explicit
@@ -303,10 +307,11 @@ def main(argv, *, surface_output=None):
         print("Report: " + str(out / "summary.json"))
         print("Source: " + str(out / "class.java"))
         return rc or (0 if report["source_written"] else 1)
-    if backend == "dexsql":
+    if backend == "meguvizdexdash":
+        import mdd_gates
         import native_audit
         try:
-            native = native_audit.run(apk, sha256=sample["sha256"], surface=surface_output is not None, timeout=args.timeout)
+            native = native_audit.run(apk, sha256=sample["sha256"], surface=surface_output is not None, gates=True, timeout=args.timeout)
         except native_audit.UnsupportedAudit as exc:
             if args.backend != "auto": raise
             fallback, backend = str(exc), "legacy"
@@ -324,27 +329,30 @@ def main(argv, *, surface_output=None):
             native_audit.write_tsv(out/"features.tsv", native, apk.name)
             if surface_output is not None:
                 surface_output["report"] = native["surface"]
-            report["native_audit"] = {k:v for k,v in native.items() if k not in {"features", "discoveries", "surface"}}
+            report["native_audit"] = {k:v for k,v in native.items() if k not in {"features", "discoveries", "surface", "gates"}}
     report.update(audit_backend=backend, backend_fallback_reason=fallback)
-    # Each invocation compiles in its own directory; concurrent audits do not share classes.
-    with tempfile.TemporaryDirectory(prefix="hostlab-audit-") as temp:
-        sandbox = Path(temp)
-        for file in SUITE.iterdir():
-            if file.suffix in {".py", ".java"}:
-                shutil.copyfile(file, sandbox / file.name)
-        command = [sys.executable, str(sandbox / "run_intake.py"), str(apk),
-                   "--tsv", str(out / "features.tsv")]
-        if args.mode == "full" and backend == "legacy":
-            command.append("--audit")
-        rc = execute(command, out / "intake.log", env, args.timeout)
-        if native is not None and backend == "dexsql" and rc in (0, 1):
-            import contextlib
-            from analysis.run_intake import print_feature_report
-            with (out/"intake.log").open("a", encoding="utf-8") as stream, contextlib.redirect_stdout(stream):
-                problems = print_feature_report(str(out/"features.tsv"), None)
-            rc = 1 if rc or problems else 0
-        home_rc = execute([sys.executable, str(sandbox / "home_frame_audit.py"), str(apk)],
-                          out / "home-frame.log", env, args.timeout)
+    if backend == "meguvizdexdash" and args.mode == "full":
+        gates = native.get("gates") if isinstance(native, dict) else None
+        if not isinstance(gates, dict) or gates.get("gate_mode") != "mdd_fact_reuse":
+            raise RuntimeError("MeguvizDexDash audit requires verified shared-fact gates")
+        rc, intake_text = mdd_gates.render_intake_log(apk, out / "features.tsv", gates["drift"], mode=args.mode)
+        (out / "intake.log").write_text(intake_text, encoding="utf-8", newline="\n")
+        (out / "home-frame.log").write_text(gates["home_log"], encoding="utf-8", newline="\n")
+        home_rc = 0
+    else:
+        # Each invocation compiles in its own directory; concurrent audits do not share classes.
+        with tempfile.TemporaryDirectory(prefix="hostlab-audit-") as temp:
+            sandbox = Path(temp)
+            for file in SUITE.iterdir():
+                if file.suffix in {".py", ".java"}:
+                    shutil.copyfile(file, sandbox / file.name)
+            command = [sys.executable, str(sandbox / "run_intake.py"), str(apk),
+                       "--tsv", str(out / "features.tsv")]
+            if args.mode == "full" and backend == "legacy":
+                command.append("--audit")
+            rc = execute(command, out / "intake.log", env, args.timeout)
+            home_rc = execute([sys.executable, str(sandbox / "home_frame_audit.py"), str(apk)],
+                              out / "home-frame.log", env, args.timeout)
     from analysis.run_intake import EXPECTED_FEATURES
     rows = features(out / "features.tsv")
     completed = ((out / "features.tsv").is_file() and

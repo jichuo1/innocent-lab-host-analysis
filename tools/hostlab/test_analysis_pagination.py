@@ -19,16 +19,16 @@ import remote_schedule
 import runner_group
 
 SQL = "SELECT descriptor FROM classes ORDER BY descriptor"
-NATIVE = {"available": True, "version": "0.1.0", "sha256": "a" * 64}
+NATIVE = {"available": True, "version": "1.2.2", "sha256": "a" * 64}
 TOOLS = {**{name: "b" * 64 for name in checkpoints.STABLE_TOOLS}, **checkpoints.LEGACY}
 
 
 def task(**changes):
-    return {"id": "classes", "operation": "query", "sql": SQL, "dialect": "dexsql", "limit": 2, **changes}
+    return {"id": "classes", "operation": "query", "sql": SQL, "dialect": "meguvizdexdash", "limit": 2, **changes}
 
 
 def request(tasks=None, **changes):
-    return analysis_plan.validate({"backend": "dexsql", "threads": 2, "timeout_seconds": 10,
+    return analysis_plan.validate({"backend": "meguvizdexdash", "threads": 2, "timeout_seconds": 10,
                                    "tasks": tasks or [task()], **changes})
 
 
@@ -55,7 +55,7 @@ class PagingTest(unittest.IsolatedAsyncioTestCase):
             result = page(text, offset, limit, total)
             if change: change(result, len(calls))
             return result
-        session = batch.Session(None, "dexsql", Path("fixture.apk"), time.monotonic() + 10)
+        session = batch.Session(None, "meguvizdexdash", Path("fixture.apk"), time.monotonic() + 10)
         session.sql = sql
         snapshots = []
         result = await session.execute(analysis_plan.validate({"tasks": [spec or task()]})["tasks"][0],
@@ -94,7 +94,7 @@ class PagingTest(unittest.IsolatedAsyncioTestCase):
             calls.append((offset,limit))
             if limit>2:raise batch.BackendError("backend rejected operation",{"error":{"kind":"output_too_large"}})
             return page(text,offset,limit)
-        session=batch.Session(None,"dexsql",Path("fixture.apk"),time.monotonic()+10)
+        session=batch.Session(None,"meguvizdexdash",Path("fixture.apk"),time.monotonic()+10)
         session.sql=sql
         result=await session.execute(analysis_plan.validate({"tasks":[task(limit=8)]})["tasks"][0])
         self.assertFalse(result["partial"])
@@ -196,7 +196,7 @@ class RecoveryTest(unittest.IsolatedAsyncioTestCase):
         self.effects = None
         async def opened(session):
             session.files = {0: "classes.dex"}; session.dataset = "dataset-1"
-            return {"backend": "dexsql", "files": {0: "classes.dex"}}
+            return {"backend": "meguvizdexdash", "files": {0: "classes.dex"}}
         async def sql(session, text, limit, offset):
             self.calls.append((offset, limit))
             if self.effects is not None: return await self.effects(text, limit, offset)
@@ -204,19 +204,19 @@ class RecoveryTest(unittest.IsolatedAsyncioTestCase):
         for manager in (patch.object(batch, "Client", side_effect=lambda *a, **k: Transport()),
                         patch.object(batch.Session, "open", opened), patch.object(batch.Session, "sql", sql),
                         patch.object(batch.Session, "call", new_callable=AsyncMock),
-                        patch.object(batch.install_dexsql, "status", return_value=NATIVE),
-                        patch.object(batch.install_dexsql, "verify", return_value=self.root / "native")):
+                        patch.object(batch.install_meguvizdexdash, "status", return_value=NATIVE),
+                        patch.object(batch.install_meguvizdexdash, "verify", return_value=self.root / "native")):
             manager.start(); self.addCleanup(manager.stop)
 
     def origin(self):
         tasks = [{"id": f"done{i}", "operation": "decode", "method": f"LFoo;->m{i}()V"} for i in range(11)] + [task(limit=150)]
         req = request(tasks)
-        entries = [{"id": t["id"], "backend": "dexsql", "status": "complete", "result": {"smali": t["method"], "partial": False}} for t in req["tasks"][:-1]]
-        entries.append({"id": "classes", "backend": "dexsql", "status": "partial", "result": page(SQL, 0, 150, 158)})
+        entries = [{"id": t["id"], "backend": "meguvizdexdash", "status": "complete", "result": {"smali": t["method"], "partial": False}} for t in req["tasks"][:-1]]
+        entries.append({"id": "classes", "backend": "meguvizdexdash", "status": "partial", "result": page(SQL, 0, 150, 158)})
         report = {"schema": 1, "scope": "offline_static_only", "sample": self.sample,
-                  "plan": analysis_plan.plan(req), "sessions": [{"backend": "dexsql", "files": {0: "classes.dex"}}],
+                  "plan": analysis_plan.plan(req), "sessions": [{"backend": "meguvizdexdash", "files": {0: "classes.dex"}}],
                   "tasks": entries, "complete": False, "source_unchanged": True,
-                  "backend_versions": {"dexsql": NATIVE},
+                  "backend_versions": {"meguvizdexdash": NATIVE},
                   "resume_origin": {"run_id": 1, "attempt": 1, "artifact_id": 2, "reused_complete_tasks": 11}}
         job = {"operation": "batch", "version_code": 9150200, "apk_sha256": self.sample["sha256"],
                "sample_revision": self.sample["revision"], "request_sha256": checkpoints.work_hash(req), "tools": TOOLS,

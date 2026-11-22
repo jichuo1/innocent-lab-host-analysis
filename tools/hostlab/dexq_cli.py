@@ -97,7 +97,7 @@ def main(argv):
             command.add_argument("--max-cell-chars", type=int, default=300,
                                  help="Cell preview length, 1..16000; use SQL substr() for longer values")
         if name in {"query", "refs", "decode", "info"}:
-            command.add_argument("--backend", choices=("sqlite", "dexsql"), default="sqlite")
+            command.add_argument("--backend", choices=("sqlite", "dexsql", "meguvizdexdash"), default="sqlite")
         if name in {"query", "refs"}:
             command.add_argument("--limit", type=int, default=100)
         if name == "decode":
@@ -107,33 +107,33 @@ def main(argv):
             command.add_argument("--kind", choices=("method", "field", "string", "type"), required=True)
             command.add_argument("--target", required=True)
             command.add_argument("--detail", choices=("sites", "methods"), default="sites",
-                                 help="DexSQL supports methods; sites preserve legacy offset/op output")
+                                 help="MeguvizDexDash supports methods; sites preserve legacy offset/op output")
     args = parser.parse_args(argv)
     if args.command == "query" and not 1 <= args.max_cell_chars <= 16000:
         parser.error("--max-cell-chars must be 1..16000")
     if args.command in {"capabilities", "plan"}:
         import analysis_plan
-        import install_dexsql
-        info = install_dexsql.status()
-        result = ({"schema": 1, "dexsql": info, "legacy_default": "sqlite", "jadx": "unchanged",
+        import install_meguvizdexdash
+        info = install_meguvizdexdash.status()
+        result = ({"schema": 1, "meguvizdexdash": info, "dexsql": info, "legacy_default": "sqlite", "jadx": "unchanged",
                    "operations": sorted(analysis_plan.OPERATIONS), "max_tasks": analysis_plan.MAX_TASKS,
                    "max_request_bytes": analysis_plan.MAX_REQUEST_BYTES} if args.command == "capabilities"
-                  else analysis_plan.plan(load_request(args.request), dexsql_available=info["available"]))
+                  else analysis_plan.plan(load_request(args.request), mdd_available=info["available"]))
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     request = None
     if args.command == "batch":
         request = load_request(args.request)
-    elif getattr(args, "backend", "sqlite") == "dexsql":
+    elif getattr(args, "backend", "sqlite") in {"dexsql", "meguvizdexdash"}:
         import analysis_plan
         task = {"id": args.command, "operation": args.command, "limit": getattr(args, "limit", 100)}
         if args.command == "query":
-            task.update(sql=args.sql, dialect="dexsql")
+            task.update(sql=args.sql, dialect="meguvizdexdash")
         elif args.command == "refs":
             task.update(kind=args.kind, target=args.target, detail=args.detail)
         elif args.command == "decode":
             task["method"] = args.method
-        request = analysis_plan.validate({"backend": "dexsql", "tasks": [task]})
+        request = analysis_plan.validate({"backend": "meguvizdexdash", "tasks": [task]})
     if args.command == "mcp":
         os.execve(sys.executable, [sys.executable, str(SERVER)], environment())
     else:

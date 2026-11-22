@@ -15,7 +15,7 @@ import hostlab
 
 CONTRACT = 1
 MAX_BYTES = 4 * 1024 * 1024
-STABLE_TOOLS = ("hostlab.py", "analyze.py", "install_dexsql.py", "dexq/server.py", "dexq/dexq_workers.py")
+STABLE_TOOLS = ("hostlab.py", "analyze.py", "install_meguvizdexdash.py", "mdd_session.py", "mdd_gates.py", "dexq/server.py", "dexq/dexq_workers.py")
 LEGACY = {"analysis_plan.py": "870dc125afb0094643b7b225c521fd81dbd13900dba066f3c214ac93f113492f",
           "analysis_batch.py": "e215cf8de0b3e03d76d2051557ad564a557c6e52f891b97ba9f6c8619614401b",
           "remote_job.py": "36313eb8bd7791d9966acbf0ccd4504def165c27ec701b9f16b428ea9db51a03"}
@@ -131,7 +131,8 @@ def validate(report, job, request, sample, tools, native, *, checkpoint=None):
             raise ValueError("checkpoint_seal_or_digest_mismatch")
     elif not legacy:
         raise ValueError("sealed_checkpoint_required")
-    before = report.get("backend_versions", {}).get("dexsql", {})
+    versions = report.get("backend_versions", {})
+    before = versions.get("meguvizdexdash") or versions.get("dexsql") or {}
     if any(before.get(k) != native.get(k) for k in ("version", "sha256")) or not native.get("available"):
         raise ValueError("checkpoint_native_backend_changed")
     tasks = report.get("tasks")
@@ -148,7 +149,7 @@ def validate(report, job, request, sample, tools, native, *, checkpoint=None):
             result = task.get("result")
             if not isinstance(result, dict) or result.get("partial") is not (task["status"] == "partial"):
                 raise ValueError("checkpoint_task_completion_inconsistent")
-            if spec["operation"] == "query" and task["backend"] == "dexsql":
+            if spec["operation"] == "query" and task["backend"] in analysis_plan.NATIVE_BACKENDS:
                 if "typed_result" in result:
                     page = analysis_paging.statement(result)
                     if not analysis_paging.sql_matches(page, spec["sql"]) or page["offset"] != spec["offset"]:

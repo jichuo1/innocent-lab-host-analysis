@@ -16,7 +16,8 @@ import snapshot_transport
 
 def batch_tool_hashes():
     here = Path(__file__).resolve().parent
-    names = ("analysis_plan.py", "analysis_batch.py", "analysis_paging.py", "analysis_checkpoint.py", "install_dexsql.py", "analyze.py", "hostlab.py",
+    names = ("analysis_plan.py", "analysis_batch.py", "analysis_paging.py", "analysis_checkpoint.py",
+             "install_meguvizdexdash.py", "mdd_session.py", "mdd_gates.py", "analyze.py", "hostlab.py",
              "remote_job.py", "process_control.py", "prepare_runtime.py", "runner_group.py", "runner_worker.py", "runner_resources.py", "adaptive_schedule.py",
              "dexq/server.py", "dexq/dexq_workers.py")
     return {name: hostlab.digest(here / name) for name in names}
@@ -58,7 +59,7 @@ def run_batch(request, row, repo, revision, *, context_timings=None, output=None
     import asyncio
     import analysis_batch
     import analysis_plan
-    import install_dexsql
+    import install_meguvizdexdash
     import analysis_checkpoint
     output = Path(output) if output is not None else hostlab.STATE / "remote-output"
     output.mkdir(parents=True, exist_ok=True)
@@ -78,7 +79,7 @@ def run_batch(request, row, repo, revision, *, context_timings=None, output=None
                 raise prepared_input["error"]
             apk = prepared_input["apk"]
         sample = {**row, "source": "huggingface", "repo": repo, "revision": revision}
-        resume = analysis_checkpoint.load_actions(request, sample, tools, install_dexsql.status())
+        resume = analysis_checkpoint.load_actions(request, sample, tools, install_meguvizdexdash.status())
         if resource_sampler is not None:
             phases["resource_before_analysis"] = resource_snapshot(resource_sampler)
         analysis_started=time.monotonic()
@@ -191,7 +192,8 @@ def run_validation(argument, row, repo, revision):
         if (work / "failure.json").is_file():
             shutil.copyfile(work / "failure.json", output / "failure.json")
     (output / "result.txt").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    names = ("verify_backends.py", "verify_audits.py", "analysis_batch.py", "analysis_plan.py", "install_dexsql.py", "remote_job.py")
+    names = ("verify_backends.py", "verify_audits.py", "analysis_batch.py", "analysis_plan.py",
+             "install_meguvizdexdash.py", "mdd_session.py", "mdd_gates.py", "remote_job.py")
     job = {"operation": "backend_validation", "version_code": row["version_code"],
         "apk_sha256": row["sha256"], "sample_revision": revision, "exit_code": rc,
         "scope": "offline_static_only", "complete": result["complete"],
@@ -216,9 +218,9 @@ def main():
     argument = os.environ.get("HOSTLAB_ARGUMENT", "")
     if not re.fullmatch(r"[1-9][0-9]{0,9}", code) or (len(argument.encode("utf-8")) > 30000 if operation in {"batch", "batch_group"} else len(argument) > 4096):
         raise RuntimeError("Invalid bounded input")
-    requested_backend = os.environ.get("HOSTLAB_BACKEND", "sqlite")
-    if requested_backend not in {"sqlite", "dexsql"}:
-        raise RuntimeError("backend must be sqlite or dexsql")
+    requested_backend = os.environ.get("HOSTLAB_BACKEND", "meguvizdexdash")
+    if requested_backend not in {"sqlite", "dexsql", "meguvizdexdash"}:
+        raise RuntimeError("backend must be sqlite, dexsql, or meguvizdexdash")
     batch_request = None
     if operation in {"batch", "batch_group"}:
         import analysis_plan
@@ -247,7 +249,7 @@ def main():
     max_cell_chars = int(raw_max_cell)
     if operation != "query" and max_cell_chars != 300:
         raise RuntimeError("max_cell_chars is only supported for query")
-    if operation == "query" and requested_backend == "dexsql" and max_cell_chars != 300:
+    if operation == "query" and requested_backend in {"dexsql", "meguvizdexdash"} and max_cell_chars != 300:
         # Native pages bound cells themselves; a legacy-only preview limit must not be dropped.
         raise RuntimeError("max_cell_chars is only supported by the legacy SQLite query backend")
     if operation == "regenerate_ai":
@@ -340,15 +342,15 @@ def main():
     selected_backend = None
     if operation in {"query", "decode", "string_refs", "info"}:
         import analysis_plan
-        import install_dexsql
-        available = requested_backend == "dexsql" and install_dexsql.status()["available"]
+        import install_meguvizdexdash
+        available = requested_backend in {"dexsql", "meguvizdexdash"} and install_meguvizdexdash.status()["available"]
         try:
             selected_backend = analysis_plan.cli_backend(
-                operation, requested_backend, dexsql_available=available)
+                operation, requested_backend, mdd_available=available)
         except ValueError as exc:
             raise RuntimeError(str(exc)) from None
         command += ["--backend", selected_backend["backend"]]
-        if operation == "string_refs" and selected_backend["backend"] == "dexsql":
+        if operation == "string_refs" and selected_backend["backend"] in {"dexsql", "meguvizdexdash"}:
             # Native references expose caller methods; legacy offsets/opcodes do not exist there.
             command += ["--detail", "methods"]
     output = hostlab.STATE / "remote-output"
@@ -377,7 +379,7 @@ def main():
     if selected_backend is not None:
         job["dexq_backend"] = selected_backend["backend"]
         job["backend_reason"] = selected_backend["reason"]
-        if operation == "string_refs" and selected_backend["backend"] == "dexsql":
+        if operation == "string_refs" and selected_backend["backend"] in {"dexsql", "meguvizdexdash"}:
             job["reference_detail"] = "methods"
     failure = None
     if rc:

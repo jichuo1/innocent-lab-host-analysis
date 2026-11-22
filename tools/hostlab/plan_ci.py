@@ -5,10 +5,11 @@ import analysis_plan
 
 
 def requirements(operation, argument, backend=None):
-    backend = os.environ.get("HOSTLAB_BACKEND", "sqlite") if backend is None else backend
-    if backend not in {"sqlite", "dexsql"}:
-        raise ValueError("backend must be sqlite or dexsql")
-    native = optional = False
+    backend = os.environ.get("HOSTLAB_BACKEND", "meguvizdexdash") if backend is None else backend
+    if backend not in {"sqlite", "dexsql", "meguvizdexdash"}:
+        raise ValueError("backend must be sqlite, dexsql, or meguvizdexdash")
+    native = optional = has_dexsql = False
+    needs_java = operation == "decompile"
     native_only = operation == "regenerate_ai"
     if operation in {"batch", "batch_group"}:
         if operation == "batch_group":
@@ -17,21 +18,32 @@ def requirements(operation, argument, backend=None):
         else:
             request = analysis_plan.validate(json.loads(argument))
         plan = analysis_plan.plan(request)
-        native = any(g["backend"] == "dexsql" for g in plan["groups"])
+        native = any(g["backend"] in analysis_plan.NATIVE_BACKENDS for g in plan["groups"])
         optional = request["backend"] == "auto" and not any(
-            t["operation"] == "query" and t["dialect"] == "dexsql" or "file_id" in t for t in request["tasks"])
+            (t["operation"] == "query" and t["dialect"] in analysis_plan.NATIVE_BACKENDS) or "file_id" in t
+            for t in request["tasks"])
         native_only = native and not optional and len(plan["groups"]) == 1
     elif operation == "backend_validation":
+        options = json.loads(argument or "{}")
+        if not isinstance(options, dict):
+            raise ValueError("backend_validation options must be a JSON object")
+        is_audit = bool(options.get("audit", False))
+        has_ref = bool(options.get("native_reference"))
         native = True
+        has_dexsql = is_audit and has_ref
+        needs_java = (is_audit and not has_ref) or (not is_audit and bool(options.get("jadx", True)))
+        native_only = is_audit and has_ref
     elif operation in {"audit", "multipath_audit"}:
         native = optional = True
+        needs_java = False
     elif operation in analysis_plan.REMOTE_COMMANDS:
         # A single command declares one backend; the native one needs its verified
         # binary before the APK is opened, the legacy one keeps androguard only.
-        native = backend == "dexsql"
+        native = backend in analysis_plan.NATIVE_BACKENDS
         native_only = native
-    return {"needs_dexsql": str(native).lower(), "dexsql_optional": str(optional).lower(),
-            "needs_java":str(operation in {"audit","decompile","multipath_audit","backend_validation"}).lower(),
+    return {"needs_mdd": str(native).lower(), "mdd_optional": str(optional).lower(),
+            "needs_dexsql": str(has_dexsql).lower(), "dexsql_optional": "false",
+            "needs_java": str(needs_java).lower(),
             "requirements": "requirements-query.txt" if native_only else "requirements.txt"}
 
 

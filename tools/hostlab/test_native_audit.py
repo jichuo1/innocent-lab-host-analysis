@@ -28,7 +28,9 @@ import remote_job
 
 def complete():
     return {"features": {name: {"status": "FOUND", "detail": "fixture"} for name in EXPECTED_FEATURES},
-            "discoveries": {}, "complete": True, "source_sha_reverified": True, "class_count": 1, "surface": {"fixture": True}}
+            "discoveries": {}, "complete": True, "source_sha_reverified": True, "class_count": 1,
+            "surface": {"fixture": True},
+            "gates": {"gate_mode": "mdd_fact_reuse", "drift": ([], [], []), "home": {}, "home_log": "======== sample.apk\n"}}
 
 
 class RuleContractTest(unittest.TestCase):
@@ -279,14 +281,16 @@ class CompletenessTest(unittest.TestCase):
             self.assertIn("META\taudit_complete\ttrue", path.read_text())
             self.assertEqual(analyze.features(path), result["features"])
 
-    def invoke(self, backend="dexsql", *, failure=None, basic_rc=0):
+    def invoke(self, backend="meguvizdexdash", *, failure=None, basic_rc=0):
+        import mdd_gates
         with tempfile.TemporaryDirectory() as folder, patch.object(hostlab, "STATE", Path(folder)), \
              patch.object(analyze, "jar_path", return_value=None), patch.object(analyze.shutil, "which", return_value=None), \
-             patch("install_dexsql.status", return_value={"available":True}), \
+             patch("install_meguvizdexdash.status", return_value={"available":True}), \
              patch.object(analyze, "inputs", return_value=(Path(folder)/"sample.apk", {"version_code":1, "sha256":"a"*64})), \
              patch.object(analyze, "tool_hashes", return_value={}), \
              patch.object(hostlab, "sdk_tool", side_effect=RuntimeError()), \
              patch.object(native_audit, "run", side_effect=failure, return_value=complete()), \
+             patch.object(mdd_gates, "render_intake_log", return_value=(basic_rc, "intake log\n")) as render_gate, \
              patch.object(analyze, "execute", side_effect=[basic_rc, 0]) as execute, \
              patch.object(analyze.process_control, "run") as process:
             carrier = {}
@@ -295,6 +299,9 @@ class CompletenessTest(unittest.TestCase):
             rc = analyze.main(argv, surface_output=carrier)
             report = json.loads(next(Path(folder).glob("reports/*/*/*/summary.json")).read_text())
             self.assertTrue(all("java" not in str(c.args[0]) and "--audit" not in c.args[0] for c in execute.call_args_list))
+            if failure is None:
+                execute.assert_not_called()
+                render_gate.assert_called_once()
             process.assert_not_called()
             return rc, report, carrier
 
@@ -302,14 +309,14 @@ class CompletenessTest(unittest.TestCase):
         rc, report, carrier = self.invoke()
         self.assertEqual(rc, 0)
         self.assertTrue(report["audit_complete"])
-        self.assertEqual(report["audit_backend"], "dexsql")
+        self.assertEqual(report["audit_backend"], "meguvizdexdash")
         self.assertIn("report", carrier)
 
     def test_default_prefers_available_native_after_cloud_equivalence_acceptance(self):
         with patch.dict(os.environ):
             os.environ.pop("HOSTLAB_AUDIT_BACKEND", None)
             _, report, _ = self.invoke(None)
-        self.assertEqual(report["audit_backend"], "dexsql")
+        self.assertEqual(report["audit_backend"], "meguvizdexdash")
 
     def test_invalid_environment_policy_fails_before_input_fetch(self):
         with patch.dict(os.environ, HOSTLAB_AUDIT_BACKEND="invalid"), patch.object(analyze, "inputs") as inputs:
@@ -327,8 +334,10 @@ class CompletenessTest(unittest.TestCase):
         with self.assertRaises(UnsupportedAudit): self.invoke(failure=UnsupportedAudit("unsupported"))
 
     def test_missing_pinned_explicit_backend_fails_without_java_or_input_fetch(self):
-        with patch("install_dexsql.status", return_value={"available":False}), patch.object(analyze, "inputs") as inputs:
+        with patch("install_meguvizdexdash.status", return_value={"available":False}), patch.object(analyze, "inputs") as inputs:
             with self.assertRaisesRegex(RuntimeError, "unavailable"):
+                analyze.main(["audit", "--apk", ".", "--backend", "meguvizdexdash"])
+            with self.assertRaisesRegex(RuntimeError, "replaced by meguvizdexdash"):
                 analyze.main(["audit", "--apk", ".", "--backend", "dexsql"])
             inputs.assert_not_called()
 
@@ -349,7 +358,8 @@ class CompletenessTest(unittest.TestCase):
     def test_cloud_audits_prepare_optional_native_and_keep_java_for_semantics(self):
         for operation in ("audit", "multipath_audit"):
             plan = plan_ci.requirements(operation, "")
-            self.assertEqual((plan["needs_dexsql"], plan["dexsql_optional"], plan["needs_java"]), ("true", "true", "true"))
+            self.assertEqual((plan["needs_mdd"], plan["mdd_optional"], plan["needs_dexsql"], plan["needs_java"]),
+                             ("true", "true", "false", "false"))
 
 
 if __name__ == "__main__":

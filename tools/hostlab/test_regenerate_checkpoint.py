@@ -332,6 +332,7 @@ class RegenerateCheckpointTest(unittest.TestCase):
         self.assertEqual(planned["requirements"], "requirements-query.txt")
         self.assertEqual(planned["needs_java"], "false")
         self.assertEqual(planned["needs_dexsql"], "false")
+        self.assertEqual(planned["needs_mdd"], "false")
         text = Path(regen.__file__).with_name("host-analysis.yml").read_text(encoding="utf-8")
         jadx_condition = text.split("- name: Download verified JADX", 1)[1].split("run:", 1)[0]
         self.assertNotIn("regenerate_ai", jadx_condition)

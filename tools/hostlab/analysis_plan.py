@@ -8,9 +8,11 @@ import re
 SCHEMA = 1
 MAX_TASKS = 16
 MAX_REQUEST_BYTES = 30000
-BACKENDS = {"auto", "sqlite", "dexsql"}
+NATIVE_BACKENDS = {"meguvizdexdash", "dexsql"}
+BACKENDS = {"auto", "sqlite", *NATIVE_BACKENDS}
+DIALECTS = {"sqlite", *NATIVE_BACKENDS}
 OPERATIONS = {"query", "locate", "refs", "decode", "info"}
-# Single-command remote operations served by one dexq MCP call.
+# Single-command remote operations served by one dexq/MeguvizDexDash MCP call.
 REMOTE_COMMANDS = {"query", "decode", "string_refs", "info"}
 
 
@@ -69,17 +71,19 @@ def validate(request):
             if not re.match(r"(?is)^\s*(select|with)\b", item["sql"]):
                 raise ValueError("query accepts SELECT/WITH only")
             item["dialect"] = task.get("dialect", "sqlite")
-            if item["dialect"] not in {"sqlite", "dexsql"}:
-                raise ValueError("query dialect must be sqlite or dexsql")
+            if item["dialect"] not in DIALECTS:
+                raise ValueError("query dialect must be sqlite, meguvizdexdash, or dexsql")
             item["offset"] = integer(task.get("offset", 0), 0, 99000, "offset")
             if item["dialect"] == "sqlite" and item["offset"]:
                 raise ValueError("SQLite query paging must be explicit in its SQL")
-            if normalized["backend"] != "auto" and normalized["backend"] != item["dialect"]:
+            if normalized["backend"] != "auto" and (
+                (normalized["backend"] == "sqlite") != (item["dialect"] == "sqlite")
+            ):
                 raise ValueError("explicit SQL dialect cannot be changed by backend selection")
             if "pagination" in task:
                 paging = task["pagination"]
-                if item["dialect"] != "dexsql" or not isinstance(paging, dict) or set(paging) - {"max_pages", "max_rows", "max_bytes"}:
-                    raise ValueError("pagination applies only to DexSQL queries")
+                if item["dialect"] not in NATIVE_BACKENDS or not isinstance(paging, dict) or set(paging) - {"max_pages", "max_rows", "max_bytes"}:
+                    raise ValueError("pagination applies only to native queries")
                 limits = {"max_pages": (1, 32), "max_rows": (1, 10000), "max_bytes": (1024, 1024 * 1024)}
                 item["pagination"] = {key: integer(value, *limits[key], key) for key, value in paging.items()}
         elif op == "locate":
@@ -101,8 +105,8 @@ def validate(request):
                 raise ValueError("field reference needs a full DEX descriptor")
             if item["kind"] == "type" and not re.fullmatch(r"(?:\[)*(?:L[^;]+;|[ZBSCIJFD])", item["target"]):
                 raise ValueError("type reference needs a DEX descriptor")
-            if item["detail"] == "sites" and normalized["backend"] == "dexsql":
-                raise ValueError("DexSQL cannot supply legacy offset/op reference sites")
+            if item["detail"] == "sites" and normalized["backend"] in NATIVE_BACKENDS:
+                raise ValueError("Native backend cannot supply legacy offset/op reference sites")
         elif op == "decode":
             item["method"] = text(task.get("method"), 4096, "method")
             if not re.fullmatch(r"L[^;]+;->[^\s(]+\([^\s]*\)[^\s]+", item["method"]):
@@ -122,46 +126,50 @@ def fingerprint(request):
     return hashlib.sha256(value.encode()).hexdigest()
 
 
-def plan(request, *, dexsql_available=True, sqlite_cache_hit=False):
+def plan(request, *, dexsql_available=None, mdd_available=True, sqlite_cache_hit=False):
     request = validate(request)
+    native_available = mdd_available if dexsql_available is None else (mdd_available and dexsql_available)
+    native_default = "meguvizdexdash"
     tasks = []
     for task in request["tasks"]:
         op = task["operation"]
         if op == "query":
-            backend, reason = task["dialect"], "explicit_sql_dialect"
+            backend = "sqlite" if task["dialect"] == "sqlite" else native_default
+            reason = "explicit_sql_dialect"
         elif op == "refs" and task["detail"] == "sites":
             backend, reason = "sqlite", "preserve_reference_offsets_and_opcodes"
         elif request["backend"] != "auto":
-            backend, reason = request["backend"], "explicit_backend"
+            backend = "sqlite" if request["backend"] == "sqlite" else native_default
+            reason = "explicit_backend"
         elif op == "decode" and "file_id" in task:
-            backend, reason = "dexsql", "explicit_dexsql_file_coordinates"
+            backend, reason = native_default, "explicit_native_file_coordinates"
         elif op == "locate" and sqlite_cache_hit:
             backend, reason = "sqlite", "reuse_existing_structural_index"
         else:
-            backend, reason = "dexsql", "reuse_native_references_and_preparation"
+            backend, reason = native_default, "reuse_native_references_and_preparation"
         fallback = None
-        if backend == "dexsql" and not dexsql_available:
+        if backend == native_default and not native_available:
             if request["backend"] == "auto" and op != "query" and "file_id" not in task:
-                backend, reason, fallback = "sqlite", "dexsql_unavailable_equivalent_legacy_operation", "dexsql"
+                backend, reason, fallback = "sqlite", "native_unavailable_equivalent_legacy_operation", native_default
             else:
-                raise ValueError("requested pinned DexSQL backend is unavailable")
+                raise ValueError("requested pinned native backend is unavailable")
         tasks.append({"id": task["id"], "backend": backend, "reason": reason, "fallback_from": fallback})
     # Avoid a second session just for warm metadata when native work already needs preparation.
-    required_native = any(t["backend"] == "dexsql" for t in tasks)
+    required_native = any(t["backend"] == native_default for t in tasks)
     required_legacy = any(t["backend"] == "sqlite" and t["reason"] != "reuse_existing_structural_index" for t in tasks)
     if required_native and not required_legacy:
         for task in tasks:
             if task["reason"] == "reuse_existing_structural_index":
-                task.update(backend="dexsql", reason="share_already_required_native_session")
+                task.update(backend=native_default, reason="share_already_required_native_session")
     groups = [{"backend": b, "task_ids": [t["id"] for t in tasks if t["backend"] == b]}
-              for b in ("sqlite", "dexsql") if any(t["backend"] == b for t in tasks)]
+              for b in ("sqlite", native_default) if any(t["backend"] == b for t in tasks)]
     return {"schema": SCHEMA, "request_sha256": fingerprint(request), "tasks": tasks, "groups": groups,
             "dataset_opens": len(groups), "execution": "one_sequential_session_per_backend",
             "threads": request["threads"], "timeout_seconds": request["timeout_seconds"],
             "raw_sql_rewritten": False, "scope": "offline_static_only"}
 
 
-def cli_backend(operation, requested="sqlite", *, dexsql_available=True):
+def cli_backend(operation, requested="meguvizdexdash", *, dexsql_available=None, mdd_available=True):
     """Resolve the backend of one single-command remote operation. No I/O.
 
     A single command never guesses: raw SQL must not be executed against a schema
@@ -170,13 +178,14 @@ def cli_backend(operation, requested="sqlite", *, dexsql_available=True):
     """
     if operation not in REMOTE_COMMANDS:
         raise ValueError("unsupported single-command operation")
-    if requested not in {"sqlite", "dexsql"}:
-        raise ValueError("backend must be sqlite or dexsql")
+    if requested not in {"sqlite", *NATIVE_BACKENDS}:
+        raise ValueError("backend must be sqlite, meguvizdexdash, or dexsql")
     if requested == "sqlite":
         return {"backend": "sqlite", "reason": "explicit_legacy_backend"}
-    if not dexsql_available:
-        raise ValueError("requested DexSQL backend is unavailable")
-    return {"backend": "dexsql", "reason": "explicit_native_backend"}
+    native_available = mdd_available if dexsql_available is None else (mdd_available and dexsql_available)
+    if not native_available:
+        raise ValueError("requested native backend is unavailable")
+    return {"backend": "meguvizdexdash", "reason": "explicit_native_backend"}
 
 
 def quote(value):

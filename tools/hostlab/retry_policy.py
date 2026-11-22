@@ -98,8 +98,8 @@ def command_failure(operation, rc, text, backend=None):
         return {"kind": "harness_failed", "message": "decompiler or scanner ran out of heap"}
     if any(marker in head for marker in _SQL_REJECTIONS):
         failure = {"kind": "invalid_query", "message": "backend rejected the statement"}
-        if backend != "dexsql" and any(relation in head for relation in _NATIVE_RELATIONS):
-            failure["hint"] = "native table names require backend=dexsql"
+        if backend not in {"dexsql", "meguvizdexdash"} and any(relation in head for relation in _NATIVE_RELATIONS):
+            failure["hint"] = "native table names require backend=meguvizdexdash (or dexsql)"
         return failure
     if "rejected operation" in head:
         return {"kind": "invalid_input", "message": "backend rejected the operation"}

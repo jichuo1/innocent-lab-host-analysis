@@ -34,11 +34,11 @@ on:
         required: false
         type: string
       backend:
-        description: 'Index backend for query/decode/string_refs/info; dexsql reads the native relations'
+        description: 'Index backend for query/decode/string_refs/info; meguvizdexdash reads the native relations'
         required: false
         type: choice
-        options: [sqlite, dexsql]
-        default: sqlite
+        options: [meguvizdexdash, sqlite, dexsql]
+        default: meguvizdexdash
       max_cell_chars:
         description: 'Query cell preview length (1..16000)'
         required: false
@@ -104,12 +104,38 @@ jobs:
         with:
           path: runtime/hostlab-prepared
           key: hostlab-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.runtime-key.outputs.fingerprint }}
+      - name: Restore MeguvizDexDash binary cache
+        id: mdd-cache
+        if: steps.plan.outputs.needs_mdd == 'true'
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5, Node 24
+        continue-on-error: true
+        with:
+          path: tools/hostlab/vendor/meguvizdexdash/1.2.2
+          key: hostlab-mdd-v1-${{ runner.os }}-${{ runner.arch }}-1.2.2-9d4a0a4d374b
+      - name: Install Rust toolchain for MeguvizDexDash build
+        if: steps.plan.outputs.needs_mdd == 'true' && steps.mdd-cache.outputs.cache-hit != 'true'
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal --no-self-update
+          rustup default 1.99.0
+      - name: Build or verify pinned MeguvizDexDash
+        if: steps.plan.outputs.needs_mdd == 'true'
+        continue-on-error: ${{ steps.plan.outputs.mdd_optional == 'true' }}
+        env:
+          RUSTUP_TOOLCHAIN: '1.99.0'
+        run: python tools/hostlab/install_meguvizdexdash.py
+      - name: Save MeguvizDexDash binary cache
+        if: steps.plan.outputs.needs_mdd == 'true' && steps.mdd-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5, Node 24
+        continue-on-error: true
+        with:
+          path: tools/hostlab/vendor/meguvizdexdash/1.2.2
+          key: hostlab-mdd-v1-${{ runner.os }}-${{ runner.arch }}-1.2.2-9d4a0a4d374b
       - name: Download verified optional DexSQL
         if: steps.plan.outputs.needs_dexsql == 'true'
         continue-on-error: ${{ steps.plan.outputs.dexsql_optional == 'true' }}
         run: python tools/hostlab/install_dexsql.py
       - name: Download verified JADX
-        if: inputs.operation == 'decompile' || inputs.operation == 'backend_validation'
+        if: inputs.operation == 'decompile' || (inputs.operation == 'backend_validation' && steps.plan.outputs.needs_java == 'true')
         run: python tools/hostlab/install_jadx.py
       - name: Backend and scheduler regression tests
         if: inputs.operation == 'backend_validation'
