@@ -8,7 +8,7 @@ def requirements(operation, argument, backend=None):
     backend = os.environ.get("HOSTLAB_BACKEND", "meguvizdexdash") if backend is None else backend
     if backend not in {"sqlite", "dexsql", "meguvizdexdash"}:
         raise ValueError("backend must be sqlite, dexsql, or meguvizdexdash")
-    native = optional = has_dexsql = False
+    native = optional = False
     needs_java = operation == "decompile"
     native_only = operation == "regenerate_ai"
     if operation in {"batch", "batch_group"}:
@@ -30,7 +30,6 @@ def requirements(operation, argument, backend=None):
         is_audit = bool(options.get("audit", False))
         has_ref = bool(options.get("native_reference"))
         native = True
-        has_dexsql = is_audit and has_ref
         needs_java = (is_audit and not has_ref) or (not is_audit and bool(options.get("jadx", True)))
         native_only = is_audit and has_ref
     elif operation in {"audit", "multipath_audit"}:
@@ -42,7 +41,7 @@ def requirements(operation, argument, backend=None):
         native = backend in analysis_plan.NATIVE_BACKENDS
         native_only = native
     return {"needs_mdd": str(native).lower(), "mdd_optional": str(optional).lower(),
-            "needs_dexsql": str(has_dexsql).lower(), "dexsql_optional": "false",
+            "needs_dexsql": "false", "dexsql_optional": "false",
             "needs_java": str(needs_java).lower(),
             "requirements": "requirements-query.txt" if native_only else "requirements.txt"}
 

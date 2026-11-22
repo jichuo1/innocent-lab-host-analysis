@@ -18,7 +18,7 @@ RESULT_PAGE_CHARS = 32000
 MAX_RESULT_PAGE_CHARS = 128000
 PREVIEW_FILES = {"inventory.json", "job.json", "result.txt", "summary.json", "summary.md", "class.java", "priority-report.md", "report.md", "group.json"}
 PAGEABLE_FILES = PREVIEW_FILES | {"priority-summary.json"}
-mcp = MCPServer(name="hostlab-remote", instructions="Run bounded APK analysis in GitHub Actions. For cross-version hook-point or structure investigations use plan_version_matrix/submit_version_matrix, advance its durable queue, then collect version_matrix_result pages. For one sample prefer plan_analysis then submit_analysis: related queries reuse input and prepared backends. Raw SQL keeps its declared sqlite/dexsql dialect. Legacy submit_job stays compatible. Reuse returned IDs; never replay an unknown dispatch. APKs stay on the runner. Static candidates do not establish working runtime hooks.")
+mcp = MCPServer(name="hostlab-remote", instructions="Run bounded APK analysis in GitHub Actions powered by MeguvizDexDash 1.2.2 (with sqlite legacy fallback). For cross-version hook-point or structure investigations use plan_version_matrix/submit_version_matrix, advance its durable queue, then collect version_matrix_result pages. For one sample prefer plan_analysis then submit_analysis: related queries reuse input and prepared backends. Raw SQL keeps its declared sqlite/meguvizdexdash (or dexsql alias) dialect. Legacy submit_job stays compatible. Reuse returned IDs; never replay an unknown dispatch. APKs stay on the runner. Static candidates do not establish working runtime hooks.")
 
 
 def gh(args, payload=None):
@@ -324,7 +324,7 @@ def matrix_artifact(entry):
 
 @mcp.tool()
 def plan_analysis(request: dict) -> str:
-    """Plan up to 16 related tasks without dispatching. Request: {backend:auto|sqlite|dexsql,tasks:[{id,operation,...}]}. query requires sql and dialect. DexSQL query.limit is page size; automatic continuation is bounded by pagination={max_pages:1..32,max_rows:1..10000,max_bytes:1024..1048576}, default 8/1000/1048576 and the shared batch deadline/byte budget. max_pages=1 preserves a single page. SQLite SQL is unchanged. locate requires kind/name; refs requires kind/target and methods|sites detail; decode requires a full method descriptor. This is a plan, not execution evidence."""
+    """Plan up to 16 related tasks without dispatching. Request: {backend:auto|meguvizdexdash|sqlite|dexsql,tasks:[{id,operation,...}]}. Native operations use MeguvizDexDash 1.2.2 (dexsql stays as a compatible alias). query requires sql and dialect. Native query.limit is page size; automatic continuation is bounded by pagination={max_pages:1..32,max_rows:1..10000,max_bytes:1024..1048576}, default 8/1000/1048576 and the shared batch deadline/byte budget. max_pages=1 preserves a single page. SQLite SQL is unchanged. locate requires kind/name; refs requires kind/target and methods|sites detail; decode requires a full method descriptor. This is a plan, not execution evidence."""
     import remote_schedule
     try:
         return json.dumps(remote_schedule.describe(request), ensure_ascii=False)
@@ -335,7 +335,7 @@ def plan_analysis(request: dict) -> str:
 @mcp.tool()
 def submit_analysis(version_code: int, request: dict, apk_sha256: str = "", sample_revision: str = "",
                     idempotency_key: str = "", force: bool = False) -> str:
-    """Schedule one bounded analysis batch. Related tasks share one APK fetch and one session per backend. DexSQL queries automatically continue under row/page/byte/deadline budgets. request.resume={run_id,attempt,request_id} explicitly imports a verified checkpoint from this repository; exact APK SHA and sample revision are required. Completed task payloads are retained and partial SQL continues at its admitted cursor, never by replaying its prefix. Resume defaults to a stable idempotency key; a new key explicitly authorizes another attempt. Ordinary arbitrary SQL is not completion-cached. An identical payload whose deterministic failure is already known is not dispatched again unless force=true. Unknown dispatch is never replayed. Uses Actions minutes."""
+    """Schedule one bounded analysis batch. Related tasks share one APK fetch and one session per backend (MeguvizDexDash 1.2.2 is the primary native backend; dexsql maps onto it). Native queries automatically continue under row/page/byte/deadline budgets. request.resume={run_id,attempt,request_id} explicitly imports a verified checkpoint from this repository; exact APK SHA and sample revision are required. Completed task payloads are retained and partial SQL continues at its admitted cursor, never by replaying its prefix. Resume defaults to a stable idempotency key; a new key explicitly authorizes another attempt. Ordinary arbitrary SQL is not completion-cached. An identical payload whose deterministic failure is already known is not dispatched again unless force=true. Unknown dispatch is never replayed. Uses Actions minutes."""
     import remote_schedule
     if type(force) is not bool:
         raise ToolError("force must be a boolean")
@@ -356,11 +356,12 @@ def submit_job(version_code: int, operation: str, argument: str = "", max_cell_c
 
     query supports max_cell_chars=1..16000 (default 300). Larger cells remain in the index;
     use length()/substr() with file_id and a stable row key for longer values.
-    backend selects the index for query/decode/string_refs/info: sqlite (legacy schema,
-    default), meguvizdexdash, or dexsql (native classes/methods/class_methods/method_calls
-    relations; its result is a bounded JSON report and native pages replace max_cell_chars).
-    An identical payload whose deterministic failure is already known is not dispatched
-    again unless allow_replay=true.
+    backend selects the index for query/decode/string_refs/info: meguvizdexdash (MeguvizDexDash
+    1.2.2 native classes/methods/class_methods/method_calls relations; dexsql is accepted
+    as a compatible alias), or sqlite (legacy schema, default on single submit_job for
+    backward compatibility; its native counterpart uses bounded JSON pages instead of
+    max_cell_chars). An identical payload whose deterministic failure is already known
+    is not dispatched again unless allow_replay=true.
     """
     if version_code <= 0 or version_code > 9999999999 or operation not in {"inventory", "audit", "decompile", "query", "decode", "string_refs", "info", "multipath_audit", "regenerate_ai", "source_check"} or len(argument) > 4096:
         raise ToolError("Invalid bounded operation parameters")

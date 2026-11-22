@@ -16,7 +16,6 @@ from unittest.mock import AsyncMock, patch
 import analysis_batch
 import analysis_plan
 import hostlab
-import install_dexsql
 import plan_ci
 import remote_schedule
 
@@ -108,7 +107,7 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(plan_ci.requirements("backend_validation", json.dumps({"jadx": False}))["needs_java"], "false")
         ref = plan_ci.requirements("backend_validation", json.dumps({"audit": True, "native_reference": "a" * 40}))
         self.assertEqual((ref["needs_mdd"], ref["needs_dexsql"], ref["needs_java"], ref["requirements"]),
-                         ("true", "true", "false", "requirements-query.txt"))
+                         ("true", "false", "false", "requirements-query.txt"))
         legacy_audit = plan_ci.requirements("backend_validation", json.dumps({"audit": True}))
         self.assertEqual((legacy_audit["needs_mdd"], legacy_audit["needs_dexsql"], legacy_audit["needs_java"]),
                          ("true", "false", "true"))
@@ -421,40 +420,6 @@ class ExecutionTest(unittest.IsolatedAsyncioTestCase):
         cause=analysis_batch.BackendError("incomplete",{"missing":["classes.dex"]})
         wrapped=ExceptionGroup("transport",[ExceptionGroup("task",[cause])])
         self.assertEqual(analysis_batch.failure(wrapped),{"error":"BackendError","message":"incomplete","detail":{"missing":["classes.dex"]}})
-
-
-class InstallerTest(unittest.TestCase):
-    def test_git_line_endings_preserve_license_validation_and_content_changes_fail(self):
-        here=install_dexsql.HERE
-        licenses={name:(here/"vendor/dexsql"/name).read_bytes().replace(b"\r\n",b"\n") for name in install_dexsql.LICENSE_HASHES}
-        with tempfile.TemporaryDirectory() as directory:
-            root=Path(directory)
-            vendor=root/"vendor/dexsql"; vendor.mkdir(parents=True)
-            target=root/"installed/dexsql"; target.parent.mkdir(); target.write_bytes(b"verified fixture")
-            def export(args,**kwargs):
-                path=Path(args[-1])
-                self.assertFalse(path.exists(),"native extractor rejects existing paths")
-                path.write_text("third party notices",encoding="utf-8")
-            for newline in (b"\n",b"\r\n"):
-                for name,data in licenses.items(): (vendor/name).write_bytes(data.replace(b"\n",newline))
-                with patch.dict(os.environ,{},clear=True), patch.object(install_dexsql,"HERE",root), \
-                     patch.object(install_dexsql,"executable",return_value=target), \
-                     patch.object(install_dexsql,"verify",return_value=target), \
-                     patch.object(install_dexsql.subprocess,"run",side_effect=export):
-                    self.assertEqual(install_dexsql.install(),target)
-            (vendor/"LICENSE").write_bytes(licenses["LICENSE"]+b"changed")
-            with patch.dict(os.environ,{},clear=True), patch.object(install_dexsql,"HERE",root), \
-                 patch.object(install_dexsql,"executable",return_value=target), self.assertRaises(RuntimeError):
-                install_dexsql.install()
-
-    def test_explicit_unverified_override_cannot_be_executed_or_overwritten(self):
-        with tempfile.TemporaryDirectory() as directory:
-            bad=Path(directory)/"not-dexsql.exe"; bad.write_bytes(b"wrong binary")
-            with patch.dict(os.environ,{"HOSTLAB_DEXSQL":str(bad)}), patch.object(install_dexsql.urllib.request,"urlopen") as download:
-                with self.assertRaises(RuntimeError): install_dexsql.install()
-                self.assertFalse(install_dexsql.status()["available"])
-                download.assert_not_called()
-            self.assertEqual(bad.read_bytes(),b"wrong binary")
 
 
 if __name__ == "__main__":

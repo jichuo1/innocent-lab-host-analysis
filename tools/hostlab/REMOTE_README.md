@@ -18,9 +18,9 @@ Windows 双击 setup-remote.cmd；若装有 Codex CLI，会注册 hostlab-remote
 更长的值用同一宿主样本及稳定键读取 `length(value)`、`substr(value,1,8000)`、`substr(value,8001,8000)` 等，并设置 `max_cell_chars=16000`，避免控制字符转义挤掉尾部。
 SQLite `substr` 的起点从 1 开始；按返回的实际 sample_revision/apk_sha256 检查各段来自同一份样本。
 
-单条读取命令显式选择索引后端：`submit_job(..., operation="query", backend="dexsql")` 读取原生
-`classes/methods/class_methods/method_calls` 等关系；默认 `backend="sqlite"` 保持旧 schema 结果。
-单条命令不猜测 schema：`backend="dexsql"` 而原生程序未验真时直接失败，不回退到旧索引；
+单条读取命令显式选择索引后端：`submit_job(..., operation="query", backend="meguvizdexdash")` 读取 MeguvizDexDash 1.2.2 原生
+`classes/methods/class_methods/method_calls` 等关系（`backend="dexsql"` 保留为兼容别名）；默认 `backend="sqlite"` 保持旧 schema 结果（`submit_analysis` 批量模式默认 `auto` 并优先 `meguvizdexdash`）。
+单条命令不猜测 schema：指定原生后端而原生程序未验真时直接失败，不回退到旧索引；
 原生页自行限制单元格，因此 `max_cell_chars` 只适用于 sqlite 后端，混用会拒绝派发。
 `job.json` 记录 `dexq_backend` 与 `backend_reason`；失败时记录 `failure.kind`、`retry_class`
 （deterministic/progressable/unknown）和最多 8 个 `failure_reasons`，步骤日志同时打印一行摘要。
@@ -73,7 +73,7 @@ APK 的 `source_revision` 仍指 APK 数据集，不是模块源码 revision。
 客户端更新后需重载 MCP 服务或开启新会话，才能使用提交前的自动捕获；服务端默认发布源读取仍独立生效。
 
 operation: info / query / decode / string_refs / decompile / audit / multipath_audit / regenerate_ai。
-query/decode/string_refs/info 另可传 `backend="sqlite"|"dexsql"`；其余操作只接受默认 sqlite。
+query/decode/string_refs/info 另可传 `backend="meguvizdexdash"|"sqlite"|"dexsql"`（`dexsql` 映射至 MeguvizDexDash 1.2.2）；其余操作只接受默认 sqlite。
 新 APK 自动报告与 multipath_audit 包含有界 AI 分析；AI 建议不能替代真机验收。
 全部登记页面证据由服务端预取（零 API 成本）；AI 先出详细逐路径草稿，再在同一模型的独立上下文中复核重点页面和全部草稿发现；评论与动态由服务端重新读取、复核记录引用其编号。
 草稿按最多两个页面分片、最多六个单元，再用独立上下文逐片复核重点页面与全部发现。新任务全流程最多 32 次 API 请求（含探索、修正、失败和最多四次传输补偿），跨恢复任务累计；每个深度单元最多八次逻辑请求，只读取证最多十次，后续单元提交额度在真实 POST 前强制预留。每次最多 65536 输出 token、240 秒墙钟时限、45 秒读空闲时限，AI 累计限时 60 分钟。逐页面/路径校验与评论、动态新读取证据要求保持生效，复核未完成不发布成功 Release。
@@ -98,10 +98,10 @@ reports 分支保存可浏览结论，私有 Release 只保存完整成功分析
 
 Call `submit_job(version_code=1, operation="inventory")`, then use `job_status` and `job_result` as usual. The version code is a required placeholder and does not select an APK. The `inventory.json` artifact lists every registered sample at one immutable sample revision, exposing only version, SHA-256, size, and certificate metadata. No APK or DEX is downloaded for this operation.
 
-## 批量计划与可选 DexSQL
+## 批量计划与 MeguvizDexDash 1.2.2 原生后端
 
 更新并重新加载 MCP 后有十二项工具，包括单样本 plan/submit、多版本 plan/submit/advance/status/result 和显式恢复。
-相关查询一批共用一次下载与后端会话，保留 SQLite 方言和 JADX 路径。完整请求示例、去重/未知提交行为与限额见 [DEXSQL.md](DEXSQL.md)。
+相关查询一批共用一次下载与后端会话，默认优先 MeguvizDexDash 1.2.2 原生后端，保留 SQLite 方言和 JADX 路径。完整请求示例、去重/未知提交行为与限额见 [DEXSQL.md](DEXSQL.md) 与 [MEGUVIZDEXDASH_ADVANCED.md](MEGUVIZDEXDASH_ADVANCED.md)。
 
 DexSQL query会在页数、行数、字节及原总时限内自动续页。显式恢复可在原request添加
 `resume={"run_id":原run,"attempt":原attempt,"request_id":"原32位request_id"}`，再向

@@ -12,14 +12,13 @@ files += [here / "test_dexq_mcp.py", here / "bench_dexq.py"]
 files += [here / "remote_mcp.py", here / "remote_job.py", here / "host-analysis.yml", here / "install_jadx.py"]
 files += [here / "process_control.py", here / "test_audit_stability.py"]
 files += [here / "test_ai_output_budget.py"]
-files += [here / name for name in ("audit_common.py", "native_audit.py", "native_cli.py", "native_session.py",
+files += [here / name for name in ("audit_common.py", "native_audit.py", "native_session.py",
           "native_graph.py", "native_rules.py", "native_surface.py", "verify_audits.py", "test_native_audit.py")]
 files += [here / "analysis/audit_catalog.json"]
-files += [here / name for name in ("install_meguvizdexdash.py", "mdd_session.py", "mdd_gates.py", "install_dexsql.py", "analysis_plan.py", "analysis_batch.py", "remote_schedule.py",
+files += [here / name for name in ("install_meguvizdexdash.py", "mdd_session.py", "mdd_gates.py", "MEGUVIZDEXDASH_ADVANCED.md", "analysis_plan.py", "analysis_batch.py", "remote_schedule.py",
                                    "analysis_paging.py", "analysis_checkpoint.py", "test_analysis_pagination.py",
                                    "test_meguvizdexdash_integration.py", "plan_ci.py", "verify_backends.py", "test_analysis_scheduler.py", "requirements-query.txt", "DEXSQL.md")]
 files += [here / "retry_policy.py", here / "test_retry_policy.py"]
-files += [here / "vendor/dexsql/LICENSE", here / "vendor/dexsql/LICENSE-AUXILIARY"]
 files += [here / "version_matrix.py", here / "test_version_matrix.py"]
 files += [here / name for name in ("runner_group.py", "runner_worker.py", "test_runner_group.py", "test_runner_worker.py", "test_group_matrix.py")]
 files += [here / name for name in ("adaptive_schedule.py", "runner_resources.py", "test_adaptive_schedule.py", "test_runner_resources.py")]
@@ -52,7 +51,7 @@ print(str(output))
 print(f"Files: {len(files) + 1}; bytes: {output.stat().st_size}")
 remote = output.with_name("hostlab-remote-client.zip")
 with zipfile.ZipFile(remote, "w", zipfile.ZIP_DEFLATED) as archive:
-    for name in ("hostlab.py", "remote_mcp.py", "analysis_plan.py", "remote_schedule.py", "remote_dispatch.py", "version_matrix.py", "runner_group.py", "adaptive_schedule.py", "remote_artifacts.py", "retry_policy.py", "DEXSQL.md", "source_snapshot.py", "snapshot_transport.py",
+    for name in ("hostlab.py", "remote_mcp.py", "analysis_plan.py", "remote_schedule.py", "remote_dispatch.py", "version_matrix.py", "runner_group.py", "adaptive_schedule.py", "remote_artifacts.py", "retry_policy.py", "DEXSQL.md", "MEGUVIZDEXDASH_ADVANCED.md", "source_snapshot.py", "snapshot_transport.py",
                  "requirements-remote.txt", "setup-remote.cmd", "REMOTE_README.md"):
         archive.write(here / name, "tools/hostlab/" + name)
     archive.write(here / "examples/comment-search-links.json", "tools/hostlab/examples/comment-search-links.json")

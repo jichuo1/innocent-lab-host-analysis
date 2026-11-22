@@ -155,14 +155,12 @@ def verify(samples, revision, output, *, rounds=2, native_reference=None):
     candidate = "meguvizdexdash"
     import install_meguvizdexdash
     mdd_binary = str(install_meguvizdexdash.verify())
-    reference, reference_hashes, ref_binary = None, None, None
+    reference, reference_hashes = None, None
     role = "legacy"
     if native_reference is not None:
-        import install_dexsql
         reference, reference_hashes = reference_tree(native_reference, output/"reference-tooling")
         role = "reference_native"
         proof["native_reference"] = {"revision":native_reference, "source_hashes":reference_hashes}
-        ref_binary = str(install_dexsql.verify())
     pair = {}
     for number in range(rounds):
         for index, sample in enumerate(samples):
@@ -174,11 +172,8 @@ def verify(samples, revision, output, *, rounds=2, native_reference=None):
                 folder = output/f"round-{number+1}-{side}-{backend}"
                 folder.mkdir(exist_ok=True)
                 program = reference/"tools/hostlab/verify_audits.py" if backend == "reference_native" else Path(__file__)
-                selected_backend = "dexsql" if backend == "reference_native" else backend
-                if backend == "reference_native":
-                    env = {**os.environ, "HOSTLAB_DEXSQL": ref_binary}
-                else:
-                    env = {**os.environ, "HOSTLAB_MEGUVIZDEXDASH": mdd_binary}
+                selected_backend = "meguvizdexdash" if backend == "reference_native" else backend
+                env = {**os.environ, "HOSTLAB_MEGUVIZDEXDASH": mdd_binary}
                 with (folder/"worker.log").open("wb") as log:
                     rc = process_control.run([sys.executable, str(program), "worker", "--sample", str(sample_file),
                         "--revision", revision, "--backend", selected_backend, "--output", str(folder)], stdout=log, env=env, timeout=1500)

@@ -166,7 +166,7 @@ def tool_hashes():
     files = [HERE / "analyze.py", HERE / "hostlab.py", HERE / "process_control.py",
              HERE / "runner_resources.py", HERE / "remote_job.py", HERE / "priority_analysis.py", HERE / "surface_workers.py",
              *[HERE / n for n in ("audit_common.py", "install_meguvizdexdash.py", "mdd_session.py", "mdd_gates.py",
-                                  "native_audit.py", "native_cli.py", "native_session.py", "native_graph.py",
+                                  "native_audit.py", "native_session.py", "native_graph.py",
                                   "native_rules.py", "native_surface.py")],
              SUITE / "audit_catalog.json", *sorted(SUITE.glob("*.py")),
              *sorted(SUITE.glob("*.java"))]

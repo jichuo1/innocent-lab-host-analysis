@@ -1,14 +1,11 @@
 """Native audits retain exact evidence, bounded transport and fail-closed gates."""
 import hashlib
-from collections import deque
 import json
 import os
 from pathlib import Path
-import queue
 import re
 import tempfile
 import subprocess
-import time
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -16,7 +13,6 @@ import analyze
 from analysis.run_intake import EXPECTED_FEATURES
 import hostlab
 import native_audit
-import native_cli
 from native_graph import Graph, Method, Type, UnsupportedAudit, field_type, method_types, parse_type
 from native_rules import CATALOG, HERE, Rules
 from native_session import literal
@@ -139,115 +135,14 @@ class RuleContractTest(unittest.TestCase):
             code_locations(session, {1: {1: None}})
 
 
-class TransportTest(unittest.TestCase):
-    def session(self):
-        session = native_cli.CliSession.__new__(native_cli.CliSession)
-        session.deadline, session.queries = time.monotonic()+1, 0
-        session.messages = queue.Queue()
-        session.closed = native_cli.threading.Event()
-        session.lines, session.pending, session.eof = deque(), b"", False
-        session.write = MagicMock()
-        return session
-
-    def test_framed_table_requires_complete_marker_columns_and_cells(self):
-        session = self.session()
-        for line in (b"stats\n", b"| name |\n", b"| 6162 |\n", b"| hostlab_boundary |\n", b"| __hostlab_end_fixed |\n"):
-            session.messages.put(line)
-        with patch.object(native_cli.uuid, "uuid4", return_value=type("Id", (), {"hex":"fixed"})()):
-            self.assertEqual(list(session.table("SELECT x", expected=["name"])), [(["name"], None), (["name"], ["6162"])])
-        self.assertIn("hostlab_boundary", session.write.call_args.args[0])
-
-    def test_early_exit_wrong_columns_and_incomplete_results_fail(self):
-        for lines in ([b""], [b"| wrong |\n"], [b"| name |\n", b"| a | b |\n"], [RuntimeError("row limit")]):
-            session = self.session()
-            for line in lines: session.messages.put(line)
-            with self.subTest(lines=lines), self.assertRaises(RuntimeError): list(session.table("SELECT x", expected=["name"]))
-
-    def test_chunk_boundaries_preserve_utf8_crlf_and_multiple_lines(self):
-        session = self.session()
-        raw = "| 中文 |\r\n| value |\n".encode()
-        for byte in raw: session.messages.put(bytes([byte]))
-        session.messages.put(b"last without newline")
-        session.messages.put(b"")
-        self.assertEqual(session.line(), "| 中文 |\r\n".encode())
-        self.assertEqual(session.line(), b"| value |\n")
-        self.assertEqual(session.line(), b"last without newline")
-        self.assertEqual(session.line(), b"")
-
-    def test_coalesced_results_preserve_next_table_and_fragmented_marker(self):
-        session = self.session()
-        session.messages.put(b"| name |\n| 61 |\n| hostlab_boundary |\n| __hostlab_end_fi")
-        session.messages.put(b"xed |\n| name |\n| 62 |\n| hostlab_boundary |\n| __hostlab_end_fixed |\n")
-        with patch.object(native_cli.uuid, "uuid4", return_value=type("Id", (), {"hex":"fixed"})()):
-            self.assertEqual(list(session.table("SELECT x"))[-1][1], ["61"])
-            self.assertEqual(list(session.table("SELECT x"))[-1][1], ["62"])
-
-    def test_chunked_transport_keeps_line_budget_for_complete_and_fragmented_rows(self):
-        for chunks in ([b"x"*(4*1024*1024)+b"\n"], [b"x"*(4*1024*1024), b"x"]):
-            session = self.session()
-            for chunk in chunks: session.messages.put(chunk)
-            with self.assertRaisesRegex(RuntimeError, "row exceeds"): session.line()
-
-    def test_expired_deadline_also_rejects_already_buffered_data(self):
-        session = self.session()
-        session.lines.append(b"| buffered |\n")
-        session.deadline = time.monotonic()-1
-        with self.assertRaises(TimeoutError): session.line()
-
-    def test_reader_uses_available_bounded_chunks_and_preserves_short_replies(self):
-        session = self.session()
-        session.process = MagicMock()
-        session.process.stdout.read1.side_effect = [b"header\nro", b"w\n", b""]
-        session.read()
-        self.assertEqual([session.line(), session.line(), session.line()], [b"header\n", b"row\n", b""])
-        self.assertEqual([c.args for c in session.process.stdout.read1.call_args_list], [(65536,)]*3)
-        session.process.stdout.readline.assert_not_called()
-
-    def test_reader_io_failure_is_delivered_instead_of_waiting_until_deadline(self):
-        session = self.session()
-        session.process = MagicMock()
-        session.process.stdout.read1.side_effect = OSError("private detail")
-        session.read()
-        with self.assertRaisesRegex(RuntimeError, "output read failed"): session.line()
-
-    def encoded(self, cells, **bounds):
-        session = self.session()
-        def table(sql, **kwargs):
-            if "hostlab_shape" in sql: yield ["v"], None
-            else:
-                yield ["v"], None
-                for cell in cells: yield ["v"], [cell]
-        session.table = table
-        return list(session.rows("SELECT v ORDER BY v", **bounds))
-
-    def test_hex_roundtrip_preserves_null_empty_unicode_pipes_and_newlines(self):
-        value = "中文|\n\t😀"
-        self.assertEqual(self.encoded(["N", "", value.encode().hex(), "3138343436373434303733373039353531363135"]),
-                         [{"v":None}, {"v":""}, {"v":value}, {"v":"18446744073709551615"}])
-
-    def test_malformed_or_truncated_hex_and_complete_result_caps_fail(self):
-        for cells, bounds in ((["0"], {}), (["ff"], {}), (["00xx"], {}), (["61", "62"], {"max_rows":1}), (["6162"], {"max_bytes":1})):
-            with self.subTest(cells=cells), self.assertRaises(RuntimeError): self.encoded(cells, **bounds)
-
-    def test_expired_deadline_and_oversized_sql_fail_before_writing(self):
-        session = self.session()
-        del session.write
-        session.process = MagicMock()
-        session.deadline = time.monotonic()-1
-        with self.assertRaises(TimeoutError): session.write("SELECT 1")
-        session.deadline = time.monotonic()+1
-        with self.assertRaises(RuntimeError): session.write("x"*(256*1024+1))
-        session.process.stdin.write.assert_not_called()
-
-
 class CompletenessTest(unittest.TestCase):
     def test_reference_materializes_exact_source_only_without_checkout_changes(self):
         revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=hostlab.ROOT, text=True).strip()
         with tempfile.TemporaryDirectory() as folder:
             root, hashes = verify_audits.reference_tree(revision, Path(folder)/"reference")
-            raw = subprocess.check_output(["git", "show", revision+":tools/hostlab/native_cli.py"], cwd=hostlab.ROOT)
-            self.assertEqual(hashes["tools/hostlab/native_cli.py"], hashlib.sha256(raw).hexdigest())
-            self.assertEqual((root/"tools/hostlab/native_cli.py").read_bytes(), raw)
+            raw = subprocess.check_output(["git", "show", revision+":tools/hostlab/mdd_session.py"], cwd=hostlab.ROOT)
+            self.assertEqual(hashes["tools/hostlab/mdd_session.py"], hashlib.sha256(raw).hexdigest())
+            self.assertEqual((root/"tools/hostlab/mdd_session.py").read_bytes(), raw)
             self.assertTrue((root/"tools/hostlab/analysis/audit_catalog.json").is_file())
             self.assertTrue(all(Path(name).suffix in {".py", ".java", ".json"} for name in hashes))
 

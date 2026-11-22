@@ -23,6 +23,7 @@ class InstallerMeguvizDexDashTest(unittest.TestCase):
     def test_pinned_release_metadata(self):
         self.assertEqual(install_meguvizdexdash.PRODUCT, "MeguvizDexDash")
         self.assertEqual(install_meguvizdexdash.VERSION, "1.2.2")
+        self.assertEqual(install_meguvizdexdash.RELEASE_TAG, "v1.2.2")
         self.assertEqual(install_meguvizdexdash.SOURCE_COMMIT, "6f0d5ce47680628ee9c51bfcc8a9157d9641c0ec")
         self.assertEqual(install_meguvizdexdash.REQUIRED_DIALECT, "dexsql-0.1.0")
         self.assertEqual(install_meguvizdexdash.ENV_OVERRIDE, "HOSTLAB_MEGUVIZDEXDASH")
@@ -30,19 +31,111 @@ class InstallerMeguvizDexDashTest(unittest.TestCase):
             set(install_meguvizdexdash.PLATFORMS),
             {("Windows", "AMD64"), ("Linux", "x86_64"), ("Darwin", "arm64")},
         )
+        self.assertEqual(
+            set(install_meguvizdexdash.RELEASE_ASSETS),
+            {("Windows", "AMD64"), ("Linux", "x86_64")},
+        )
+        self.assertEqual(
+            install_meguvizdexdash.RELEASE_ASSETS[("Windows", "AMD64")][1],
+            "7ecf44b0c707b0202a550d8d318e8d158e7a8ca2c286d8868034e40c63b50f68",
+        )
+        self.assertEqual(
+            install_meguvizdexdash.RELEASE_ASSETS[("Linux", "x86_64")][1],
+            "0d1a03bf130c47e06e342c01b8fb9ee0321e3c3a7b6807008ab1f4c2c3a76973",
+        )
 
     def test_override_is_never_overwritten_and_missing_binary_is_unavailable(self):
         with tempfile.TemporaryDirectory() as directory:
             bad = Path(directory) / "not-mdd.exe"
             bad.write_bytes(b"wrong binary")
             with patch.dict(os.environ, {"HOSTLAB_MEGUVIZDEXDASH": str(bad)}), patch.object(
+                install_meguvizdexdash, "_download_release_binary"
+            ) as download, patch.object(
                 install_meguvizdexdash, "_build_from_pinned_source"
             ) as build:
                 with self.assertRaises(RuntimeError):
                     install_meguvizdexdash.install()
                 self.assertFalse(install_meguvizdexdash.status()["available"])
+                download.assert_not_called()
                 build.assert_not_called()
             self.assertEqual(bad.read_bytes(), b"wrong binary")
+
+    def test_release_download_verifies_sha_before_execution_and_writes_receipt(self):
+        import hashlib
+        import io
+
+        class FakeResponse(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        payload = b"verified-release-binary"
+        digest = hashlib.sha256(payload).hexdigest()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "vendor/meguvizdexdash/1.2.2/meguvizdexdash"
+            target.parent.mkdir(parents=True)
+
+            with patch.object(
+                install_meguvizdexdash.urllib.request, "urlopen", return_value=FakeResponse(b"tampered")
+            ), patch.object(install_meguvizdexdash, "inspect") as inspect_mock:
+                with self.assertRaisesRegex(RuntimeError, "SHA-256 mismatch"):
+                    install_meguvizdexdash._download_release_binary(target, "meguvizdexdash-linux-x86_64", digest)
+                inspect_mock.assert_not_called()
+            self.assertFalse(target.exists())
+            self.assertEqual(list(target.parent.glob("*.staging")), [])
+
+            fake_info = {
+                "engine": "meguvizdexdash",
+                "product": "MeguvizDexDash",
+                "version": "1.2.2",
+                "build_id": "source-sha256:d10a00fb9fa5ea1db35e15d3e4b6410cbd67cfb7fb2b99bb0f60855212e28164",
+                "dialect": "dexsql-0.1.0",
+                "sha256": digest,
+                "path": str(target),
+            }
+            with patch.object(
+                install_meguvizdexdash.urllib.request, "urlopen", return_value=FakeResponse(payload)
+            ), patch.object(install_meguvizdexdash, "inspect", return_value=fake_info) as inspect_mock:
+                install_meguvizdexdash._download_release_binary(target, "meguvizdexdash-linux-x86_64", digest)
+            inspect_mock.assert_called_once()
+            self.assertEqual(target.read_bytes(), payload)
+            receipt = json.loads(target.with_name("BUILD_INFO.json").read_text(encoding="utf-8"))
+            self.assertEqual(receipt["source"], "github_release")
+            self.assertEqual(receipt["release_tag"], "v1.2.2")
+            self.assertEqual(receipt["sha256"], digest)
+
+    def test_install_routes_prebuilt_platforms_to_release_and_darwin_to_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for plat_system, plat_machine, expect_download in (
+                ("Linux", "x86_64", True),
+                ("Windows", "AMD64", True),
+                ("Darwin", "arm64", False),
+            ):
+                target = root / plat_system / "meguvizdexdash"
+                with self.subTest(system=plat_system), patch.dict(os.environ, {}, clear=True), patch.object(
+                    install_meguvizdexdash.platform, "system", return_value=plat_system
+                ), patch.object(
+                    install_meguvizdexdash.platform, "machine", return_value=plat_machine
+                ), patch.object(
+                    install_meguvizdexdash, "executable", return_value=target
+                ), patch.object(
+                    install_meguvizdexdash, "_download_release_binary"
+                ) as dl, patch.object(
+                    install_meguvizdexdash, "_build_from_pinned_source"
+                ) as build, patch.object(
+                    install_meguvizdexdash, "verify", return_value=target
+                ):
+                    self.assertEqual(install_meguvizdexdash.install(), target)
+                if expect_download:
+                    dl.assert_called_once()
+                    build.assert_not_called()
+                else:
+                    build.assert_called_once()
+                    dl.assert_not_called()
 
     def test_inspect_validates_version_build_id_and_capabilities(self):
         _, build_id = install_meguvizdexdash.asset()
@@ -163,6 +256,8 @@ class MddGatesAndWorkflowTest(unittest.TestCase):
         self.assertEqual(root_wf, tool_wf)
         self.assertIn(b"options: [meguvizdexdash, sqlite, dexsql]", root_wf)
         self.assertIn(b"default: meguvizdexdash", root_wf)
+        self.assertNotIn(b"install_dexsql.py", root_wf)
+        self.assertNotIn(b"rustup toolchain install", root_wf)
 
 
 if __name__ == "__main__":

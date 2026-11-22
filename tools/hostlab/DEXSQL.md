@@ -1,40 +1,41 @@
-# 可选 DexSQL 后端与批量调度
+# 原生 MeguvizDexDash 后端与批量调度（兼容原 DexSQL 契约）
 
 旧 `dexq query/refs/decode/info` 默认仍走 SQLite/Androguard；Java 伪源码仍走现有 JADX CLI。
-远程 `submit_job` 的 `query/decode/string_refs/info` 可显式 `backend="dexsql"`：工作流按声明预装并验真原生程序，
+远程 `submit_job` 的 `query/decode/string_refs/info` 主原生后端已全面切换为 **MeguvizDexDash `1.2.2`**（`backend="meguvizdexdash"`；`backend="dexsql"` 保留为兼容别名）：工作流从 `Meguvizarchic/MeguvizDexDash` `v1.2.2` Release 预装并验真原生程序（先核对资产精确 SHA-256，再校验 `version`/`build_id`/`capabilities`），
 `job.json` 记录 `dexq_backend`/`backend_reason`；单条命令不猜测 schema，原生不可用即失败而不回退到旧索引。
-DexSQL 固定为 0.1.0，各平台资产在 `install_dexsql.py` 校验 SHA-256。安装不改变全局 PATH 或 MCP。
+MeguvizDexDash 固定为 `1.2.2`（锚定提交 `6f0d5ce47680628ee9c51bfcc8a9157d9641c0ec`，方言 `dexsql-0.1.0`），预编译资产及源码摘要在 `install_meguvizdexdash.py` 双重校验，详细性能与内存演进见 [MEGUVIZDEXDASH_ADVANCED.md](MEGUVIZDEXDASH_ADVANCED.md)。安装不改变全局 PATH 或 MCP。
 
 ```powershell
-tools/hostlab/.venv/Scripts/python.exe tools/hostlab/install_dexsql.py
+tools/hostlab/.venv/Scripts/python.exe tools/hostlab/install_meguvizdexdash.py
 tools/hostlab/hostlab.cmd dexq capabilities
-tools/hostlab/hostlab.cmd dexq query --version-code 9150200 --backend dexsql --sql "SELECT file_id,method_descriptor FROM class_methods WHERE method_name='getUrlsMap' ORDER BY file_id,method_idx"
-tools/hostlab/hostlab.cmd dexq refs --version-code 9150200 --backend dexsql --detail methods --kind string --target disable_underline
+tools/hostlab/hostlab.cmd dexq query --version-code 9150200 --backend meguvizdexdash --sql "SELECT file_id,method_descriptor FROM class_methods WHERE method_name='getUrlsMap' ORDER BY file_id,method_idx"
+tools/hostlab/hostlab.cmd dexq refs --version-code 9150200 --backend meguvizdexdash --detail methods --kind string --target disable_underline
 ```
 
-Linux/macOS 直接使用当前 Python 调用 `tools/hostlab/hostlab.py`。`HOSTLAB_DEXSQL` 可指定已有程序，仍必须通过本平台固定哈希校验；不会向该覆盖路径下载或写入。
-LICENSE、LICENSE-AUXILIARY 和导出的第三方声明保留在程序目录；客户端包分发安装器与许可，不夹带缓存或本地程序。
+Linux/macOS 直接使用当前 Python 调用 `tools/hostlab/hostlab.py`。`HOSTLAB_MEGUVIZDEXDASH` 可指定已有程序，仍必须通过本平台 `version` / `build_id` / `capabilities` 固定校验；不会向该覆盖路径下载、编译或写入。
+双平台预编译客户端包不再附带 `install_dexsql.py` 与 `dexsql 0.1.0` 二进制。
 
 ## 结构审计与多路径扫描
 
-`analyze.py audit --backend dexsql` 使用 runner 内固定哈希的原生 CLI；`--backend legacy`
-保留原 JADX 结构审计与 Androguard 多路径扫描，`--backend auto` 优先原生，只在不可用或明确不支持时回退。
-默认策略为 auto，优先 DexSQL。`HOSTLAB_AUDIT_BACKEND` 可显式选择策略，报告记录实际后端及回退原因。
+`analyze.py audit --backend meguvizdexdash` 使用 runner 内通过 `install_meguvizdexdash.py` 验真的原生 CLI；`--backend legacy`
+保留原 JADX 结构审计与 Androguard 多路径扫描，`--backend auto`（默认）优先 MeguvizDexDash，只在不可用或明确不支持时回退（传 `--backend dexsql` 会明确提示已由 `meguvizdexdash` 替换）。
+`HOSTLAB_AUDIT_BACKEND` 可显式选择策略，报告记录实际后端及回退原因。
 云端用户继续提交现有 audit/multipath_audit，不需要在本地安装 CLI，也不需要重载共享 MCP。
 
 原生路径复用同一份家族、页面和协议规则；27 项 FEATURE、DISCOVERY、父类/接口、泛型 Signature、
-字符串引用、真实调用边、调用次数、协议双路径、未知调用者、原始方法体和资源指纹都保留。
+字符串引用、真实调用边、调用次数、协议双路径、未知调用者、原始方法体和资源指纹都保留，并与 `mdd_gates.py`（`mdd_fact_reuse`）复用同一份已打开的原生快照完成 intake 与 home-frame 门禁。
 LIKE 仅作候选预过滤，最终分类保持原来的大小写规则；file_id 映射回旧报告的数字 DEX 顺序。
 方法体按旧描述符顺序排序后，对同一份原始 DEX 指令字节计算哈希。
-JADX CLI 仍供单类伪源码与后续语义复核，Java 保留用于必要的回退；原生结构路径不启动 JVM。
+JADX CLI 仍供单类伪源码与后续语义复核，Java 保留用于 `decompile` 与必要的回退；原生结构路径不启动 JVM。
 
-内部批量提取使用一个 `query --interactive` 进程，SQL 投影用无损 hex 单元格和独立结束标记，
-区分 null/空串并保留 Unicode、控制字符与大整数。SQL 256 KiB、单行 4 MiB、单次传输512 MiB、
-解码结果默认128 MiB/500000行均为硬上限；特定调用边查询有显式有界额度，超限一律失败，不截断伪装完成。
+内部批量提取通过 `mdd_session.py` 使用一个 `meguvizdexdash serve --dialect dexsql-0.1.0 --non-scalar-text lossy-replacement` 持久会话（`mdd.cli-stream.v1` JSONL + 类型化 B1 批次，单条按需流式读取），
+明确区分 null/空串并保留 Unicode、控制字符与 u64/i64/mutf8 精确类型。SQL 256 KiB、单行 4 MiB、单次传输 512 MiB、
+解码结果默认 128 MiB/500000 行均为硬上限；超限或截断一律失败，不伪装完成。
 共享总时限覆盖准备、写入和读取，异常终止自有进程树。外部 MCP 的分页与返回格式不变。
 输入 SHA 前后重验、完整物理 DEX 清单、原有 intake 漂移/home-frame/FEATURE 门禁继续执行。
-重复定义、未知泛型外部类语义或 DEX041 原始指纹等明确未等价形态走有原因的旧实现回退；
 未知运行错误、超时、损坏结果均失败，不以换后端隐藏问题。
+
+> 历史记录说明：下文第 44–91 行为早期 `dexsql 0.1.0` 基准保留作历史对照；当前 `main` 分支对最新 `MeguvizDexDash 1.2.2`（`6f0d5ce47680`）的完整对比成绩见 [MEGUVIZDEXDASH_ADVANCED.md](MEGUVIZDEXDASH_ADVANCED.md)。
 
 云端 `backend_validation` 的 `argument={"audit":true,"rounds":2}` 配合准确的目标 SHA、基线 SHA、
 sample_revision 和 runner_revision，串行双跑两个 APK，交替先后顺序，逐字段比较完整证据多重集。

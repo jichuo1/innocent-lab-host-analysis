@@ -62,9 +62,9 @@ class MatrixTest(unittest.TestCase):
     def test_real_feature_scenario_has_explicit_dialects_and_bounded_tasks(self):
         scenario=json.loads((Path(__file__).parent/"examples/comment-search-links.json").read_text(encoding="utf-8"))
         normalized=analysis_plan.validate(scenario)
-        self.assertEqual(normalized["backend"],"dexsql")
+        self.assertEqual(normalized["backend"],"meguvizdexdash")
         self.assertEqual(len(normalized["tasks"]),15)
-        self.assertTrue(all(t["dialect"]=="dexsql" for t in normalized["tasks"] if t["operation"]=="query"))
+        self.assertTrue(all(t["dialect"]=="meguvizdexdash" for t in normalized["tasks"] if t["operation"]=="query"))
 
     def test_github_pending_is_inflight_and_cannot_overfill_the_pool(self):
         created=self.create(max_parallel=2)

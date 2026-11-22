@@ -104,13 +104,13 @@
 
 ```json
 {
-  "backend": "dexsql",
+  "backend": "meguvizdexdash",
   "threads": 2,
   "timeout_seconds": 180,
   "tasks": [{
     "id": "entry_definition",
     "operation": "query",
-    "dialect": "dexsql",
+    "dialect": "meguvizdexdash",
     "sql": "SELECT file_id,method_idx,method_descriptor FROM class_methods WHERE method_name='getUrlsMap' ORDER BY file_id,method_idx",
     "limit": 50,
     "pagination": {"max_pages": 8, "max_rows": 1000, "max_bytes": 1048576}
@@ -134,11 +134,11 @@
 - join 必须保留 `file_id` 及正确索引，不能跨 DEX 拼接同名字段或方法。保留重复定义并调查 ClassLoader 来源。
 - `class_interfaces` 是直接实现关系，完整契约要遍历父类/父接口；可用声明 interface_count 与提取边数交叉核对。
 - 调用表是静态引用，不自动解析虚调用最终目标。需要时沿实际调用者、被调用者及方法体追踪业务角色。
-- `method_calls` 调用者列为 `method`、目标列为 `callee`；先读实际 schema，不能猜列名。别把 SQLite 方言不加区分地发送给 DexSQL。
+- `method_calls` 调用者列为 `method`、目标列为 `callee`；先读实际 schema，不能猜列名。别把 SQLite 方言不加区分地发送给 MeguvizDexDash（或兼容别名 DexSQL）。
 - 泛型以原始 `dalvik.annotation.Signature` 为证据，按 file_id/annotation_off/owner、depth/ordinal 关联注解与字符串池，再拼接数组片段；JADX 推断仅作阅读辅助。
 - 字符串、字段读写、类型消费者、资源与方法体相互印证。数字资源 ID 和 DEX 排序变化不能直接当作业务迁移。
 
-官方表契约可查 [schema](https://dexsql.lsposed.org/docs/sql/schema) 与 [annotations](https://dexsql.lsposed.org/docs/sql/annotations)；本仓库固定版本及兼容差异仍以 [DEXSQL.md](../tools/hostlab/DEXSQL.md) 为准。
+官方表契约可查 [schema](https://dexsql.lsposed.org/docs/sql/schema) 与 [annotations](https://dexsql.lsposed.org/docs/sql/annotations)；当前主分支固定运行版本为 MeguvizDexDash `1.2.2`，兼容细节与实测规范以 [DEXSQL.md](../tools/hostlab/DEXSQL.md) 及 [MEGUVIZDEXDASH_ADVANCED.md](../tools/hostlab/MEGUVIZDEXDASH_ADVANCED.md) 为准。
 
 ### 4.4 失败处理
 

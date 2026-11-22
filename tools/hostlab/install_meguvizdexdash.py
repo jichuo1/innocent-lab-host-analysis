@@ -1,4 +1,4 @@
-"""Build and verify the pinned MeguvizDexDash CLI binary from its immutable commit."""
+"""Download or build and verify the pinned MeguvizDexDash CLI binary."""
 from __future__ import annotations
 
 import argparse
@@ -11,9 +11,13 @@ import shutil
 import stat
 import subprocess
 import tempfile
+import urllib.request
 
 PRODUCT = "MeguvizDexDash"
 VERSION = "1.2.2"
+RELEASE_TAG = f"v{VERSION}"
+RELEASE_URL = f"https://github.com/Meguvizarchic/MeguvizDexDash/releases/download/{RELEASE_TAG}"
+MAX_BINARY_BYTES = 64 * 1024 * 1024
 SOURCE_REPO = "https://github.com/Meguvizarchic/MeguvizDexDash.git"
 SOURCE_COMMIT = "6f0d5ce47680628ee9c51bfcc8a9157d9641c0ec"
 REQUIRED_DIALECT = "dexsql-0.1.0"
@@ -32,6 +36,16 @@ PLATFORMS = {
         "source-sha256:f337ed538e72e6e601bf282e1ad3df5102b824395010f27b847abfcae0ad9252",
     ),
 }
+RELEASE_ASSETS = {
+    ("Windows", "AMD64"): (
+        "meguvizdexdash-windows-x86_64.exe",
+        "7ecf44b0c707b0202a550d8d318e8d158e7a8ca2c286d8868034e40c63b50f68",
+    ),
+    ("Linux", "x86_64"): (
+        "meguvizdexdash-linux-x86_64",
+        "0d1a03bf130c47e06e342c01b8fb9ee0321e3c3a7b6807008ab1f4c2c3a76973",
+    ),
+}
 HERE = Path(__file__).resolve().parent
 
 
@@ -48,6 +62,10 @@ def asset() -> tuple[str, str]:
     if key not in PLATFORMS:
         raise RuntimeError("unsupported MeguvizDexDash platform: " + "/".join(key))
     return PLATFORMS[key]
+
+
+def release_asset() -> tuple[str, str] | None:
+    return RELEASE_ASSETS.get((platform.system(), platform.machine()))
 
 
 def executable() -> Path:
@@ -202,6 +220,54 @@ def _build_from_pinned_source(target: Path, binary_name: str) -> None:
             staged.unlink(missing_ok=True)
 
 
+def _download_release_binary(target: Path, asset_name: str, expected_sha256: str) -> None:
+    url = f"{RELEASE_URL}/{asset_name}"
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": "hostlab-meguvizdexdash-installer"},
+    )
+    with tempfile.NamedTemporaryFile(dir=target.parent, suffix=".staging", delete=False) as stream:
+        staged = Path(stream.name)
+    try:
+        digest = hashlib.sha256()
+        copied = 0
+        with urllib.request.urlopen(request, timeout=120) as response, staged.open("wb") as out:
+            while chunk := response.read(1024 * 1024):
+                copied += len(chunk)
+                if copied > MAX_BINARY_BYTES:
+                    raise RuntimeError("MeguvizDexDash release binary exceeds download budget")
+                digest.update(chunk)
+                out.write(chunk)
+        actual_sha256 = digest.hexdigest()
+        if actual_sha256 != expected_sha256:
+            raise RuntimeError(
+                f"MeguvizDexDash release SHA-256 mismatch for {asset_name}: "
+                f"got {actual_sha256}, expected {expected_sha256}"
+            )
+        staged.chmod(0o755)
+        info = inspect(staged)
+        os.replace(staged, target)
+        target.with_name("BUILD_INFO.json").write_text(
+            json.dumps(
+                {
+                    "product": PRODUCT,
+                    "version": VERSION,
+                    "source": "github_release",
+                    "release_tag": RELEASE_TAG,
+                    "asset": asset_name,
+                    "source_commit": SOURCE_COMMIT,
+                    "build_id": info["build_id"],
+                    "sha256": info["sha256"],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    finally:
+        staged.unlink(missing_ok=True)
+
+
 def install() -> Path:
     if os.environ.get(ENV_OVERRIDE):
         return verify()  # Explicit override path is never built into or overwritten.
@@ -209,7 +275,11 @@ def install() -> Path:
     target = executable()
     if not target.exists():
         target.parent.mkdir(parents=True, exist_ok=True)
-        _build_from_pinned_source(target, binary_name)
+        rel = release_asset()
+        if rel is not None:
+            _download_release_binary(target, *rel)
+        else:
+            _build_from_pinned_source(target, binary_name)
     return verify(target)
 
 

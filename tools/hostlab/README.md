@@ -146,7 +146,7 @@ MCP 名称建议 `hostlab-remote`；不要与本地 dexq 服务混淆。
 
 工具：submit_job(version_code, operation, argument)、job_status(request_id)、list_jobs()、job_result(request_id)。
 operation 可选 info、query、decode、string_refs、decompile、audit；argument 分别为 SQL/方法签名/字符串/类名等。
-query/decode/string_refs/info 可用 backend="sqlite"（默认，旧 schema）或 backend="dexsql"（原生关系）；单条命令不猜测 schema。
+query/decode/string_refs/info 可用 `backend="meguvizdexdash"`（主原生后端，关系表 `classes`/`methods`/`class_methods`/`method_calls`；`dexsql` 保留兼容别名）或 `backend="sqlite"`（单条 `submit_job` 默认 legacy schema）；单条命令不猜测 schema。
 同一 payload 的确定性失败（SQL/参数被拒、目标方法或类不存在、单语句输出超限）在 6 小时内不自动重派：submit 返回 replay_blocked，
 修正后可显式 force=true / allow_replay=true 授权一次付费重跑。失败原因见 job.json 的 failure/retry_class/failure_reasons。
 分页预算（page_budget/row_budget/byte_budget）是 progressable：部分结果停在 next_offset，再次提交会继续推进，不会被拦。
@@ -245,7 +245,7 @@ Java 堆按实测可用内存预算，保留至少 2 GiB 及 30% 余量，上限
 超时清理 Python/Java/worker 后代，结果只有完整结束才原子发布；残缺、旧报告、样本错配不能进入 AI 审查。
 资源采样及总耗时保存在结果产物中；采样 RSS 峰值不等于操作系统精确峰值。
 
-DexSQL 可选后端、批量执行、计划原因、远端去重和兼容边界见 [DEXSQL.md](DEXSQL.md)。
+MeguvizDexDash 1.2.2 主原生后端（兼容原 `dexsql` 方言/后端别名）、批量执行、计划原因、远端去重和兼容边界见 [DEXSQL.md](DEXSQL.md) 与 [MEGUVIZDEXDASH_ADVANCED.md](MEGUVIZDEXDASH_ADVANCED.md)。
 旧 SQLite/JADX 命令保持原有默认值；相关查询优先打包成一次 `plan_analysis` / `submit_analysis`，共用样本与准备成本。
 
 
