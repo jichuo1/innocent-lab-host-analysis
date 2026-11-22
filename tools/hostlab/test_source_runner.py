@@ -93,6 +93,7 @@ class RunnerSourceTest(unittest.TestCase):
              patch.object(hostlab,"select",return_value=sample()), \
              patch.object(hostlab,"write_json") as write, \
              patch.object(remote_job.process_control,"run",return_value=0), \
+             patch("install_meguvizdexdash.status",return_value={"available":True}), \
              patch.object(remote_job.analyze,"tool_hashes",return_value={}):
             self.assertEqual(remote_job.main(),0)
             load.assert_not_called()
