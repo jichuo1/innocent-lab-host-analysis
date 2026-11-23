@@ -4,6 +4,7 @@
 
 | 样本 | 分析结论 | AI | 源码快照 / UTC / 时效 | 报告 | 完整证据 |
 |---|---|---|---|---|---|
+| 9.21.0 / 9210200 | AI_ANALYSIS_FAILED | failed | 2fa2d3b70f73 / 2026-10-15T14:19:32.431433Z / published_unverified_worktree | [查看](samples/9210200/06ceb9f4e3cacdfe5d1bb341174c904577a75d59b181a193fff094913faea0d6/runs/45283882460-a1/report.md) | — |
 | 9.21.0 / 9210100 | AI_ANALYSIS_FAILED | failed | 2fa2d3b70f73 / 2026-10-15T14:19:32.431433Z / published_unverified_worktree | [查看](samples/9210100/a55252f620c3f3ac8e9660c902290fbb2749460ae74aa19a8a2433d7fe571d95/runs/45163069172-a1/report.md) | — |
 | 9.20.0 / 9200300 | AI_ANALYSIS_FAILED | failed | 2fa2d3b70f73 / 2026-10-15T14:19:32.431433Z / published_unverified_worktree | [查看](samples/9200300/609003767fbbfe4870d6bcbd8cea0292833327c4eef6513eb7388852be070bcc/runs/44148607002-a1/report.md) | — |
 | 9.20.0 / 9200200 | AI_ANALYSIS_FAILED | failed | 2fa2d3b70f73 / 2026-10-15T14:19:32.431433Z / published_unverified_worktree | [查看](samples/9200200/47cd74d4a709baa903a3716d7708fe2a6bf85d6b29224c6c93cfacb77b7c314b/runs/43992345255-a1/report.md) | — |
