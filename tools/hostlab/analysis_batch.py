@@ -21,11 +21,37 @@ import install_meguvizdexdash
 
 NATIVE_BACKENDS = analysis_plan.NATIVE_BACKENDS
 
+MCP_SQL_LIMITS = {
+    "steps": 40_000_000_000,
+    "scanned_rows": 4_000_000_000,
+    "result_rows": 4_000_000,
+}
+
 MAX_RESULT_BYTES = 2 * 1024 * 1024
 # Statement-level failures: the prepared dataset stays usable, and replaying the
 # same request cannot change the answer. A missing method or class is one of them.
 STATEMENT_FAILURES = {"invalid_query", "invalid_input", "impl_defined", "output_too_large", "not_found"}
 HERE = Path(__file__).resolve().parent
+
+
+def mcp_args(timeout_seconds: int) -> list[str]:
+    return [
+        "mcp",
+        "--dialect",
+        "dexsql-0.1.0",
+        "--non-scalar-text",
+        "lossy-replacement",
+        "--timeout-ms",
+        str(timeout_seconds * 1000),
+        "--max-datasets",
+        "1",
+        "--sql-max-steps",
+        str(MCP_SQL_LIMITS["steps"]),
+        "--sql-max-scanned-rows",
+        str(MCP_SQL_LIMITS["scanned_rows"]),
+        "--sql-max-result-rows",
+        str(MCP_SQL_LIMITS["result_rows"]),
+    ]
 
 
 class BackendError(RuntimeError):
@@ -321,17 +347,7 @@ async def execute(apk, request, *, roots, sample=None, resume=None, checkpoint=N
         backend = group["backend"]
         if backend in NATIVE_BACKENDS:
             command = str(install_meguvizdexdash.verify())
-            args = [
-                "mcp",
-                "--dialect",
-                "dexsql-0.1.0",
-                "--non-scalar-text",
-                "lossy-replacement",
-                "--timeout-ms",
-                str(request["timeout_seconds"] * 1000),
-                "--max-datasets",
-                "1",
-            ]
+            args = mcp_args(request["timeout_seconds"])
             cwd = str(HERE)
         else:
             import sys

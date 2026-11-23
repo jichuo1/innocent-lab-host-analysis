@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import analysis_batch
 import analyze
 import hostlab
 import install_meguvizdexdash
@@ -210,6 +211,17 @@ class MddSessionContractTest(unittest.TestCase):
                 decode(bad)
         self.assertTrue(mdd_session._completeness("ok", "complete", "complete", True)["complete"])
         self.assertFalse(mdd_session._completeness("ok", "complete", "partial", True)["complete"])
+
+    def test_mcp_args_forward_large_apk_sql_work_budget(self):
+        args = analysis_batch.mcp_args(180)
+        self.assertEqual(args[0], "mcp")
+        self.assertEqual(args[args.index("--dialect") + 1], "dexsql-0.1.0")
+        self.assertEqual(args[args.index("--non-scalar-text") + 1], "lossy-replacement")
+        self.assertEqual(args[args.index("--timeout-ms") + 1], "180000")
+        self.assertEqual(args[args.index("--max-datasets") + 1], "1")
+        for key in ("steps", "scanned_rows", "result_rows"):
+            flag = "--sql-max-" + key.replace("_", "-")
+            self.assertEqual(args[args.index(flag) + 1], str(mdd_session.DEFAULT_SQL_LIMITS[key]))
 
 
 class MddGatesAndWorkflowTest(unittest.TestCase):
