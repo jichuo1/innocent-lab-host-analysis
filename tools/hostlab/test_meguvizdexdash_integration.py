@@ -24,8 +24,8 @@ class InstallerMeguvizDexDashTest(unittest.TestCase):
     def test_pinned_release_metadata(self):
         self.assertEqual(install_meguvizdexdash.PRODUCT, "MeguvizDexDash")
         self.assertEqual(install_meguvizdexdash.VERSION, "1.2.2")
-        self.assertEqual(install_meguvizdexdash.RELEASE_TAG, "v1.2.2.1")
-        self.assertEqual(install_meguvizdexdash.SOURCE_COMMIT, "9deb838b2bc8d73c2de0df0d83c5cf3c1ebad887")
+        self.assertEqual(install_meguvizdexdash.RELEASE_TAG, "v1.2.2.2")
+        self.assertEqual(install_meguvizdexdash.SOURCE_COMMIT, "0406cddb85bef37eb3eae50d8c2b559952c14c3b")
         self.assertEqual(install_meguvizdexdash.REQUIRED_DIALECT, "dexsql-0.1.0")
         self.assertEqual(install_meguvizdexdash.ENV_OVERRIDE, "HOSTLAB_MEGUVIZDEXDASH")
         self.assertEqual(
@@ -38,11 +38,11 @@ class InstallerMeguvizDexDashTest(unittest.TestCase):
         )
         self.assertEqual(
             install_meguvizdexdash.RELEASE_ASSETS[("Windows", "AMD64")][1],
-            "5560367c3283dc70d31c43bac21b704b90bd7ec3101a4f6b75c2c98ef75931ed",
+            "32f1eb2d3f2219e2a5061b3fb075d99556b42c43e31ad48ef4fdee992fb435f8",
         )
         self.assertEqual(
             install_meguvizdexdash.RELEASE_ASSETS[("Linux", "x86_64")][1],
-            "2ffd39cdfb730326753f58d3636c0b05c434956f9ce598ab384bd352abcacf02",
+            "287f4faa14fcd11b320cec8f4319fad79b47aaa5cf3b493b5e5fe5bbe0559bce",
         )
 
     def test_override_is_never_overwritten_and_missing_binary_is_unavailable(self):
@@ -92,7 +92,7 @@ class InstallerMeguvizDexDashTest(unittest.TestCase):
                 "engine": "meguvizdexdash",
                 "product": "MeguvizDexDash",
                 "version": "1.2.2",
-                "build_id": "source-sha256:1fcd7bbe6e3d7e13166aa4d86a8e9dc1f81abd311166c7caa7ca6c9e2304eb47",
+                "build_id": "source-sha256:4af11e127fe76450e71d58590895f8601bb3155344a2b01f62b2eb2c79bb83e6",
                 "dialect": "dexsql-0.1.0",
                 "sha256": digest,
                 "path": str(target),
@@ -105,7 +105,7 @@ class InstallerMeguvizDexDashTest(unittest.TestCase):
             self.assertEqual(target.read_bytes(), payload)
             receipt = json.loads(target.with_name("BUILD_INFO.json").read_text(encoding="utf-8"))
             self.assertEqual(receipt["source"], "github_release")
-            self.assertEqual(receipt["release_tag"], "v1.2.2.1")
+            self.assertEqual(receipt["release_tag"], "v1.2.2.2")
             self.assertEqual(receipt["sha256"], digest)
 
     def test_install_routes_prebuilt_platforms_to_release_and_darwin_to_source(self):
