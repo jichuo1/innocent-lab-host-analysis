@@ -15,35 +15,35 @@ import urllib.request
 
 PRODUCT = "MeguvizDexDash"
 VERSION = "1.2.2"
-RELEASE_TAG = f"v{VERSION}"
+RELEASE_TAG = "v1.2.2.1"
 RELEASE_URL = f"https://github.com/Meguvizarchic/MeguvizDexDash/releases/download/{RELEASE_TAG}"
 MAX_BINARY_BYTES = 64 * 1024 * 1024
 SOURCE_REPO = "https://github.com/Meguvizarchic/MeguvizDexDash.git"
-SOURCE_COMMIT = "6f0d5ce47680628ee9c51bfcc8a9157d9641c0ec"
+SOURCE_COMMIT = "9deb838b2bc8d73c2de0df0d83c5cf3c1ebad887"
 REQUIRED_DIALECT = "dexsql-0.1.0"
 ENV_OVERRIDE = "HOSTLAB_MEGUVIZDEXDASH"
 PLATFORMS = {
     ("Windows", "AMD64"): (
         "meguvizdexdash.exe",
-        "source-sha256:77040b4091ab6f0c0fc0742962bef24219354305344cb12364af7241c6f6c450",
+        "source-sha256:79351da8b44807434d249329a22b8634b2b77cb79fdeeb539b39f287f0102663",
     ),
     ("Linux", "x86_64"): (
         "meguvizdexdash",
-        "source-sha256:d10a00fb9fa5ea1db35e15d3e4b6410cbd67cfb7fb2b99bb0f60855212e28164",
+        "source-sha256:1fcd7bbe6e3d7e13166aa4d86a8e9dc1f81abd311166c7caa7ca6c9e2304eb47",
     ),
     ("Darwin", "arm64"): (
         "meguvizdexdash",
-        "source-sha256:f337ed538e72e6e601bf282e1ad3df5102b824395010f27b847abfcae0ad9252",
+        "source-sha256:222ed6e12129ddc1f713662d55d38d57783518d1f8f5096f981457e48da476ff",
     ),
 }
 RELEASE_ASSETS = {
     ("Windows", "AMD64"): (
         "meguvizdexdash-windows-x86_64.exe",
-        "7ecf44b0c707b0202a550d8d318e8d158e7a8ca2c286d8868034e40c63b50f68",
+        "5560367c3283dc70d31c43bac21b704b90bd7ec3101a4f6b75c2c98ef75931ed",
     ),
     ("Linux", "x86_64"): (
         "meguvizdexdash-linux-x86_64",
-        "0d1a03bf130c47e06e342c01b8fb9ee0321e3c3a7b6807008ab1f4c2c3a76973",
+        "2ffd39cdfb730326753f58d3636c0b05c434956f9ce598ab384bd352abcacf02",
     ),
 }
 HERE = Path(__file__).resolve().parent

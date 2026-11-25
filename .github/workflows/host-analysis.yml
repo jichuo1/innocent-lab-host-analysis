@@ -111,7 +111,7 @@ jobs:
         continue-on-error: true
         with:
           path: tools/hostlab/vendor/meguvizdexdash/1.2.2
-          key: hostlab-mdd-v2-${{ runner.os }}-${{ runner.arch }}-1.2.2-0d1a03bf130c
+          key: hostlab-mdd-v2-${{ runner.os }}-${{ runner.arch }}-1.2.2.1-2ffd39cdfb73
       - name: Download or verify pinned MeguvizDexDash
         if: steps.plan.outputs.needs_mdd == 'true'
         continue-on-error: ${{ steps.plan.outputs.mdd_optional == 'true' }}
@@ -122,7 +122,7 @@ jobs:
         continue-on-error: true
         with:
           path: tools/hostlab/vendor/meguvizdexdash/1.2.2
-          key: hostlab-mdd-v2-${{ runner.os }}-${{ runner.arch }}-1.2.2-0d1a03bf130c
+          key: hostlab-mdd-v2-${{ runner.os }}-${{ runner.arch }}-1.2.2.1-2ffd39cdfb73
       - name: Download verified JADX
         if: inputs.operation == 'decompile' || (inputs.operation == 'backend_validation' && steps.plan.outputs.needs_java == 'true')
         run: python tools/hostlab/install_jadx.py
