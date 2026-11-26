@@ -4,6 +4,7 @@
     "054e3f2f18408dda9498bd8165b44d586333d96e69a977ded63d665fc4ace820",
     "058888128b1f9fc970bd1d5c02b8b7d7d6a6da540f6c808cfdb505e5b3dfd779",
     "06ceb9f4e3cacdfe5d1bb341174c904577a75d59b181a193fff094913faea0d6",
+    "10b06beb57d18063ec35fb0f982ede7bb782c4a62c8e8080fa761484b56c7901",
     "166870077b7dd0214e11aaee07a651412a03d2133b27898c79f5cae712d81e15",
     "1e80826c8d922657d88915fdf66675798ab6b49362133505c028c979b76c81ab",
     "21b3743d06f24b80d54ef9eaebd15a7cd0aa1ec74f732d75b0647e019cf7ef86",
@@ -52,7 +53,7 @@
     "f2ada54384534db6b73fa80b7dd5641a208a11828494c5cfd3ba840784afb029",
     "fc5ff38ff05a8841e89df7aaeeadbf249a4cee8ad1dff5245b6cd05d2a633567"
   ],
-  "watermark": 9210200,
+  "watermark": 9210300,
   "jobs": {
     "b9de430ac9861440f094992926e699a0": {
       "sample": "2b45ab0d934cbe000082caedfa360864de60ab46cd4d45488ae31f35693a927e",
@@ -479,6 +480,27 @@
       "run_id": 45283882460,
       "conclusion": "failure",
       "url": "https://github.com/jichuo1/innocent-lab-host-analysis/actions/runs/45283882460"
+    },
+    "18c3bb2b52fe68f673d0e96670b979e4": {
+      "sample": "10b06beb57d18063ec35fb0f982ede7bb782c4a62c8e8080fa761484b56c7901",
+      "version_code": 9210300,
+      "status": "submitted",
+      "module_source": {
+        "schema": 1,
+        "repo": "innocent-lab-dev/bilibili-host-apks",
+        "revision": "f4bfe9d6226c2e4558ed5050999b6a426fa7cb0b",
+        "path": "source-snapshots/2fa2d3b70f73fa431ed83267a9519c726a41b67de39eb7ee785813de39067120/context.json",
+        "snapshot_sha256": "2fa2d3b70f73fa431ed83267a9519c726a41b67de39eb7ee785813de39067120",
+        "source_tree_sha256": "37745f8f27c41c22eab6e0bc780c6af700d650f49c3f004f862bf9c5f1548a5c",
+        "repository_head": "5422fad1e3f798252619d610a0504573ff47211b",
+        "captured_at": "2026-10-15T14:19:32.431433Z",
+        "verified_at": "2026-10-15T14:20:03.900845+00:00",
+        "origin": "published",
+        "working_tree_dirty": true,
+        "file_count": 689,
+        "selection_version": 1
+      },
+      "source_freshness": "published_unverified_worktree"
     }
   },
   "mode": "static_plus_bounded_ai_review",
